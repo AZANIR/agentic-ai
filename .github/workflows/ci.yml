@@ -1,0 +1,54 @@
+name: ci
+
+# Головна властивість цього пайплайну: у ньому НЕМАЄ жодного секрета.
+# Усі перевірки працюють на детермінованому FakeLLM (ADR-0006), тож CI не залежить
+# ні від доступності LLM-провайдера, ні від лімітів безкоштовного тарифу, ні від
+# того, чи є в форку доступ до секретів репозиторію.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Нижня заявлена межа і свіжий пітон. Середні версії нічого не додають:
+        # ламається зазвичай або те, що прибрали після 3.11, або те, що змінили
+        # в найновішому.
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # build_cmd з docs/architecture-map.md
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      # lint_cmd з docs/architecture-map.md
+      - name: Lint
+        run: ruff check .
+
+      - name: Format check
+        run: ruff format --check .
+
+      # test_cmd з docs/architecture-map.md — офлайн, без ключів
+      - name: Checks
+        run: python scripts/check_all.py

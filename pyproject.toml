@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-ai-course"
+version = "0.1.0"
+description = "Agentic AI: From Zero to Production - a 10-stage hands-on course that also deploys"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+# Core stays deliberately tiny: everything stage 1 needs and nothing more.
+# Heavier stages opt in through the extras below (ADR-0001).
+dependencies = [
+    "openai>=1.40",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+# --- per-stage extras -------------------------------------------------------
+# Versions carry floors, not exact pins. Each stage pins what it actually
+# installs and verifies, at the moment it is built - a fake pin on an untested
+# package is worse than an honest floor.
+s02 = ["numpy>=1.26"]
+s03 = ["langgraph>=0.2", "langchain-openai>=0.2"]
+s04 = ["mcp>=1.2"]
+s06 = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "apscheduler>=3.10",
+    "prometheus-client>=0.20",
+    "psycopg[binary]>=3.2",
+    "redis>=5.0",
+]
+s08 = ["numpy>=1.26"]
+s09 = ["langgraph>=0.2", "langchain-openai>=0.2", "crewai>=0.60"]
+
+# --- capability extras ------------------------------------------------------
+embed = ["fastembed>=0.4"]
+voice = ["faster-whisper>=1.0", "piper-tts>=1.2"]
+adk = ["google-adk>=1.0"]
+prod = ["agentic-ai-course[s02,s03,s04,s06,s08,embed]", "langfuse>=2.50"]
+# psycopg тут, а не лише в [s06]: scripts/migrate.py — інфраструктура репозиторію,
+# і скелетний смоук-тест має вміти прогнати міграції ще до етапу 6.
+dev = ["ruff>=0.6", "psycopg[binary]>=3.2"]
+
+[tool.setuptools.packages.find]
+include = ["shared*", "stages*", "scripts*"]
+exclude = ["docs*", "planning*", "deploy*", "migrations*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Lesson code is read as much as it is run: a stage may keep an unused import
+# next to the line that explains it.
+"stages/*/solutions/*" = ["F401"]

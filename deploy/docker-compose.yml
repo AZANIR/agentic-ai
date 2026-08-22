@@ -1,0 +1,51 @@
+# Локальна розробка: рівно два сервіси, потрібні профілю prod на твоїй машині.
+#
+#   docker compose -f deploy/docker-compose.yml up -d --wait
+#   docker compose -f deploy/docker-compose.yml down          # зупинити
+#   docker compose -f deploy/docker-compose.yml down -v       # + стерти дані
+#
+# Облікові дані тут навмисно захардкожені: сервіси слухають лише 127.0.0.1,
+# і це дає читачеві працюючу команду без жодного попереднього налаштування.
+# Продакшн бере креденшели з deploy/.env.prod і НІКОЛИ звідси (див. SECURITY.md).
+#
+# Повний продакшн-стек (Caddy + Prometheus + Grafana + Langfuse) додається
+# на етапі 6 у docker-compose.prod.yml — тут його свідомо немає.
+
+name: agentic-dev
+
+services:
+  postgres:
+    # pgvector замість офіційного postgres: вектори живуть у тій самій БД (ADR-0004)
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: agentic
+      POSTGRES_PASSWORD: agentic
+      POSTGRES_DB: agentic
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentic -d agentic"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

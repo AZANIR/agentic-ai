@@ -3,12 +3,12 @@ status: current
 mode: greenfield-bootstrap
 updated_at: "2026-08-22"
 reflects_commit: "e719dc2"
-language: "python 3.11"
-build_cmd: "pip install -e .[dev]"
+language: "python >=3.11"
+build_cmd: "pip install -e \".[dev]\""
 test_cmd: "python scripts/check_all.py"
 lint_cmd: "ruff check ."
 migration_tool: "custom: scripts/migrate.py + numbered .sql in migrations/"
-frontend: "vanilla html + js (2 static test pages, no framework, no build step)"
+frontend: "vanilla html + js (planned, stages 6-7; no framework, no build step)"
 ---
 
 # Architecture map — Agentic AI (навчально-продакшн курс)
@@ -16,6 +16,9 @@ frontend: "vanilla html + js (2 static test pages, no framework, no build step)"
 > **Цільовий** фундамент (`mode: greenfield-bootstrap`), а не скан наявного коду — репозиторій
 > порожній, окрім `docs/` (статті-джерела) і `planning/`. C4 та інвентар модулів описують те,
 > що `scaffold` зараз матеріалізує. Конвенції — правила, яких дотримується кожен подальший етап.
+>
+> **Стан:** скелет матеріалізовано `scaffold`-ом 2026-08-22 (S1–S7 зелені). Машинні ключі
+> нижче — команди, які реально спрацювали, а не заплановані.
 >
 > Джерело всіх рішень: [`planning/2026-08-22-agentic-ai-course-design.md`](../planning/2026-08-22-agentic-ai-course-design.md).
 > Фундаментальна сесія (G2–G4) **не проводилась**: користувач прямо вказав, що рішення вже
@@ -87,7 +90,7 @@ C4Container
 | `stages.s09_frameworks` | `stages/s09_frameworks/` | lesson ×3 | `lg.py`, `crew.py`, `adk.py` | Один таск трьома фреймворками |
 | `stages.s10_capstone` | `stages/s10_capstone/` | **service** | `app.py` (ASGI) | Фінальний сервіс; імпортує s01–s09 |
 | `scripts` | `scripts/` | tooling | CLI | `check_all.py`, `migrate.py` |
-| `deploy` | `deploy/` | infra | — | Dockerfile, compose, Caddy, systemd, runbook |
+| `deploy` | `deploy/` | infra | — | `docker-compose.yml` (Postgres+pgvector, Redis) готовий; Dockerfile, Caddy, systemd, RUNBOOK — етап 6 |
 
 ## Conventions (правила, яких дотримується кожен новий етап)
 
