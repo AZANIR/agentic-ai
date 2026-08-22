@@ -1,0 +1,14 @@
+# Нормалізуємо переводи рядків у репозиторії, щоб файли поводились однаково
+# на Windows, macOS і Linux.
+* text=auto
+
+# Ці мають бути LF ЗАВЖДИ. Shell-скрипт із CRLF на Linux падає з
+# "bad interpreter: /bin/bash^M" — помилка, яку важко впізнати з першого разу.
+# Те саме стосується Dockerfile і конфігів, що читаються всередині контейнерів.
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.sql       text eol=lf
+Dockerfile  text eol=lf
+Caddyfile   text eol=lf
+*.service   text eol=lf
