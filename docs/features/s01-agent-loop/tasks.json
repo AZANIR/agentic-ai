@@ -1,0 +1,156 @@
+{
+  "slug": "s01-agent-loop",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Реєстр трьох інструментів зі схемами й познакою незворотності",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-01",
+        "AC-04"
+      ],
+      "dod": "Реєстр повертає три записи; кожен має функцію, схему й прапорець",
+      "files_hint": [
+        "stages/s01_agent_loop/tools.py",
+        "stages/s01_agent_loop/data/"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "Валідація аргументів інструмента проти оголошеної схеми",
+      "layer": "app",
+      "deps": [],
+      "acs": [
+        "AC-03"
+      ],
+      "dod": "Три випадки невідповідності дають зрозуміле пояснення українською",
+      "files_hint": [
+        "stages/s01_agent_loop/validate.py"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "Цикл ReAct із трасуванням і лімітом кроків",
+      "layer": "app",
+      "deps": [
+        "T1",
+        "T2"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-02",
+        "AC-03"
+      ],
+      "dod": "Щасливий шлях: модель обирає інструмент, отримує результат, дає відповідь",
+      "files_hint": [
+        "stages/s01_agent_loop/loop.py"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "Гейт підтвердження незворотної дії",
+      "layer": "app",
+      "deps": [
+        "T3"
+      ],
+      "acs": [
+        "AC-04"
+      ],
+      "dod": "Без підтвердження незворотна функція не викликається жодного разу",
+      "files_hint": [
+        "stages/s01_agent_loop/loop.py",
+        "stages/s01_agent_loop/tools.py"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "Демо: чотири сценарії підряд і банер джерела відповідей",
+      "layer": "ports",
+      "deps": [
+        "T3",
+        "T4"
+      ],
+      "acs": [
+        "AC-01",
+        "AC-05"
+      ],
+      "dod": "Запуск без ключа завершується успішно, без мережевих звернень",
+      "files_hint": [
+        "stages/s01_agent_loop/run.py"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "Перевірки етапу: щасливі шляхи і три режими відмови",
+      "layer": "tests",
+      "deps": [
+        "T3",
+        "T4"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "AC-06",
+        "AC-06b"
+      ],
+      "dod": "Дев'ять перевірок відповідають дев'яти рядкам таблиці покриття",
+      "files_hint": [
+        "stages/s01_agent_loop/check.py"
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "Урок етапу: канон статті, міст на NovaShop, «що зламати»",
+      "layer": "docs",
+      "deps": [
+        "T5",
+        "T6"
+      ],
+      "acs": [
+        "AC-01"
+      ],
+      "dod": "Урок ≤ 2500 слів (spec §6: ≤ 25 хв читання)",
+      "files_hint": [
+        "stages/s01_agent_loop/README.md",
+        "stages/s01_agent_loop/README.en.md"
+      ]
+    },
+    {
+      "id": "T8",
+      "title": "Вправи, еталонні розв'язки й чекліст етапу",
+      "layer": "docs",
+      "deps": [
+        "T7"
+      ],
+      "acs": [
+        "AC-02",
+        "AC-03",
+        "AC-04"
+      ],
+      "dod": "Чотири завдання, кожне з явним очікуваним результатом",
+      "files_hint": [
+        "stages/s01_agent_loop/exercises.md",
+        "stages/s01_agent_loop/solutions/",
+        "stages/s01_agent_loop/CHECKLIST.md"
+      ]
+    },
+    {
+      "id": "T9",
+      "title": "Терміни етапу в глосарій, статус етапу в програму",
+      "layer": "docs",
+      "deps": [
+        "T7"
+      ],
+      "acs": [],
+      "dod": "Кожен виділений термін уроку має визначення в глосарії (KPI 100%)",
+      "files_hint": [
+        "GLOSSARY.md",
+        "CURRICULUM.md",
+        "docs/architecture-map.md"
+      ]
+    }
+  ]
+}
