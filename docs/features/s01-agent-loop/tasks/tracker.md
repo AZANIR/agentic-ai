@@ -5,7 +5,7 @@
 
 | # | Task | Layer | Owner | Estimate | Blocked by | Status |
 |---|---|---|---|---|---|---|
-| T1 | Реєстр трьох інструментів зі схемами й познакою незворотності | app | Contributor | S | — | todo |
+| T1 | Реєстр трьох інструментів зі схемами й познакою незворотності | app | Contributor | S | — | done |
 | T2 | Валідація аргументів інструмента проти оголошеної схеми | app | Contributor | S | — | todo |
 | T3 | Цикл ReAct із трасуванням і лімітом кроків | app | Contributor | M | T1, T2 | todo |
 | T4 | Гейт підтвердження незворотної дії | app | Contributor | S | T3 | todo |

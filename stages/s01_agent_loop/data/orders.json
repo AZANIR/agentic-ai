@@ -1,0 +1,23 @@
+{
+  "ord_4471": {
+    "item": "Вишита сорочка «Полтавська», розмір M",
+    "status": "у дорозі",
+    "eta_days": 2,
+    "delivered": false,
+    "returnable": true
+  },
+  "ord_4472": {
+    "item": "Керамічний глек, 1.2 л",
+    "status": "доставлено",
+    "eta_days": 0,
+    "delivered": true,
+    "returnable": true
+  },
+  "ord_4473": {
+    "item": "Подарунковий сертифікат, 500 грн",
+    "status": "доставлено",
+    "eta_days": 0,
+    "delivered": true,
+    "returnable": false
+  }
+}
