@@ -59,28 +59,31 @@ def validate_arguments(
     properties: dict[str, Any] = schema.get("properties", {})
     required: list[str] = schema.get("required", [])
 
+    # Збираємо ВСІ проблеми, а не першу-ліпшу. Якщо модель надіслала {"town": ...},
+    # то бракує `city` І поле `town` невідоме — обидва факти потрібні їй одразу.
+    # Повідомити лише про перший означає змусити її на ще один виклик, тобто ще
+    # токени й ще затримку рівно за те, що ми вже знали.
+    problems: list[str] = []
+
     missing = [name for name in required if name not in arguments]
     if missing:
-        return False, (
-            f"Не вистачає обов'язкових полів: {', '.join(missing)}. "
-            f"Очікуються: {', '.join(properties)}."
-        )
+        problems.append(f"не вистачає обов'язкових полів: {', '.join(missing)}")
 
     if schema.get("additionalProperties") is False:
         unknown = [name for name in arguments if name not in properties]
         if unknown:
-            return False, (
-                f"Невідомі поля: {', '.join(unknown)}. "
-                f"Цей інструмент приймає лише: {', '.join(properties)}."
-            )
+            problems.append(f"невідомі поля: {', '.join(unknown)}")
 
     for name, value in arguments.items():
         expected = properties.get(name, {}).get("type")
         if expected and not _type_matches(value, expected):
             got = type(value).__name__
-            return False, (
-                f"Поле {name} має бути типу {expected}, а отримано {got}. "
-                f"Значення не приводиться автоматично — надішли правильний тип."
-            )
+            problems.append(f"поле {name} має бути типу {expected}, а отримано {got}")
+
+    if problems:
+        return False, (
+            f"Аргументи не підходять — {'; '.join(problems)}. "
+            f"Типи не приводяться автоматично. Інструмент приймає: {', '.join(properties)}."
+        )
 
     return True, arguments

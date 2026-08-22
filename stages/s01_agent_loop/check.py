@@ -10,9 +10,14 @@
 from __future__ import annotations
 
 import json
+import tempfile
+from pathlib import Path
 
 from shared.check_runner import run_checks
-from stages.s01_agent_loop.tools import REGISTRY, tool_schemas
+from shared.fake_llm import FakeLLM, text, tool_call
+from shared.trace import group_by_trace, trace_run
+from stages.s01_agent_loop.loop import run_agent
+from stages.s01_agent_loop.tools import REGISTRY, Tool, tool_schemas
 from stages.s01_agent_loop.validate import validate_arguments
 
 # --- T1 · реєстр інструментів -------------------------------------------------
@@ -129,11 +134,110 @@ def check_rejection_reason_is_human_readable() -> None:
     assert "order_id" in reason and "reason" in reason, f"не названо, чого бракує: {reason}"
 
 
+# --- T3 · цикл ReAct ----------------------------------------------------------
+
+
+def _run(script, *, max_steps=8, confirmed=False, repeat_last=False):
+    """Прогнати цикл на підробленій моделі, у тимчасовому трейсі."""
+    client = FakeLLM(script=list(script), repeat_last=repeat_last)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("check", path=path, stage="s01") as tracer:
+            result = run_agent(
+                "перевірка",
+                client=client,
+                tracer=tracer,
+                max_steps=max_steps,
+                confirmed=confirmed,
+            )
+        steps = next(iter(group_by_trace(path).values()))
+    return result, steps, client
+
+
+def check_loop_completes_a_tool_call() -> None:
+    """loop: модель обирає інструмент, отримує результат і дає відповідь"""
+    result, steps, client = _run(
+        [
+            tool_call("get_order_status", {"order_id": "ord_4471"}),
+            text("Ваше замовлення в дорозі, очікується за 2 дні."),
+        ]
+    )
+    assert result.answer and "дорозі" in result.answer, result
+    assert result.steps == 2, result.steps
+    assert not result.stopped_by_limit
+
+    kinds = [s["kind"] for s in steps]
+    assert kinds.count("llm_call") == 2, kinds
+    assert kinds.count("tool_call") == 1, kinds
+    assert kinds[0] == "run_start" and kinds[-1] == "run_end", kinds
+
+    # результат інструмента мусив повернутися моделі — інакше вона відповідала б наосліп
+    sent = client.calls[-1]["messages"]
+    assert any(m.get("role") == "tool" for m in sent), sent
+
+
+def check_loop_sends_tool_schemas() -> None:
+    """loop: модель отримує схеми інструментів, інакше обирати їй нема з чого"""
+    _, _, client = _run([text("готово")])
+    first = client.calls[0]
+    names = {t["function"]["name"] for t in first["tools"]}
+    assert names == set(REGISTRY), names
+
+
+def check_step_limit_stops_a_runaway_loop() -> None:
+    """ВІДМОВА · loop: нескінченний цикл зупиняється лімітом, а не сам собою"""
+    client = FakeLLM.always_calling("get_weather", {"city": "Київ"})
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("check", path=path) as tracer:
+            result = run_agent("перевірка", client=client, tracer=tracer, max_steps=3)
+    assert result.stopped_by_limit, "ліміт не спрацював"
+    assert result.steps == 3, result.steps
+    assert result.answer is None, f"вигадав відповідь: {result.answer}"
+    assert client.call_count == 3, client.call_count
+
+
+def check_invalid_arguments_never_reach_the_tool() -> None:
+    """ВІДМОВА · loop: криві аргументи не доходять до функції"""
+    called: list[str] = []
+    spy = Tool(
+        name="get_weather",
+        description=REGISTRY["get_weather"].description,
+        parameters=REGISTRY["get_weather"].parameters,
+        func=lambda **kw: called.append("викликано") or "не мало статися",
+    )
+    client = FakeLLM(
+        script=[
+            tool_call("get_weather", {"town": "Київ"}),
+            text("зрозумів, виправляюсь"),
+        ]
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("check", path=path) as tracer:
+            result = run_agent(
+                "перевірка", client=client, tracer=tracer, tools={"get_weather": spy}
+            )
+        steps = next(iter(group_by_trace(path).values()))
+
+    assert called == [], "інструмент виконався попри криві аргументи"
+    assert result.answer, "цикл мав продовжитись, а не впасти"
+    assert any(s["kind"] == "tool_rejected" for s in steps), [s["kind"] for s in steps]
+
+    # пояснення мусило піти моделі як результат кроку
+    tool_messages = [m for m in client.calls[-1]["messages"] if m.get("role") == "tool"]
+    assert tool_messages and "town" in tool_messages[-1]["content"], tool_messages
+
+
 CHECKS = [
     check_registry_has_three_tools,
     check_exactly_one_tool_is_irreversible,
     check_schemas_are_model_ready,
     check_tools_return_text_from_fixtures,
+    check_loop_completes_a_tool_call,
+    check_loop_sends_tool_schemas,
+    check_step_limit_stops_a_runaway_loop,
+    check_invalid_arguments_never_reach_the_tool,
     check_valid_arguments_pass,
     check_missing_required_field_is_rejected,
     check_unknown_field_is_rejected,
