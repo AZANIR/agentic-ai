@@ -9,14 +9,20 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 from pathlib import Path
 
 from shared.check_runner import run_checks
+from shared.config import Settings
 from shared.fake_llm import FakeLLM, text, tool_call
+from shared.llm import banner, get_client, is_fake
 from shared.trace import group_by_trace, trace_run
 from stages.s01_agent_loop.loop import run_agent
+from stages.s01_agent_loop.run import SCENARIO_TITLES
+from stages.s01_agent_loop.run import main as demo_main
 from stages.s01_agent_loop.tools import REGISTRY, Tool, tool_schemas
 from stages.s01_agent_loop.validate import validate_arguments
 
@@ -73,6 +79,50 @@ def check_tools_return_text_from_fixtures() -> None:
     # незворотний інструмент теж лишається чистою функцією над фікстурами
     refused = REGISTRY["initiate_return"].func(order_id="ord_4473", reason="передумав")
     assert "не підлягає" in refused, refused
+
+
+# --- T5 · демо ----------------------------------------------------------------
+
+
+def check_demo_runs_offline_and_shows_four_scenarios() -> None:
+    """demo: чотири сценарії підряд, офлайн, без ключа"""
+    buffer = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        with contextlib.redirect_stdout(buffer):
+            exit_code = demo_main(trace_path=Path(tmp) / "demo.jsonl")
+        wrote_trace = (Path(tmp) / "demo.jsonl").exists()
+    out = buffer.getvalue()
+    assert wrote_trace, "демо не записало трейс"
+
+    assert exit_code == 0, exit_code
+    assert out.splitlines()[0].startswith("[FakeLLM]"), out.splitlines()[0]
+
+    for marker in SCENARIO_TITLES:
+        assert marker in out, f"немає сценарію «{marker}» у виводі"
+
+    # кожен сценарій має показати роботу інструмента або причину, чому її не було
+    assert "get_order_status" in out and "initiate_return" in out, out
+    assert "ліміт" in out.lower(), "зупинку лімітом не видно"
+    assert "підтвердж" in out.lower(), "гейт підтвердження не видно"
+
+
+def check_client_factory_picks_the_configured_provider() -> None:
+    """llm: з налаштованим провайдером фабрика дає справжній клієнт і називає його"""
+    configured = Settings.load(
+        source={
+            "LLM_BASE_URL": "https://api.groq.com/openai/v1",
+            "LLM_API_KEY": "gsk_test",
+            "LLM_MODEL": "llama-3.3-70b-versatile",
+        }
+    )
+    client = get_client(demo_script=[text("не має знадобитись")], settings=configured)
+    assert not is_fake(client), "справжній провайдер налаштований, а повернулася підробка"
+    assert str(client.base_url).startswith("https://api.groq.com"), client.base_url
+
+    line = banner(client, settings=configured)
+    assert "api.groq.com" in line and "llama-3.3-70b-versatile" in line, line
+    # Друга половина AC-05 — що звернення справді відбувається — перевіряється вручну
+    # за чеклістом в уроці: мережа й ключ зруйнували б офлайн і детермінізм.
 
 
 # --- T4 · гейт підтвердження незворотної дії ----------------------------------
@@ -314,6 +364,8 @@ CHECKS = [
     check_loop_sends_tool_schemas,
     check_step_limit_stops_a_runaway_loop,
     check_invalid_arguments_never_reach_the_tool,
+    check_demo_runs_offline_and_shows_four_scenarios,
+    check_client_factory_picks_the_configured_provider,
     check_irreversible_tool_is_blocked_without_confirmation,
     check_confirmed_run_executes_the_irreversible_tool,
     check_gate_leaves_reversible_tools_alone,
