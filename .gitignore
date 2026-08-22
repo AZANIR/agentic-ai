@@ -26,3 +26,7 @@ models/
 Thumbs.db
 .idea/
 .vscode/
+
+# per-developer sdd settings
+.claude/*.local.md
+.worktrees/
