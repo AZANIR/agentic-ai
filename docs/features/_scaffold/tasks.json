@@ -1,0 +1,111 @@
+{
+  "slug": "_scaffold",
+  "source": "docs/architecture-map.md (mode: greenfield-bootstrap), planning/2026-08-22-agentic-ai-course-design.md",
+  "smoke_test_anchor": "RED = пакет не встановлюється / shared не імпортується / check_all не запускається / migrate не працює. GREEN = pip install -e .[dev] проходить, python -c 'import shared, stages.s01_agent_loop' працює, python scripts/check_all.py виходить з 0 офлайн без ключа, python scripts/migrate.py up && down проходить проти dev-Postgres.",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "Скелет пакета: pyproject з extras, stages/s01..s10, shared/, scripts/",
+      "layer": "scaffold",
+      "deps": [],
+      "acs": [],
+      "dod": "pip install -e .[dev] завершується успішно; python -c \"import shared, stages.s01_agent_loop\" не падає; ruff check . проходить; усі 10 пакетів етапів існують з __init__.py і читабельним docstring-заглушкою",
+      "files_hint": [
+        "pyproject.toml",
+        ".env.example",
+        "shared/__init__.py",
+        "stages/__init__.py",
+        "stages/s01_agent_loop/__init__.py",
+        "stages/s02_rag/__init__.py",
+        "stages/s03_router/__init__.py",
+        "stages/s04_mcp/__init__.py",
+        "stages/s05_memory/__init__.py",
+        "stages/s06_platform/__init__.py",
+        "stages/s07_voice/__init__.py",
+        "stages/s08_eval/__init__.py",
+        "stages/s09_frameworks/__init__.py",
+        "stages/s10_capstone/__init__.py",
+        "scripts/__init__.py"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Ядро shared: config (профілі), llm (OpenAI-сумісний шим), fake_llm, trace",
+      "layer": "scaffold",
+      "deps": ["S1"],
+      "acs": [],
+      "dod": "З APP_PROFILE=local і БЕЗ жодного API-ключа shared.llm.get_client() повертає детермінований FakeLLM; з заданим LLM_BASE_URL+LLM_API_KEY повертає openai-клієнт із цим base_url; shared.trace.step() дописує рядок JSONL у traces/; жодне з цього не робить мережевого виклику в профілі local",
+      "files_hint": [
+        "shared/config.py",
+        "shared/llm.py",
+        "shared/fake_llm.py",
+        "shared/trace.py"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Тестова упряж: scripts/check_all.py + смоук-перевірка, що вона ловить падіння",
+      "layer": "scaffold",
+      "deps": ["S2"],
+      "acs": [],
+      "dod": "python scripts/check_all.py знаходить і запускає кожен stages/*/check.py, друкує зведення і виходить з 0 офлайн; навмисно зламана перевірка дає ненульовий код виходу і називає етап, що впав (це і є доказ, що упряж працює, а не мовчить)",
+      "files_hint": [
+        "scripts/check_all.py",
+        "stages/s01_agent_loop/check.py"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Dev-compose: Postgres з pgvector + Redis для локальної розробки",
+      "layer": "scaffold",
+      "deps": ["S1"],
+      "acs": [],
+      "dod": "docker compose -f deploy/docker-compose.yml config валідний; docker compose up -d піднімає pgvector/pgvector:pg16 і redis:7; обидва приймають підключення; дані переживають перезапуск через іменовані томи",
+      "files_hint": [
+        "deploy/docker-compose.yml",
+        "deploy/.env.example"
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "Міграції: scripts/migrate.py + початкова міграція",
+      "layer": "scaffold",
+      "deps": ["S4"],
+      "acs": [],
+      "dod": "python scripts/migrate.py up застосовує 0001 (CREATE EXTENSION vector + таблиця schema_migrations) проти dev-Postgres; python scripts/migrate.py down відкочує чисто; повторний up ідемпотентний; без налаштованого DATABASE_URL команда завершується зрозумілим повідомленням, а не трейсбеком",
+      "files_hint": [
+        "scripts/migrate.py",
+        "migrations/0001_init.up.sql",
+        "migrations/0001_init.down.sql"
+      ]
+    },
+    {
+      "id": "S6",
+      "title": "CI: install + ruff + check_all, без секретів",
+      "layer": "scaffold",
+      "deps": ["S3"],
+      "acs": [],
+      "dod": "workflow валідний YAML; команди збігаються з машинними ключами docs/architecture-map.md (build_cmd, test_cmd, lint_cmd); job не посилається на жоден secret і проходить на чистому раннері без мережі до LLM-провайдера",
+      "files_hint": [
+        ".github/workflows/ci.yml"
+      ]
+    },
+    {
+      "id": "S7",
+      "title": "Кореневі документи: README (UA+EN), CURRICULUM, GLOSSARY, SETUP, SECURITY, CLAUDE.md",
+      "layer": "scaffold",
+      "deps": ["S1"],
+      "acs": [],
+      "dod": "CLAUDE.md перелічує конвенції з docs/architecture-map.md §Conventions без розбіжностей; CURRICULUM.md містить усі 10 етапів зі статусом (усі 'не почато'), залежностями і оцінкою часу; SETUP.md дає працюючу послідовність команд від clone до зеленого check_all; GLOSSARY.md має каркас і перші терміни етапу 1; SECURITY.md описує модель загроз публічного ендпоінта",
+      "files_hint": [
+        "README.md",
+        "README.en.md",
+        "CURRICULUM.md",
+        "GLOSSARY.md",
+        "SETUP.md",
+        "SECURITY.md",
+        "CLAUDE.md"
+      ]
+    }
+  ]
+}
