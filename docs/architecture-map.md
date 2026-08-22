@@ -2,7 +2,7 @@
 status: current
 mode: greenfield-bootstrap
 updated_at: "2026-08-22"
-reflects_commit: "e719dc2"
+reflects_commit: "9ee4e25"
 language: "python >=3.11"
 build_cmd: 'pip install -e ".[dev]"'
 test_cmd: "python scripts/check_all.py"
@@ -19,6 +19,11 @@ frontend: "vanilla html + js (planned, stages 6-7; no framework, no build step)"
 >
 > **Стан:** скелет матеріалізовано `scaffold`-ом 2026-08-22 (S1–S7 зелені). Машинні ключі
 > нижче — команди, які реально спрацювали, а не заплановані.
+>
+> Режим лишається `greenfield-bootstrap`, бо жодного етапу ще не написано. Щойно з'явиться
+> перший (`stages/s01_agent_loop/`), варто перезапустити `survey` у brownfield-режимі —
+> він замінить посилання на спеку реальними `file:line` і перевірить, чи не розійшлись
+> конвенції з кодом.
 >
 > Джерело всіх рішень: [`planning/2026-08-22-agentic-ai-course-design.md`](../planning/2026-08-22-agentic-ai-course-design.md).
 > Фундаментальна сесія (G2–G4) **не проводилась**: користувач прямо вказав, що рішення вже
