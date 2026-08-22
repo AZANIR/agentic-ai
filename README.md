@@ -41,7 +41,7 @@ tool-call, state graph, MCP, barge-in чи LLM-as-judge — і саме тому
 
 | # | Етап | Що будуєш | Стаття |
 |---|------|-----------|--------|
-| 1 | Agent loop | ReAct-цикл з нуля, без фреймворку | [#1](docs/01-what-is-an-ai-agent-the-simplest-explanation-youll-find.md) |
+| 1 ✅ | [Agent loop](stages/s01_agent_loop/README.md) | ReAct-цикл з нуля, без фреймворку | [#1](docs/01-what-is-an-ai-agent-the-simplest-explanation-youll-find.md) |
 | 2 | RAG | embed → cosine → top-k → відповідь із цитатою | [#2](docs/02-rag-vs-fine-tuning-which-one-actually-solves-your-problem.md) |
 | 3 | Router | Свій міні-граф, потім LangGraph | [#3](docs/03-build-a-multi-agent-router-with-langgraph-in-30-minutes.md) |
 | 4 | MCP | FastMCP-сервер і клієнт | [#4](docs/04-mcp-protocol-explained-the-new-standard-every-ai-developer-needs-to-know.md) |
@@ -68,7 +68,7 @@ python scripts/check_all.py      # має бути зелено, офлайн, �
 
 ## Статус
 
-Скелет матеріалізовано; етапи ще не написані.
+Скелет матеріалізовано; етап 1 завершено.
 
 | Компонент | Стан |
 |---|---|
@@ -76,7 +76,8 @@ python scripts/check_all.py      # має бути зелено, офлайн, �
 | `scripts/check_all.py`, `scripts/migrate.py` | готово |
 | `deploy/docker-compose.yml` — Postgres+pgvector, Redis | готово |
 | CI (ruff + перевірки, без секретів) | готово |
-| Етапи 1–10 | не почато |
+| Етап 1 — цикл агента | **готово**, 21 перевірка |
+| Етапи 2–10 | не почато |
 
 ## Куди дивитись
 

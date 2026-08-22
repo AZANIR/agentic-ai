@@ -68,7 +68,7 @@ python scripts/check_all.py      # green, offline, no keys
 
 ## Status
 
-Skeleton materialized; stages not written yet.
+Skeleton materialized; stage 1 complete.
 
 | Component | State |
 |---|---|
@@ -76,7 +76,8 @@ Skeleton materialized; stages not written yet.
 | `scripts/check_all.py`, `scripts/migrate.py` | done |
 | `deploy/docker-compose.yml` — Postgres+pgvector, Redis | done |
 | CI (ruff + checks, no secrets) | done |
-| Stages 1–10 | not started |
+| Stage 1 - agent loop | **done**, 21 checks |
+| Stages 2–10 | not started |
 
 ## Sources
 
