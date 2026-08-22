@@ -355,6 +355,63 @@ def check_invalid_arguments_never_reach_the_tool() -> None:
     assert tool_messages and "town" in tool_messages[-1]["content"], tool_messages
 
 
+# --- T6 · e2e: сама упряж перевірок -------------------------------------------
+
+
+def check_rejection_is_returned_to_the_model() -> None:
+    """ВІДМОВА · loop: відмова валідації повертається моделі, а не гасить прогін"""
+    client = FakeLLM(
+        script=[
+            tool_call("get_weather", {"city": 42}),
+            text("зрозумів, це має бути рядок"),
+        ]
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        with trace_run("check", path=Path(tmp) / "t.jsonl") as tracer:
+            result = run_agent("погода", client=client, tracer=tracer)
+
+    assert result.answer, "цикл зупинився замість продовжитись"
+    assert result.steps == 2, f"модель не отримала другого шансу: {result.steps}"
+
+    tool_reply = [m for m in client.calls[-1]["messages"] if m.get("role") == "tool"]
+    assert tool_reply, "відмова не дійшла до моделі як результат кроку"
+    assert "city" in tool_reply[-1]["content"] and "string" in tool_reply[-1]["content"], tool_reply
+
+
+def check_stage_covers_at_least_three_failure_modes() -> None:
+    """checks: щонайменше три перевірки етапу — на режими відмови, з описами"""
+    docs = [(c.__doc__ or "").strip() for c in CHECKS]
+    assert all(docs), "є перевірка без docstring — у виводі буде голе ім'я функції"
+    assert len(set(docs)) == len(docs), "є перевірки з однаковим описом"
+
+    failure = [d for d in docs if d.startswith("ВІДМОВА ·")]
+    assert len(failure) >= 3, f"режимів відмови лише {len(failure)}: {failure}"
+
+    covered = " ".join(failure).lower()
+    for topic in ("ліміт", "аргумент", "підтвердження"):
+        assert topic in covered, f"немає перевірки на «{topic}»: {failure}"
+
+
+def check_broken_code_makes_the_check_run_fail_loudly() -> None:
+    """ВІДМОВА · checks: зламана перевірка не може пройти тихо"""
+
+    def deliberately_broken() -> None:
+        """навмисно зламана"""
+        expected, actual = 2, 1
+        assert expected == actual, "гейт пропустив незворотну дію"
+
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        code = run_checks([deliberately_broken], title="мутація")
+    out = buffer.getvalue()
+
+    assert code == 1, "зламана перевірка дала нульовий код виходу"
+    assert "FAIL" in out and "навмисно зламана" in out, out
+    assert "deliberately_broken" in out, "не названо, яка саме перевірка впала"
+    assert "AssertionError" in out and "check.py" in out, "не показано місце в коді"
+    assert "гейт пропустив незворотну дію" in out, "не показано причину"
+
+
 CHECKS = [
     check_registry_has_three_tools,
     check_exactly_one_tool_is_irreversible,
@@ -369,6 +426,9 @@ CHECKS = [
     check_irreversible_tool_is_blocked_without_confirmation,
     check_confirmed_run_executes_the_irreversible_tool,
     check_gate_leaves_reversible_tools_alone,
+    check_rejection_is_returned_to_the_model,
+    check_stage_covers_at_least_three_failure_modes,
+    check_broken_code_makes_the_check_run_fail_loudly,
     check_valid_arguments_pass,
     check_missing_required_field_is_rejected,
     check_unknown_field_is_rejected,
