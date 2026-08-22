@@ -75,6 +75,82 @@ def check_tools_return_text_from_fixtures() -> None:
     assert "не підлягає" in refused, refused
 
 
+# --- T4 · гейт підтвердження незворотної дії ----------------------------------
+
+
+def _spy_return_tool() -> tuple[dict, list]:
+    """Незворотний інструмент, що записує факт свого виклику."""
+    calls: list[dict] = []
+    original = REGISTRY["initiate_return"]
+
+    def spy(**kwargs):
+        calls.append(kwargs)
+        return "повернення створено"
+
+    tool = Tool(
+        name=original.name,
+        description=original.description,
+        parameters=original.parameters,
+        func=spy,
+        irreversible=True,
+    )
+    return {"initiate_return": tool}, calls
+
+
+def check_irreversible_tool_is_blocked_without_confirmation() -> None:
+    """ВІДМОВА · gate: незворотна дія не виконується без підтвердження"""
+    tools, calls = _spy_return_tool()
+    client = FakeLLM(
+        script=[tool_call("initiate_return", {"order_id": "ord_4472", "reason": "малий"})]
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("check", path=path) as tracer:
+            result = run_agent("поверни", client=client, tracer=tracer, tools=tools)
+        kinds = [s["kind"] for s in next(iter(group_by_trace(path).values()))]
+
+    assert calls == [], f"незворотну функцію виконано без підтвердження: {calls}"
+    assert result.blocked_tool == "initiate_return", result
+    assert "tool_blocked" in kinds, kinds
+    assert "tool_call" not in kinds, kinds
+    # прогін має пояснити, ЩО саме сталося б, інакше підтверджувати наосліп
+    assert "ord_4472" in result.answer and "підтвердж" in result.answer.lower(), result.answer
+
+
+def check_confirmed_run_executes_the_irreversible_tool() -> None:
+    """gate: з підтвердженням та сама дія виконується — гейт не глухий"""
+    tools, calls = _spy_return_tool()
+    client = FakeLLM(
+        script=[
+            tool_call("initiate_return", {"order_id": "ord_4472", "reason": "малий"}),
+            text("Повернення оформлено."),
+        ]
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("check", path=path) as tracer:
+            result = run_agent("поверни", client=client, tracer=tracer, tools=tools, confirmed=True)
+        kinds = [s["kind"] for s in next(iter(group_by_trace(path).values()))]
+
+    assert calls == [{"order_id": "ord_4472", "reason": "малий"}], calls
+    assert result.blocked_tool is None
+    assert "tool_call" in kinds and "tool_blocked" not in kinds, kinds
+    assert result.answer == "Повернення оформлено."
+
+
+def check_gate_leaves_reversible_tools_alone() -> None:
+    """gate: зворотні інструменти гейт не зачіпає навіть без підтвердження"""
+    result, steps, _ = _run(
+        [
+            tool_call("get_order_status", {"order_id": "ord_4471"}),
+            text("У дорозі."),
+        ]
+    )
+    kinds = [s["kind"] for s in steps]
+    assert result.blocked_tool is None
+    assert "tool_call" in kinds and "tool_blocked" not in kinds, kinds
+
+
 # --- T2 · валідація аргументів ------------------------------------------------
 
 WEATHER_SCHEMA = REGISTRY["get_weather"].parameters
@@ -238,6 +314,9 @@ CHECKS = [
     check_loop_sends_tool_schemas,
     check_step_limit_stops_a_runaway_loop,
     check_invalid_arguments_never_reach_the_tool,
+    check_irreversible_tool_is_blocked_without_confirmation,
+    check_confirmed_run_executes_the_irreversible_tool,
+    check_gate_leaves_reversible_tools_alone,
     check_valid_arguments_pass,
     check_missing_required_field_is_rejected,
     check_unknown_field_is_rejected,
