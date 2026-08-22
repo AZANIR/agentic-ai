@@ -1,0 +1,28 @@
+# secrets
+.env
+.env.*
+!.env.example
+!.env.prod.example
+deploy/secrets/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# data / artifacts
+*.db
+*.sqlite3
+traces/
+data/vectors/
+models/
+*.log
+
+# os / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
