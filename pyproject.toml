@@ -52,6 +52,12 @@ exclude = ["docs*", "planning*", "deploy*", "migrations*"]
 line-length = 100
 target-version = "py311"
 
+# Уроки повні ілюстративних ФРАГМЕНТІВ коду. Ruff форматує python-блоки всередині
+# markdown, і на фрагменті це змінює зміст: `description="x",` (іменований аргумент)
+# він переписує на `description = ("x",)` (присвоєння кортежу), бо ізольовано це
+# справді валідний Python. Фрагмент у прозі — не код на компіляцію.
+extend-exclude = ["*.md"]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
