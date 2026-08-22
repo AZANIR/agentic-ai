@@ -4,7 +4,7 @@ mode: greenfield-bootstrap
 updated_at: "2026-08-22"
 reflects_commit: "e719dc2"
 language: "python >=3.11"
-build_cmd: "pip install -e \".[dev]\""
+build_cmd: 'pip install -e ".[dev]"'
 test_cmd: "python scripts/check_all.py"
 lint_cmd: "ruff check ."
 migration_tool: "custom: scripts/migrate.py + numbered .sql in migrations/"
