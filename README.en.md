@@ -76,7 +76,7 @@ Skeleton materialized; stage 1 complete.
 | `scripts/check_all.py`, `scripts/migrate.py` | done |
 | `deploy/docker-compose.yml` — Postgres+pgvector, Redis | done |
 | CI (ruff + checks, no secrets) | done |
-| Stage 1 - agent loop | **done**, 21 checks |
+| Stage 1 - agent loop | **done**, 30 checks, independently reviewed |
 | Stages 2–10 | not started |
 
 ## Sources

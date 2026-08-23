@@ -132,7 +132,8 @@ C4Context
 ```
 stages/s01_agent_loop/
 ├── loop.py       цикл ReAct: крок → рішення моделі → виконання → спостереження
-│                 сюди ж ліміт кроків і гейт підтвердження незворотної дії
+│                 сюди ж ліміт кроків
+├── gate.py       гейт підтвердження: переглядає ВЕСЬ крок перед виконанням хоч чогось
 ├── validate.py   перевірка аргументів проти оголошеної схеми інструмента
 ├── tools.py      реєстр трьох інструментів разом зі схемами й познакою незворотності
 ├── run.py        демо: чотири сценарії підряд
@@ -153,7 +154,8 @@ C4Container
     Container_Boundary(s01, "stages.s01_agent_loop") {
         Container(run, "run", "python module", "Demo - four scenarios in a row")
         Container(check, "check", "python module", "Offline assertions - three of them on failure modes")
-        Container(loop, "loop", "python module", "ReAct loop plus step limit plus confirmation gate")
+        Container(loop, "loop", "python module", "ReAct loop plus step limit")
+        Container(gate, "gate", "python module", "Confirmation gate - screens the whole step")
         Container(validate, "validate", "python module", "Argument validation against the declared schema")
         Container(tools, "tools", "python module", "Three tools with schemas and an irreversible flag")
     }
@@ -170,6 +172,7 @@ C4Container
     Rel(contributor, check, "runs")
     Rel(run, loop, "drives four scenarios")
     Rel(check, loop, "asserts behaviour")
+    Rel(loop, gate, "screens the step for irreversible calls")
     Rel(loop, validate, "checks arguments before executing")
     Rel(loop, tools, "looks up and executes")
     Rel(loop, llm, "asks what to do next")
@@ -252,7 +255,8 @@ sequenceDiagram
 | Доступ до моделі | Лише через фабрику клієнта; демо передає сценарій підробки, перевірка — завжди підробка | `shared/llm.py`, ADR репозиторію 0003 |
 | Обробка помилок | Відмова валідації — **не** виняток: це результат кроку, який повертається моделі. Виняток лишається для помилок програміста | `validate.py`, §6 flow 1 |
 | Ліміт кроків | Читається з конфігурації, не хардкодиться; крок = одна ітерація циклу | `shared/config.py`, spec AC-02 |
-| Незворотність | Познака на інструменті в реєстрі, а не список імен усередині циклу | `tools.py`, ADR-0002 |
+| Незворотність | Познака на інструменті в реєстрі; гейт перевіряє **весь крок**, а не окремий виклик | `tools.py`, `gate.py`, ADR етапу 0002 |
+| Помилка інструмента | Виняток із `tool.func` — результат кроку (`tool_error`), а не смерть прогону | `loop.py` |
 | ID | `trace_id` вигляду `trc_…`, генерує застосунок | CONVENTIONS.md |
 | Мова | Проза українською, ідентифікатори англійською; системний промпт — див. §11 OQ | CONVENTIONS.md |
 | Перевірки | Голі `assert`, docstring у рядок, префікс `ВІДМОВА ·` на перевірках режимів відмови | ADR репозиторію 0006 |
@@ -299,7 +303,7 @@ ADR-файли: `docs/features/s01-agent-loop/adr/NNNN-*.md`.
 |---|---|---|---|
 | Open question: модель без підтримки tool-calling | Open question | Розпізнати відсутність підтримки й повідомити зрозуміло, назвавши перевірені моделі — замість незрозумілого збою всередині циклу. Resolve before `sdd:implement` | Contributor |
 | Open question: мова системного промпту й описів інструментів | Open question | Дефолт — англійська (як у статтях і в дикій природі; слабкі моделі помиляються рідше). Resolve before `sdd:implement` | Contributor |
-| Ліміт «≤ 120 рядків» може виявитись затісним для циклу з трьома захистами | Medium | Міряти виконуваний код на першій же реалізації; при перевищенні — виносити гейт підтвердження окремим модулем, а не роздувати ліміт | Contributor |
+| ~~Ліміт «≤ 120 рядків» може виявитись затісним~~ **СПРАЦЮВАВ** | — | Мітигація застосована: після рев'ю гейт винесено в `gate.py`. `loop.py` лишився 116/120, `gate.py` — 36 | Contributor |
 | Підробка розходиться з поведінкою справжнього SDK при зміні версії | Medium | Форма відповіді перевіряється окремо (`arguments` — рядок JSON); розрив ловиться перевіркою ядра, а не етапом | Contributor |
 | Читач переоцінить зелену перевірку й вирішить, що агент «добрий» | Low | Урок прямо каже: перевірки міряють логіку навколо моделі, а не якість моделі; якість — етап 8 | Contributor |
 

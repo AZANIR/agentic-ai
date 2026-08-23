@@ -23,7 +23,8 @@ from typing import Any
 
 from shared.config import settings
 from shared.trace import Tracer
-from stages.s01_agent_loop.tools import REGISTRY, Tool, tool_schemas
+from stages.s01_agent_loop.gate import screen
+from stages.s01_agent_loop.tools import REGISTRY, Tool
 from stages.s01_agent_loop.validate import validate_arguments
 
 SYSTEM_PROMPT = (
@@ -40,12 +41,18 @@ class RunResult:
     answer: str | None = None
     steps: int = 0
     stopped_by_limit: bool = False
-    blocked_tool: str | None = None
+    blocked_tools: tuple[str, ...] = ()
     transcript: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        return self.answer is not None
+        """Прогін дійшов до справжньої відповіді.
+
+        Порожній рядок, зупинка лімітом і зупинка гейтом — усе це НЕ успіх, хоча в
+        ``answer`` у двох останніх випадках лежить пояснення. Інакше «нічого не сталося»
+        неможливо відрізнити від «агент упорався».
+        """
+        return bool(self.answer) and not self.stopped_by_limit and not self.blocked_tools
 
 
 def run_agent(
@@ -65,7 +72,7 @@ def run_agent(
     """
     tools = REGISTRY if tools is None else tools
     limit = max_steps if max_steps is not None else settings.agent_max_steps
-    schemas = [t.schema() for t in tools.values()] if tools is not REGISTRY else tool_schemas()
+    schemas = [t.schema() for t in tools.values()]
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -99,14 +106,23 @@ def run_agent(
 
         messages.append(_assistant_message(message))
 
+        # Захист 3 стоїть ПЕРЕД виконанням будь-чого в цьому кроці: інакше частина
+        # дій уже сталася б, поки ми вирішуємо, чи питати дозволу (див. gate.py).
+        blocked = screen(message.tool_calls, tools, confirmed=confirmed)
+        if blocked is not None:
+            tracer.step("step_blocked", tools=list(blocked.names))
+            for call in message.tool_calls:
+                messages.append(
+                    {"role": "tool", "tool_call_id": call.id, "content": blocked.message}
+                )
+            result.blocked_tools = blocked.names
+            result.answer = blocked.message
+            return result
+
         # --- Act: виконуємо те, що вона попросила ---------------------------
         for call in message.tool_calls:
-            outcome = _execute(call, tools, tracer, confirmed=confirmed)
+            outcome = _execute(call, tools, tracer)
             messages.append({"role": "tool", "tool_call_id": call.id, "content": outcome.content})
-            if outcome.blocked_tool:
-                result.blocked_tool = outcome.blocked_tool
-                result.answer = outcome.content
-                return result
 
     # Ліміт вичерпано. Відповіді немає — і вигадувати її не можна: краще чесне «не впорався»,
     # ніж правдоподібний текст, за яким нічого не стоїть.
@@ -118,10 +134,9 @@ def run_agent(
 @dataclass
 class _Outcome:
     content: str
-    blocked_tool: str | None = None
 
 
-def _execute(call: Any, tools: dict[str, Tool], tracer: Tracer, *, confirmed: bool) -> _Outcome:
+def _execute(call: Any, tools: dict[str, Tool], tracer: Tracer) -> _Outcome:
     """Один запит інструмента: розібрати, перевірити, за потреби зупинити, виконати."""
     name = call.function.name
     tool = tools.get(name)
@@ -142,17 +157,14 @@ def _execute(call: Any, tools: dict[str, Tool], tracer: Tracer, *, confirmed: bo
         tracer.step("tool_rejected", tool=name, reason=checked)
         return _Outcome(checked)
 
-    # Захист 3: незворотна дія не виконується без явного підтвердження.
-    if tool.irreversible and not confirmed:
-        tracer.step("tool_blocked", tool=name, args=checked)
-        return _Outcome(
-            f"Дію «{name}» не виконано: вона незворотна й потребує підтвердження. "
-            f"Було б виконано з аргументами {_readable(checked)}. "
-            f"Щоб підтвердити, запусти прогін ще раз із підтвердженням.",
-            blocked_tool=name,
-        )
+    # Інструмент може впасти сам — у проді за ним стоїть мережа. Це такий самий
+    # результат кроку, як і відмова валідації, а не привід валити весь прогін.
+    try:
+        output = tool.func(**checked)
+    except Exception as exc:
+        tracer.step("tool_error", tool=name, error_type=type(exc).__name__, error=str(exc))
+        return _Outcome(f"Інструмент {name} завершився помилкою: {exc}")
 
-    output = tool.func(**checked)
     tracer.step("tool_call", tool=name, args=checked, result=output)
     return _Outcome(output)
 
@@ -171,7 +183,3 @@ def _assistant_message(message: Any) -> dict[str, Any]:
             for c in message.tool_calls
         ],
     }
-
-
-def _readable(arguments: dict[str, Any]) -> str:
-    return ", ".join(f"{key}={value}" for key, value in arguments.items())

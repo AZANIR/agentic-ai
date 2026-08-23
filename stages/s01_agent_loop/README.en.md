@@ -13,7 +13,8 @@ tools.
 
 ```bash
 python -m stages.s01_agent_loop.run      # demo: four scenarios, offline, no key
-python -m stages.s01_agent_loop.check    # 21 checks, 8 of them on failure modes
+python -m stages.s01_agent_loop.run --confirm   # same run, irreversible action allowed
+python -m stages.s01_agent_loop.check    # 30 checks, 15 of them on failure modes
 ```
 
 No API key, no network. The first line of the demo tells you where the answers come from.
@@ -24,7 +25,8 @@ No API key, no network. The first line of the demo tells you where the answers c
 |---|---|
 | [`tools.py`](tools.py) | What the agent is allowed to do: three tools, their schemas, the irreversible flag |
 | [`validate.py`](validate.py) | The trust boundary — arguments are checked before any function runs |
-| [`loop.py`](loop.py) | The loop itself, plus the step limit and the confirmation gate |
+| [`loop.py`](loop.py) | The loop itself, plus the step limit |
+| [`gate.py`](gate.py) | The confirmation gate — screens the whole step, never a single call |
 | [`run.py`](run.py) | The demo: four scenarios, one per acceptance criterion |
 
 ## What you'll be able to do

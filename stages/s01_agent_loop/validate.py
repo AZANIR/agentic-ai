@@ -56,6 +56,15 @@ def validate_arguments(
     відмова, а не привід здогадуватись: мовчазне приведення сховало б помилку моделі саме
     там, де читач має її побачити.
     """
+    # Модель могла віддати валідний JSON, який НЕ є об'єктом: `null`, `42`, `"Kyiv"`, `[1,2]`.
+    # Це не помилка програміста, а звичайна поведінка моделі — отже, відмова кроку, а не виняток.
+    if not isinstance(arguments, dict):
+        got = type(arguments).__name__
+        return False, (
+            f"Аргументи мають бути об'єктом JSON, а отримано {got}. "
+            f'Очікується щось на кшталт {{"поле": "значення"}}.'
+        )
+
     properties: dict[str, Any] = schema.get("properties", {})
     required: list[str] = schema.get("required", [])
 
@@ -69,7 +78,10 @@ def validate_arguments(
     if missing:
         problems.append(f"не вистачає обов'язкових полів: {', '.join(missing)}")
 
-    if schema.get("additionalProperties") is False:
+    # Fail-CLOSED: невідомі поля відхиляються, доки схема ЯВНО не дозволить їх
+    # (`additionalProperties: true`). Зворотний дефолт означав би, що захист працює лише
+    # тоді, коли автор схеми не забув його увімкнути, — а це домовленість, не межа довіри.
+    if schema.get("additionalProperties") is not True:
         unknown = [name for name in arguments if name not in properties]
         if unknown:
             problems.append(f"невідомі поля: {', '.join(unknown)}")

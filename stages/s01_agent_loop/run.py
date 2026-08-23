@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from shared.config import settings
@@ -45,7 +46,13 @@ SCRIPTS = [
         text("У Києві +28°C, мінлива хмарність."),
     ],
     [tool_call("get_order_status", {"order_id": "ord_4471"})],  # repeat_last -> нескінченно
-    [tool_call("initiate_return", {"order_id": "ord_4472", "reason": "завеликий розмір"})],
+    [
+        tool_call("initiate_return", {"order_id": "ord_4472", "reason": "завеликий розмір"}),
+        # Другий крок потрібен саме для вправи 1: коли читач вимкне гейт, прогін піде далі,
+        # і перевірка впаде на ассерті «дію виконано без підтвердження», а не на вичерпаному
+        # сценарії підробки. Тест має червоніти від порушення інваріанта, не від службової помилки.
+        text("Повернення оформлено."),
+    ],
 ]
 
 TASKS = [
@@ -63,20 +70,26 @@ def _print_run(result: RunResult) -> None:
             for call in message["tool_calls"]:
                 fn = call["function"]
                 print(f"    -> модель просить {fn['name']}({fn['arguments']})")
-        elif role == "tool":
+        elif role == "tool" and not result.blocked_tools:
+            # Для заблокованого кроку той самий текст уже друкується нижче — двічі не треба.
             print(f"    <- {message['content']}")
 
     if result.stopped_by_limit:
         print(f"    !! зупинено лімітом кроків після {result.steps} кроків, відповіді немає")
-    elif result.blocked_tool:
-        print(f"    !! дію «{result.blocked_tool}» заблоковано гейтом підтвердження")
-        print(f"    =  {result.answer}")
+    elif result.blocked_tools:
+        print(f"    !! крок заблоковано гейтом: {', '.join(result.blocked_tools)}")
+        for line in (result.answer or "").splitlines():
+            print(f"       {line}")
     else:
         print(f"    =  {result.answer}")
 
 
-def main(*, trace_path: Path | str | None = None) -> int:
+def main(*, confirmed: bool = False, trace_path: Path | str | None = None) -> int:
     """Прогнати всі чотири сценарії. Повертає код виходу.
+
+    :param confirmed: дозвіл на незворотні дії. Приходить окремим запуском
+        (``python -m stages.s01_agent_loop.run --confirm``), а не питанням у консолі —
+        ADR етапу 0002.
 
     :param trace_path: куди писати трейс. За замовчуванням — робочий файл ``traces/``,
         який потім читає етап 8. Перевірка передає тимчасовий шлях: тест, що засмічує
@@ -104,14 +117,19 @@ def main(*, trace_path: Path | str | None = None) -> int:
                 client=client,
                 tracer=tracer,
                 max_steps=3 if index == 2 else settings.agent_max_steps,
+                confirmed=confirmed,
             )
         _print_run(result)
         print()
 
+    if not confirmed:
+        print("Щоб підтвердити незворотну дію зі сценарію 4:")
+        print("    python -m stages.s01_agent_loop.run --confirm")
+        print()
     if trace_path is None:
         print("Трейси прогонів: traces/ — їх читатиме етап 8.")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(confirmed="--confirm" in sys.argv))

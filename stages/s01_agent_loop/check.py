@@ -17,7 +17,7 @@ from pathlib import Path
 
 from shared.check_runner import run_checks
 from shared.config import Settings
-from shared.fake_llm import FakeLLM, text, tool_call
+from shared.fake_llm import FakeLLM, text, tool_call, tool_calls
 from shared.llm import banner, get_client, is_fake
 from shared.trace import group_by_trace, trace_run
 from stages.s01_agent_loop.loop import run_agent
@@ -81,6 +81,145 @@ def check_tools_return_text_from_fixtures() -> None:
     assert "не підлягає" in refused, refused
 
 
+# --- Після рев'ю: MAJOR-1/3/4/5 і непокриті гілки -----------------------------
+
+
+def _spy(name: str, *, irreversible: bool = False, boom: bool = False):
+    """Інструмент-шпигун на основі справжнього: записує виклики або кидає виняток."""
+    original = REGISTRY[name]
+    calls: list[dict] = []
+
+    def func(**kwargs):
+        if boom:
+            raise RuntimeError("провайдер відповів 500")
+        calls.append(kwargs)
+        return "виконано"
+
+    tool = Tool(
+        name=original.name,
+        description=original.description,
+        parameters=original.parameters,
+        func=func,
+        irreversible=irreversible,
+    )
+    return {name: tool}, calls
+
+
+def _drive(script, *, tools=None, confirmed=False, max_steps=8):
+    """Прогнати цикл і повернути (результат, види кроків, клієнт)."""
+    client = FakeLLM(script=list(script))
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("check", path=path) as tracer:
+            result = run_agent(
+                "перевірка",
+                client=client,
+                tracer=tracer,
+                tools=tools,
+                confirmed=confirmed,
+                max_steps=max_steps,
+            )
+        kinds = [s["kind"] for s in next(iter(group_by_trace(path).values()))]
+    return result, kinds, client
+
+
+TWO_RETURNS = [
+    tool_calls(
+        ("initiate_return", {"order_id": "ord_4472", "reason": "a"}),
+        ("initiate_return", {"order_id": "ord_9999", "reason": "b"}),
+    ),
+    text("готово"),
+]
+
+
+def check_gate_blocks_the_whole_step_not_one_call() -> None:
+    """ВІДМОВА · gate: крок із кількома незворотними діями блокується ЦІЛКОМ"""
+    tools, done = _spy("initiate_return", irreversible=True)
+    result, kinds, _ = _drive(TWO_RETURNS, tools=tools)
+
+    assert done == [], f"виконано попри блокування: {done}"
+    assert result.blocked_tools == ("initiate_return", "initiate_return"), result.blocked_tools
+    assert "step_blocked" in kinds and "tool_call" not in kinds, kinds
+    # Головне: користувач бачить ОБИДВА замовлення, а не лише перше.
+    assert "ord_4472" in result.answer and "ord_9999" in result.answer, result.answer
+    assert not result.ok, "заблокований крок не є успішним прогоном"
+
+
+def check_confirmation_covers_every_action_it_showed() -> None:
+    """gate: підтвердження виконує саме те, що було перелічено"""
+    tools, done = _spy("initiate_return", irreversible=True)
+    _drive(TWO_RETURNS, tools=tools, confirmed=True)
+    assert [d["order_id"] for d in done] == ["ord_4472", "ord_9999"], done
+
+
+def check_non_object_arguments_do_not_crash_the_run() -> None:
+    """ВІДМОВА · validate: JSON, що не є об'єктом, — відмова кроку, а не виняток"""
+    for raw in ("null", "42", '"Kyiv"', "[1,2]"):
+        result, kinds, _ = _drive([tool_call("get_weather", raw), text("виправляюсь")])
+        assert result.answer, f"прогін упав на аргументах {raw}"
+        assert "tool_rejected" in kinds, (raw, kinds)
+        assert "run_error" not in kinds, (raw, kinds)
+
+
+def check_unknown_fields_rejected_without_explicit_flag() -> None:
+    """ВІДМОВА · validate: fail-closed — схема без additionalProperties теж захищена"""
+    schema = {"type": "object", "properties": {"days": {"type": "integer"}}, "required": ["days"]}
+    ok, reason = validate_arguments(schema, {"days": 3, "extra": "x"})
+    assert not ok, "зайве поле пройшло у схемі без явного additionalProperties"
+    assert "extra" in reason, reason
+
+    ok, _ = validate_arguments({**schema, "additionalProperties": True}, {"days": 3, "extra": "x"})
+    assert ok, "явний additionalProperties: true має пропускати зайві поля"
+
+
+def check_failing_tool_becomes_a_step_result() -> None:
+    """ВІДМОВА · loop: виняток усередині інструмента не вбиває прогін"""
+    tools, _ = _spy("get_weather", boom=True)
+    result, kinds, client = _drive(
+        [tool_call("get_weather", {"city": "Київ"}), text("спробую пізніше")], tools=tools
+    )
+    assert result.answer == "спробую пізніше", result
+    assert "tool_error" in kinds and "run_error" not in kinds, kinds
+    reply = [m for m in client.calls[-1]["messages"] if m.get("role") == "tool"][-1]["content"]
+    assert "500" in reply, "модель має дізнатись, що саме сталося"
+
+
+def check_unknown_tool_is_reported_not_fatal() -> None:
+    """ВІДМОВА · loop: вигадане ім'я інструмента не валить прогін"""
+    result, kinds, client = _drive([tool_call("delete_everything", {}), text("такого не маю")])
+    assert result.answer and "tool_unknown" in kinds, (result, kinds)
+    reply = [m for m in client.calls[-1]["messages"] if m.get("role") == "tool"][-1]["content"]
+    assert "get_weather" in reply, "моделі треба показати, що доступно"
+
+
+def check_broken_json_arguments_are_reported() -> None:
+    """ВІДМОВА · loop: недописаний JSON в аргументах — відмова кроку"""
+    result, kinds, _ = _drive([tool_call("get_weather", '{"city": '), text("виправляюсь")])
+    assert result.answer and "tool_rejected" in kinds, (result, kinds)
+
+
+def check_one_step_covers_all_tools_it_requested() -> None:
+    """loop: кілька інструментів в одній відповіді — це ОДИН крок"""
+    result, kinds, _ = _drive(
+        [
+            tool_calls(
+                ("get_weather", {"city": "Київ"}),
+                ("get_order_status", {"order_id": "ord_4471"}),
+            ),
+            text("ось обидві відповіді"),
+        ]
+    )
+    assert result.steps == 2, f"два інструменти в одній відповіді — не два кроки: {result.steps}"
+    assert kinds.count("tool_call") == 2, kinds
+    assert kinds.count("llm_call") == 2, kinds
+
+
+def check_empty_answer_is_not_success() -> None:
+    """ВІДМОВА · loop: порожня відповідь моделі не вважається успіхом"""
+    result, _, _ = _drive([text("")])
+    assert not result.ok, "порожній рядок не є відповіддю"
+
+
 # --- T5 · демо ----------------------------------------------------------------
 
 
@@ -90,9 +229,15 @@ def check_demo_runs_offline_and_shows_four_scenarios() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         with contextlib.redirect_stdout(buffer):
             exit_code = demo_main(trace_path=Path(tmp) / "demo.jsonl")
-        wrote_trace = (Path(tmp) / "demo.jsonl").exists()
+        traces = group_by_trace(Path(tmp) / "demo.jsonl")
     out = buffer.getvalue()
-    assert wrote_trace, "демо не записало трейс"
+
+    # Не «файл існує», а «всі чотири сценарії потрапили у трейс зі своїми подіями»:
+    # інакше перевірка лишилась би зеленою, якби trace_run зник із трьох сценаріїв.
+    assert len(traces) == 4, f"очікувалось 4 траєкторії, є {len(traces)}"
+    kinds = {s["kind"] for steps in traces.values() for s in steps}
+    for expected in ("tool_call", "tool_rejected", "run_limit", "step_blocked"):
+        assert expected in kinds, f"у трейсі демо немає {expected}: {sorted(kinds)}"
 
     assert exit_code == 0, exit_code
     assert out.splitlines()[0].startswith("[FakeLLM]"), out.splitlines()[0]
@@ -151,7 +296,13 @@ def check_irreversible_tool_is_blocked_without_confirmation() -> None:
     """ВІДМОВА · gate: незворотна дія не виконується без підтвердження"""
     tools, calls = _spy_return_tool()
     client = FakeLLM(
-        script=[tool_call("initiate_return", {"order_id": "ord_4472", "reason": "малий"})]
+        script=[
+            tool_call("initiate_return", {"order_id": "ord_4472", "reason": "малий"}),
+            # Другий крок навмисно: без нього вимкнений гейт дає FakeLLMError (сценарій
+            # вичерпано) ЗАМІСТЬ ассерту нижче. Тест червонів би з хибної причини --
+            # найпідступніший різновид тесту, бо мутаційну перевірку він проходить.
+            text("Повернення оформлено."),
+        ]
     )
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "t.jsonl"
@@ -160,8 +311,8 @@ def check_irreversible_tool_is_blocked_without_confirmation() -> None:
         kinds = [s["kind"] for s in next(iter(group_by_trace(path).values()))]
 
     assert calls == [], f"незворотну функцію виконано без підтвердження: {calls}"
-    assert result.blocked_tool == "initiate_return", result
-    assert "tool_blocked" in kinds, kinds
+    assert result.blocked_tools == ("initiate_return",), result
+    assert "step_blocked" in kinds, kinds
     assert "tool_call" not in kinds, kinds
     # прогін має пояснити, ЩО саме сталося б, інакше підтверджувати наосліп
     assert "ord_4472" in result.answer and "підтвердж" in result.answer.lower(), result.answer
@@ -183,9 +334,10 @@ def check_confirmed_run_executes_the_irreversible_tool() -> None:
         kinds = [s["kind"] for s in next(iter(group_by_trace(path).values()))]
 
     assert calls == [{"order_id": "ord_4472", "reason": "малий"}], calls
-    assert result.blocked_tool is None
-    assert "tool_call" in kinds and "tool_blocked" not in kinds, kinds
+    assert result.blocked_tools == ()
+    assert "tool_call" in kinds and "step_blocked" not in kinds, kinds
     assert result.answer == "Повернення оформлено."
+    assert result.ok, "підтверджений успішний прогін має вважатися успішним"
 
 
 def check_gate_leaves_reversible_tools_alone() -> None:
@@ -197,8 +349,8 @@ def check_gate_leaves_reversible_tools_alone() -> None:
         ]
     )
     kinds = [s["kind"] for s in steps]
-    assert result.blocked_tool is None
-    assert "tool_call" in kinds and "tool_blocked" not in kinds, kinds
+    assert result.blocked_tools == ()
+    assert "tool_call" in kinds and "step_blocked" not in kinds, kinds
 
 
 # --- T2 · валідація аргументів ------------------------------------------------
@@ -421,6 +573,15 @@ CHECKS = [
     check_loop_sends_tool_schemas,
     check_step_limit_stops_a_runaway_loop,
     check_invalid_arguments_never_reach_the_tool,
+    check_gate_blocks_the_whole_step_not_one_call,
+    check_confirmation_covers_every_action_it_showed,
+    check_non_object_arguments_do_not_crash_the_run,
+    check_unknown_fields_rejected_without_explicit_flag,
+    check_failing_tool_becomes_a_step_result,
+    check_unknown_tool_is_reported_not_fatal,
+    check_broken_json_arguments_are_reported,
+    check_one_step_covers_all_tools_it_requested,
+    check_empty_answer_is_not_success,
     check_demo_runs_offline_and_shows_four_scenarios,
     check_client_factory_picks_the_configured_provider,
     check_irreversible_tool_is_blocked_without_confirmation,
