@@ -57,7 +57,6 @@ pip install -e ".[dev]"
 | Команда | Коли ставити |
 |---|---|
 | `pip install -e ".[dev]"` | завжди — лінтер + інструмент міграцій |
-| `pip install -e ".[s02]"` | етап 2 (NumPy) |
 | `pip install -e ".[s03]"` | етап 3 (LangGraph) |
 | `pip install -e ".[s04]"` | етап 4 (MCP) |
 | `pip install -e ".[s06]"` | етап 6 (FastAPI, Postgres, Redis) |

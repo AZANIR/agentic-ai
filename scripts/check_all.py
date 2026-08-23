@@ -6,10 +6,21 @@
 Кожна перевірка виконується ОКРЕМИМ процесом. Це навмисно: етап, що падає ще на імпорті,
 не має вбивати весь прогін — інакше одна зламана залежність (наприклад CrewAI на етапі 9)
 ховає результат решти дев'яти.
+
+**Три стани, а не два.** Модуль, який не запустився через невстановлений **опційний** пакет,
+позначається `НЕ ПЕРЕВІРЕНО`, а не `FAIL`: базова установка навмисно не тягне важких
+бібліотек етапів 3, 4, 6 і 9, і червоніти на цьому означало б вимагати встановити все.
+
+Але зворотна помилка дорожча, і вона вже траплялась: коли `numpy` лежав у extras етапу 2,
+хоча `shared/embeddings.py` імпортує його безумовно, CI двічі червонів на `ModuleNotFoundError`
+ще до першої перевірки. Якби цей файл тоді вже вмів казати «НЕ ПЕРЕВІРЕНО» на **будь-який**
+відсутній пакет, зламана збірка читалась би як «етап не перевіряли». Тому опційність
+визначається за `pyproject.toml`, а не за фактом відсутності (ADR-0007).
 """
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import time
@@ -22,6 +33,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 _C = colors()
 GREEN, RED, YELLOW = _C["GREEN"], _C["RED"], _C["YELLOW"]
 BOLD, DIM, OFF = _C["BOLD"], _C["DIM"], _C["OFF"]
+
+_MISSING = re.compile(r"""ModuleNotFoundError: No module named ['"]([\w.]+)['"]""")
+_DEP_NAME = re.compile(r"""['"]([A-Za-z][\w.-]*)(?:\[[^\]]*\])?\s*[><=!~]""")
 
 
 def discover(selectors: list[str]) -> list[str]:
@@ -52,6 +66,45 @@ def run_one(module: str) -> tuple[bool, float, str]:
     return result.returncode == 0, took, output
 
 
+def optional_packages() -> set[str]:
+    """Пакети з `[project.optional-dependencies]` — тобто ті, яких може не бути.
+
+    Читається текстом, без парсера TOML: потрібні лише імена, і залежність заради двох
+    рядків regex коштувала б більше за них.
+    """
+    body = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    parts = body.split("[project.optional-dependencies]", 1)
+    if len(parts) < 2:
+        return set()
+    tail = parts[1].split("\n[tool.", 1)[0]
+    return {name.lower().replace("-", "_") for name in _DEP_NAME.findall(tail)}
+
+
+def unavailable_optional(output: str) -> str | None:
+    """Назва відсутнього опційного пакета — або ``None``, якщо причина інша.
+
+    Різниця несуча. «Немає LangGraph» — це нормальний стан базової установки; «немає
+    numpy» був зламаною збіркою, бо `shared/` імпортує його безумовно. Обидва виглядають
+    однаково у трейсбеку, і розрізняє їх лише таблиця extras.
+    """
+    found = _MISSING.search(output)
+    if not found:
+        return None
+    package = found.group(1).split(".")[0].lower().replace("-", "_")
+    return package if package in optional_packages() else None
+
+
+def _echo_unverified(output: str) -> None:
+    """Показати рядки «НЕ ПЕРЕВІРЕНО» із зеленого модуля.
+
+    Вивід успішного модуля інакше ковтається — і разом із ним зникає єдина ознака, що
+    щось лишилось невиконаним. CI-крок, який шукає це слово, промахувався б завжди.
+    """
+    for line in output.splitlines():
+        if "НЕ ПЕРЕВІРЕНО" in line or line.lstrip().startswith("—"):
+            print(f"{YELLOW}{line.rstrip()}{OFF}")
+
+
 def main(argv: list[str]) -> int:
     modules = discover(argv)
     if not modules:
@@ -62,14 +115,25 @@ def main(argv: list[str]) -> int:
     print(f"{BOLD}check_all · {len(modules)} модул(ів){OFF}")
 
     failed: list[tuple[str, str]] = []
+    skipped: list[tuple[str, str]] = []
+    unverified: list[str] = []
     total = 0.0
     for module in modules:
         ok, took, output = run_one(module)
         total += took
+
+        missing = None if ok else unavailable_optional(output)
+        if missing:
+            skipped.append((module, missing))
+            print(f"  {YELLOW}—{OFF}     {module} {DIM}(немає {missing}){OFF}")
+            continue
+
         mark = f"{GREEN}PASS{OFF}" if ok else f"{RED}FAIL{OFF}"
         print(f"  {mark}  {module} {DIM}({took:.2f} s){OFF}")
         if not ok:
             failed.append((module, output))
+        elif "НЕ ПЕРЕВІРЕНО" in output:
+            unverified.append(output)
 
     print()
     if failed:
@@ -83,7 +147,14 @@ def main(argv: list[str]) -> int:
         print(f"{RED}{BOLD}впало: {names}{OFF}  {DIM}({total:.2f} s){OFF}")
         return 1
 
-    print(f"{GREEN}{BOLD}усе зелене{OFF} {DIM}({len(modules)} модул(ів), {total:.2f} s){OFF}")
+    for output in unverified:
+        _echo_unverified(output)
+    if skipped:
+        names = ", ".join(f"{module} (немає {package})" for module, package in skipped)
+        print(f"{YELLOW}{BOLD}НЕ ПЕРЕВІРЕНО: {names}{OFF}")
+
+    green = len(modules) - len(skipped)
+    print(f"{GREEN}{BOLD}усе зелене{OFF} {DIM}({green} модул(ів), {total:.2f} s){OFF}")
     return 0
 
 

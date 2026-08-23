@@ -75,10 +75,13 @@ jobs:
       - name: Checks
         run: python scripts/check_all.py
 
+      # check_all.py друкує рядки «НЕ ПЕРЕВІРЕНО» і для зелених модулів — саме заради
+      # цього кроку. Поки він цього не робив, grep промахувався завжди, і правило
+      # виглядало як правило, нічого не перевіряючи (ADR-0007).
       - name: Nothing may stay unverified here
         run: |
-          python scripts/check_all.py 2>&1 | tee /tmp/checks.log
-          if grep -q "НЕ ПЕРЕВІРЕНО" /tmp/checks.log; then
+          python scripts/check_all.py 2>&1 | tee checks.log
+          if grep -q "НЕ ПЕРЕВІРЕНО" checks.log; then
             echo "::error::З установленими extras жодна перевірка не має лишатись невиконаною"
             exit 1
           fi

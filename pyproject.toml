@@ -11,7 +11,13 @@ license = { text = "MIT" }
 
 # Core stays deliberately tiny: everything stage 1 needs and nothing more.
 # Heavier stages opt in through the extras below (ADR-0001).
+#
+# numpy is core and not a stage extra, because shared/embeddings.py imports it
+# unconditionally and shared/check.py exercises it. A package the shared layer
+# imports at module level is a core dependency whatever the extras table says -
+# CI proved it by dying on import before the first check ran (ADR-0007).
 dependencies = [
+    "numpy>=1.26",
     "openai>=1.40",
     "python-dotenv>=1.0",
 ]
@@ -21,7 +27,6 @@ dependencies = [
 # Versions carry floors, not exact pins. Each stage pins what it actually
 # installs and verifies, at the moment it is built - a fake pin on an untested
 # package is worse than an honest floor.
-s02 = ["numpy>=1.26"]
 s03 = ["langgraph>=0.2", "langchain-openai>=0.2"]
 s04 = ["mcp>=1.2"]
 s06 = [
@@ -32,14 +37,13 @@ s06 = [
     "psycopg[binary]>=3.2",
     "redis>=5.0",
 ]
-s08 = ["numpy>=1.26"]
 s09 = ["langgraph>=0.2", "langchain-openai>=0.2", "crewai>=0.60"]
 
 # --- capability extras ------------------------------------------------------
 embed = ["fastembed>=0.4"]
 voice = ["faster-whisper>=1.0", "piper-tts>=1.2"]
 adk = ["google-adk>=1.0"]
-prod = ["agentic-ai-course[s02,s03,s04,s06,s08,embed]", "langfuse>=2.50"]
+prod = ["agentic-ai-course[s03,s04,s06,embed]", "langfuse>=2.50"]
 # psycopg тут, а не лише в [s06]: scripts/migrate.py — інфраструктура репозиторію,
 # і скелетний смоук-тест має вміти прогнати міграції ще до етапу 6.
 dev = ["ruff>=0.6", "psycopg[binary]>=3.2"]

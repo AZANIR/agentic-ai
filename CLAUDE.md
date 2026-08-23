@@ -8,7 +8,8 @@
 ```bash
 pip install -e ".[dev]"        # встановлення (лапки обов'язкові)
 ruff check . && ruff format .  # лінт і формат
-python scripts/check_all.py    # усі перевірки, офлайн, без ключів
+python scripts/check_all.py       # усі перевірки, офлайн, без ключів
+python scripts/clean_install.py   # те саме, але як у CI: без опційних пакетів
 python scripts/migrate.py up   # міграції (потрібен docker compose up)
 ```
 
