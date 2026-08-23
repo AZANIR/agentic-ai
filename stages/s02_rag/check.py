@@ -13,9 +13,12 @@ from __future__ import annotations
 from shared.check_runner import run_checks
 from shared.config import Settings
 from shared.embeddings import get_embedder
+from stages.s02_rag.answer import NO_ANSWER, build_answer
 from stages.s02_rag.chunk import split
-from stages.s02_rag.documents import PUBLIC, load_documents
+from stages.s02_rag.decision import SITUATIONS, decide
+from stages.s02_rag.documents import INTERNAL, PUBLIC, load_documents
 from stages.s02_rag.store import KnowledgeBase
+from stages.s02_rag.tools import search_knowledge_base, tool_for
 
 SMALL = 40
 LARGE = 120
@@ -191,6 +194,142 @@ def check_configured_provider_is_used_and_named() -> None:
     # ручним чеклістом в уроці, як і на етапі 1.
 
 
+# --- T5 · відповідь із джерелом ------------------------------------------------
+
+
+def check_every_answer_names_its_source() -> None:
+    """answer: кожна видана відповідь несе джерело з переліку знайденого"""
+    result = _base().search(RETURNS_QUESTION, access=PUBLIC, top_k=2)
+    answer = build_answer(RETURNS_QUESTION, result, model_text="Повернення протягом 14 днів.")
+
+    assert answer.text, "відповідь порожня"
+    assert answer.sources, "відповідь без джерела не має існувати як стан"
+    assert set(answer.sources) <= {h.fragment.label for h in result.hits}, (
+        f"джерело не з переліку знайденого: {answer.sources}"
+    )
+    assert "returns-policy" in " ".join(answer.sources)
+
+
+def check_model_cannot_inject_a_source_of_its_own() -> None:
+    """ВІДМОВА · answer: посилання, вигадане моделлю, не стає джерелом відповіді"""
+    result = _base().search(RETURNS_QUESTION, access=PUBLIC, top_k=2)
+    answer = build_answer(
+        RETURNS_QUESTION,
+        result,
+        model_text="Згідно з документом secret-internal-policy#9 повернення неможливе.",
+    )
+    assert "secret-internal-policy#9" not in answer.sources, (
+        "вигадане моделлю посилання потрапило у джерела — ADR етапу 0003"
+    )
+    assert set(answer.sources) <= {h.fragment.label for h in result.hits}
+
+
+def check_nothing_above_threshold_yields_no_answer() -> None:
+    """ВІДМОВА · answer: нічого вище порога — відповіді немає, названо поріг"""
+    result = _base(threshold=0.9).search(RETURNS_QUESTION, access=PUBLIC, top_k=3)
+    answer = build_answer(RETURNS_QUESTION, result, model_text="Щось напевно є.")
+
+    assert not answer.sources, "джерел бути не може, якщо нічого не знайдено"
+    assert answer.text == NO_ANSWER or NO_ANSWER in answer.text, answer.text
+    assert "0.9" in answer.text, "поріг має бути названий — інакше нічого не налаштуєш"
+    assert "Щось напевно є" not in answer.text, "текст моделі не має просочуватись"
+
+
+def check_retrieved_text_goes_to_the_model_as_data() -> None:
+    """answer: знайдений текст іде моделі окремим позначеним блоком"""
+    result = _base().search(RETURNS_QUESTION, access=PUBLIC, top_k=2)
+    prompt = build_answer(RETURNS_QUESTION, result, model_text="").prompt
+    assert prompt, "промпт має бути видимим — на ньому будується урок про ін'єкцію"
+    assert "ДАНІ" in prompt.upper() or "DATA" in prompt.upper(), prompt[:200]
+    assert RETURNS_QUESTION in prompt
+    for hit in result.hits:
+        assert hit.fragment.text[:30] in prompt, "фрагмент не дійшов до моделі"
+
+
+# --- T6 · інструмент для агента етапу 1 ----------------------------------------
+
+
+def check_search_tool_matches_the_stage_one_shape() -> None:
+    """tools: інструмент має ту саму форму, що й на етапі 1"""
+    tool = tool_for(access=PUBLIC)
+    assert tool.name == "search_knowledge_base", tool.name
+    assert tool.description.strip() and not tool.irreversible
+    params = tool.parameters
+    assert params["type"] == "object"
+    assert params["required"] == ["query"]
+    assert params.get("additionalProperties") is False, "fail-closed, як на етапі 1"
+    # Модель отримує рівно один важіль. Якщо тут з'явиться другий ключ — надто ймовірно,
+    # що це рівень доступу, і тоді модель починає вирішувати, кому що можна бачити.
+    exposed = list(params["properties"])
+    assert exposed == ["query"], (
+        f"інструмент віддає моделі зайвий параметр: {exposed} — "
+        "рівень доступу прив'язується partial, а не питається у моделі (AC-09)"
+    )
+    assert "access" not in str(params), "рівень доступу просочився у схему інструмента"
+
+
+def check_search_tool_returns_text_with_a_source() -> None:
+    """tools: інструмент повертає текст із джерелом, придатний як результат кроку"""
+    output = search_knowledge_base(query=RETURNS_QUESTION, access=PUBLIC)
+    assert isinstance(output, str) and output
+    assert "returns-policy" in output, output[:200]
+
+
+def check_search_tool_does_not_leak_internal_documents() -> None:
+    """ВІДМОВА · tools: через інструмент внутрішні документи теж не витікають"""
+    output = search_knowledge_base(query=INTERNAL_BAIT, access=PUBLIC)
+    assert "internal-refund-thresholds" not in output, output[:200]
+    assert "1500" not in output, "суму з внутрішнього документа видно покупцю"
+
+
+def check_operator_reaches_internal_documents_through_the_tool() -> None:
+    """tools: оператор ОТРИМУЄ внутрішній документ — прив'язка доступу справді працює"""
+    output = tool_for(access=INTERNAL).func(query=INTERNAL_BAIT)
+    assert "internal-refund-thresholds" in output, (
+        "оператор не бачить внутрішнього документа — рівень доступу не дійшов до пошуку; "
+        'перевірка на витік цього не ловить, бо "нічого не знайдено" теж не витік'
+    )
+    assert "1500" in output
+
+
+def check_stage_one_loop_is_untouched() -> None:
+    """tools: цикл етапу 1 не змінено жодним рядком"""
+    import subprocess
+
+    diff = subprocess.run(
+        ["git", "diff", "stage-01", "--stat", "--", "stages/s01_agent_loop/"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert diff.returncode == 0, diff.stderr
+    assert not diff.stdout.strip(), (
+        f"етап 1 змінено — RAG мав додати інструмент, не переписати агента:\n{diff.stdout}"
+    )
+
+
+# --- T9 · чекліст рішень -------------------------------------------------------
+
+
+def check_decision_checklist_answers_all_situations() -> None:
+    """decision: кожна з шести ситуацій має рівно одну відповідь"""
+    assert len(SITUATIONS) == 6, len(SITUATIONS)
+    for situation in SITUATIONS:
+        verdict = decide(situation.signals)
+        assert verdict.answer == situation.expected, (
+            f"{situation.name}: чекліст сказав {verdict.answer}, очікували {situation.expected}"
+        )
+        assert verdict.rule, "рішення без назви правила неможливо перевірити"
+
+
+def check_decision_checklist_stops_at_the_first_rule() -> None:
+    """decision: зупиняється на першому правилі, що спрацювало"""
+    verdict = decide({"data_changes": True, "needs_citations": True, "narrow_task": True})
+    assert verdict.answer == "RAG"
+    assert "змін" in verdict.rule.lower(), verdict.rule
+
+
 CHECKS = [
     check_chunking_covers_the_whole_text,
     check_chunking_overlap_keeps_the_seam,
@@ -207,6 +346,17 @@ CHECKS = [
     check_search_is_deterministic,
     check_chunk_size_changes_what_is_retrieved,
     check_configured_provider_is_used_and_named,
+    check_every_answer_names_its_source,
+    check_model_cannot_inject_a_source_of_its_own,
+    check_nothing_above_threshold_yields_no_answer,
+    check_retrieved_text_goes_to_the_model_as_data,
+    check_search_tool_matches_the_stage_one_shape,
+    check_search_tool_returns_text_with_a_source,
+    check_search_tool_does_not_leak_internal_documents,
+    check_operator_reaches_internal_documents_through_the_tool,
+    check_stage_one_loop_is_untouched,
+    check_decision_checklist_answers_all_situations,
+    check_decision_checklist_stops_at_the_first_rule,
 ]
 
 if __name__ == "__main__":
