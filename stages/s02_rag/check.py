@@ -281,6 +281,15 @@ def check_search_tool_returns_text_with_a_source() -> None:
     assert "returns-policy" in output, output[:200]
 
 
+def check_search_tool_says_not_found_instead_of_serving_noise() -> None:
+    """ВІДМОВА · tools: питання не по темі дає чесне «не знайдено», а не найближчий шум"""
+    output = search_knowledge_base(query="яка погода в Києві завтра", access=PUBLIC)
+    assert NO_ANSWER in output, (
+        f"інструмент віддав агенту найближчий шум замість відмови: {output[:120]}"
+    )
+    assert "поріг" in output, "агент має бачити, який поріг не перетнули"
+
+
 def check_search_tool_does_not_leak_internal_documents() -> None:
     """ВІДМОВА · tools: через інструмент внутрішні документи теж не витікають"""
     output = search_knowledge_base(query=INTERNAL_BAIT, access=PUBLIC)
@@ -398,6 +407,7 @@ CHECKS = [
     check_retrieved_text_goes_to_the_model_as_data,
     check_search_tool_matches_the_stage_one_shape,
     check_search_tool_returns_text_with_a_source,
+    check_search_tool_says_not_found_instead_of_serving_noise,
     check_search_tool_does_not_leak_internal_documents,
     check_operator_reaches_internal_documents_through_the_tool,
     check_stage_one_loop_is_untouched,
