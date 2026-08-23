@@ -36,7 +36,7 @@ frontend: "vanilla html + js (planned, stages 6-7; no framework, no build step)"
 - **Packaging:** один інсталюваний пакет, `pyproject.toml` з extras на етап
   (`[s03]`, `[s04]`, `[s09]`, `[voice]`, `[prod]`, `[dev]`) — спека §7.
   Це те, що дозволяє етапу 10 **імпортувати** зрілі модулі етапів 1–9, а не копіювати їх.
-- **Frameworks:** FastAPI + uvicorn (сервіс), FastMCP (MCP-сервери), LangGraph / CrewAI /
+- **Frameworks:** FastAPI + uvicorn (сервіс), mcp 2.0 (MCP-сервери), LangGraph / CrewAI /
   Google ADK (лише етап 9, за extras), APScheduler (фонові задачі)
 - **LLM-доступ:** SDK `openai` як єдиний клієнт — через `base_url` покриває OpenAI, Groq,
   OpenRouter, Ollama, LM Studio
@@ -56,7 +56,7 @@ C4Container
     Container(stages, "stages", "Python packages s01..s10", "Ten self-contained lessons; s06 and s10 are deployable services")
     Container(shared, "shared", "Python package", "Profile-switched adapters: llm / embeddings / trace / stores")
     Container(api, "agent service", "FastAPI + uvicorn", "HTTP and WebSocket entry; auth, rate limit, budget guard, metrics")
-    Container(mcp, "MCP servers", "FastMCP over stdio", "NovaShop tools: orders / returns / catalog")
+    Container(mcp, "MCP servers", "mcp 2.0 over stdio", "NovaShop tools: orders / returns / catalog")
     Container(web, "test pages", "static html + js", "Chat page and microphone page for manual checks")
     Container(caddy, "Caddy", "reverse proxy", "Automatic HTTPS termination")
 
@@ -88,7 +88,7 @@ C4Container
 | `stages.s01_agent_loop` | `stages/s01_agent_loop/` | lesson | `run.py`, `check.py` | **Готово.** `tools` · `validate` · `loop` · `run` · `check`; 21 перевірка |
 | `stages.s02_rag` | `stages/s02_rag/` | lesson | `run.py`, `check.py` | embed → cosine → top-k → generate, цитування |
 | `stages.s03_router` | `stages/s03_router/` | lesson | `run.py`, `check.py` | Свій міні-граф, потім LangGraph; supervisor |
-| `stages.s04_mcp` | `stages/s04_mcp/` | lesson + server | `server.py`, `run.py` | FastMCP-сервер + stdio-клієнт |
+| `stages.s04_mcp` | `stages/s04_mcp/` | lesson + server | `server.py`, `run.py` | MCP-сервер + stdio-клієнт |
 | `stages.s05_memory` | `stages/s05_memory/` | lesson | `run.py`, `check.py` | short/long-term, extract→store→retrieve |
 | `stages.s06_platform` | `stages/s06_platform/` | **service** | `app.py` (ASGI) | Перший деплойний сервіс: зшиває s01–s05 |
 | `stages.s07_voice` | `stages/s07_voice/` | lesson + service | `pipeline.py`, `ws.py` | Батч vs стрім, barge-in, WebSocket-голос |

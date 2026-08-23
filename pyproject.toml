@@ -28,7 +28,10 @@ dependencies = [
 # installs and verifies, at the moment it is built - a fake pin on an untested
 # package is worse than an honest floor.
 s03 = ["langgraph>=0.2", "langchain-openai>=0.2"]
-s04 = ["mcp>=1.2"]
+# Мінорний пін, а не підлога — виняток із правила вище й єдиний у файлі. Установка за
+# `>=1.2` дала 2.0.0, у якій зникла точка входу й перейменовано всі поля відповіді
+# (ADR етапу 4 0005).
+s04 = ["mcp>=2.0,<3"]
 s06 = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
