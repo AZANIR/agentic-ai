@@ -35,6 +35,8 @@ from stages.s03_router.graph import (
     route_prompt,
     run_graph,
 )
+from stages.s03_router.langgraph_impl import available as langgraph_available
+from stages.s03_router.langgraph_impl import run_graph as langgraph_run
 from stages.s03_router.specialists import SPECIALISTS, Specialist, safely
 from stages.s03_router.state import DECLARED, FROZEN, State, StateFieldError
 
@@ -401,7 +403,53 @@ def check_structural_constraints_win_over_size() -> None:
     assert "перевірятися" in verdict.rule, verdict.rule
 
 
+# --- T6 · та сама задача на LangGraph -------------------------------------------
+
+
+def check_langgraph_route_matches_the_hand_rolled_one() -> None:
+    """МЕЖА · langgraph: ті самі маршрути — або чесно сказано, що не перевіряли"""
+    if not langgraph_available():
+        print(
+            "        МЕЖА · LangGraph не встановлено: AC-06 НЕ ПЕРЕВІРЕНО.\n"
+            '        Щоб перевірити: pip install -e ".[s03]"'
+        )
+        return
+
+    for query, expected in SIX:
+        ours, _ = _run(query, expected, "ok")
+        theirs = langgraph_run(query, access=PUBLIC, client=_scripted(expected, "ok"))
+        assert theirs.path == ours.path, (
+            f"{query!r}: власний граф {ours.path}, LangGraph {theirs.path}"
+        )
+        assert theirs.finish_reason == ours.finish_reason
+        assert theirs.answer == ours.answer
+
+    refused_ours, _ = _run("яка погода в Києві", "weather")
+    refused_theirs = langgraph_run("яка погода в Києві", access=PUBLIC, client=_scripted("weather"))
+    assert refused_theirs.path == refused_ours.path == [SUPERVISOR]
+    assert refused_theirs.finish_reason == "no_specialist"
+    print(f"        AC-06 перевірено: {len(SIX) + 1} маршрутів збіглися з власним графом")
+
+
+def check_langgraph_is_never_required_to_pass_the_stage() -> None:
+    """langgraph: жоден модуль етапу не імпортує бібліотеку на верхньому рівні (NFR-5)"""
+    here = Path(graph_module.__file__).parent
+    for path in sorted(here.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        top = [n for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))]
+        for node in top:
+            names = [a.name for a in node.names] + [getattr(node, "module", "") or ""]
+            # Саме бібліотека, а не підрядок: наш власний модуль зветься langgraph_impl,
+            # і перша версія цієї перевірки червоніла на ньому.
+            assert not any(n == "langgraph" or n.startswith("langgraph.") for n in names), (
+                f"{path.name} імпортує langgraph на верхньому рівні — етап перестав "
+                "проходитись без встановленої бібліотеки"
+            )
+
+
 CHECKS = [
+    check_langgraph_route_matches_the_hand_rolled_one,
+    check_langgraph_is_never_required_to_pass_the_stage,
     check_access_level_survives_the_handoff,
     check_permitted_answer_also_survives_the_handoff,
     check_request_text_cannot_raise_the_access_level,
