@@ -19,7 +19,9 @@
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache, partial
+from typing import Any
 
 from shared.embeddings import get_embedder
 from stages.s01_agent_loop.tools import Tool
@@ -94,3 +96,24 @@ def registry_with_search(*, access: str) -> dict[str, Tool]:
 
     tool = tool_for(access=access)
     return {**REGISTRY, tool.name: tool}
+
+
+_LABEL = re.compile(r"\[([\w-]+#\d+)\]")
+
+
+def sources_from_transcript(transcript: list[dict[str, Any]]) -> list[str]:
+    """Джерела, які агент справді отримав, витягнуті системою з кроків інструмента.
+
+    ADR етапу 0003 каже: джерело додає система з переліку знайденого. На прямому шляху
+    (`answer.build_answer`) перелік під рукою. На агентському — ні: цикл етапу 1 повертає
+    текст моделі, і між пошуком та відповіддю могло пройти кілька кроків.
+
+    Тому джерела беруться звідти, де вони точно справжні, — з **того, що інструмент
+    повернув у стенограму**. Модель могла написати у відповіді будь-що; сюди воно не
+    потрапить, бо тут читаються не її слова, а результати кроків.
+    """
+    labels: list[str] = []
+    for step in transcript:
+        if step.get("role") == "tool":
+            labels += _LABEL.findall(str(step.get("content", "")))
+    return list(dict.fromkeys(labels))

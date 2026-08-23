@@ -27,6 +27,11 @@ from stages.s02_rag.store import Hit, SearchResult
 
 NO_ANSWER = "База знань не містить відповіді на це питання."
 
+# Огорожа блоку даних. Константами, а не літералами в трьох місцях: перевірка має
+# звірятися з тим самим рядком, що йде моделі, інакше вона перевіряє свою копію.
+OPEN_DATA = "=== ДАНІ (початок) ==="
+CLOSE_DATA = "=== ДАНІ (кінець) ==="
+
 
 @dataclass(frozen=True)
 class Answer:
@@ -53,7 +58,7 @@ def build_prompt(query: str, hits: list[Hit]) -> str:
         f"ПИТАННЯ: {query}\n\n"
         "=== ДАНІ (початок) ===\n"
         f"{block}\n"
-        "=== ДАНІ (кінець) ==="
+        f"{CLOSE_DATA}"
     )
 
 

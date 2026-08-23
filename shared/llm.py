@@ -34,6 +34,23 @@ from shared.fake_llm import FakeLLM
 _FAKE_MODEL = "fake"
 
 
+def make_client(settings: Settings) -> Any:
+    """Справжній OpenAI-сумісний клієнт із налаштувань.
+
+    Єдине місце в репозиторії, де конструюється `openai.OpenAI` (правило 2 у пам'ятці
+    для агентів). Ембеддинги ходять до того самого провайдера, тому імпортують саме це,
+    а не повторюють конструктор із власними таймаутами.
+    """
+    import openai
+
+    return openai.OpenAI(
+        base_url=settings.llm_base_url,
+        api_key=settings.llm_api_key,
+        timeout=60.0,
+        max_retries=2,
+    )
+
+
 def get_client(
     demo_script: list[dict[str, Any]] | None = None,
     *,
@@ -54,14 +71,7 @@ def get_client(
     """
     settings = settings or default_settings
     if settings.has_real_llm:
-        import openai
-
-        return openai.OpenAI(
-            base_url=settings.llm_base_url,
-            api_key=settings.llm_api_key,
-            timeout=60.0,
-            max_retries=2,
-        )
+        return make_client(settings)
 
     if demo_script is not None:
         return FakeLLM(script=demo_script)
@@ -84,12 +94,18 @@ def is_fake(client: Any) -> bool:
     return isinstance(client, FakeLLM)
 
 
-def banner(client: Any, settings: Settings | None = None) -> str:
-    """Рядок, який демо друкує першим, щоб читач не сплутав підробку зі справжнім прогоном."""
+def banner(client: Any, settings: Settings | None = None, *, embedder: str | None = None) -> str:
+    """Рядок, який демо друкує першим, щоб читач не сплутав підробку зі справжнім прогоном.
+
+    Джерела називаються **одним рядком**, а не окремим банером на кожне. Два банери підряд
+    читаються як два незалежні повідомлення, і те з них, що каже «мережі немає», починає
+    здаватися твердженням про весь прогін — хоча стосується лише одного з джерел.
+    """
+    extra = f" · ембеддер {embedder}" if embedder else ""
     if is_fake(client):
         return (
-            "[FakeLLM] Відповіді розігруються за сценарієм — мережі немає. "
-            "Щоб побачити справжню модель, заповни LLM_* у .env."
+            f"[FakeLLM] Відповіді розігруються за сценарієм{extra} — мережі немає. "
+            "Щоб побачити справжні, заповни LLM_* у .env."
         )
     settings = settings or default_settings
-    return f"[LLM] {settings.llm_base_url} · model={get_model(settings)}"
+    return f"[LLM] {settings.llm_base_url} · model={get_model(settings)}{extra}"

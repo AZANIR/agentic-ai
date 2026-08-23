@@ -16,7 +16,7 @@ The loop itself does not change by a single line, and a check asserts that again
 ```bash
 python -m stages.s02_rag.run             # demo: five scenes, offline, no key
 python -m stages.s02_rag.run --prompt    # same, plus the prompt that goes to the model
-python -m stages.s02_rag.check           # 29 checks, 9 of them on failure modes
+python -m stages.s02_rag.check           # 49 checks, 24 of them on failure modes
 python -m stages.s02_rag.decision        # the RAG-vs-fine-tuning checklist, as code
 ```
 

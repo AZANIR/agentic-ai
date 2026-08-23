@@ -2,7 +2,7 @@
 
 Запуск: ``python -m stages.s02_rag.check``
 
-Шість перевірок позначені як режими відмови. Найважливіша з них — не та, що ловить витік
+Майже половина перевірок — режими відмови. Найважливіша з них — не та, що ловить витік
 внутрішнього документа, а сусідня: **дозволений документ не зник із видачі**. Без неї фільтр,
 поставлений після відбору top-k, проходить усе — внутрішнє справді не витікає, просто
 правильна відповідь тихо перетворюється на «нічого не знайдено» (ADR етапу 0002).
@@ -10,21 +10,30 @@
 
 from __future__ import annotations
 
+import io
 import tempfile
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from shared.check_runner import run_checks
-from shared.config import Settings
+from shared.config import ConfigError, Settings
 from shared.embeddings import get_embedder
 from shared.fake_llm import FakeLLM, text, tool_call
-from shared.trace import trace_run
+from shared.trace import iter_steps, trace_run
 from stages.s01_agent_loop.loop import run_agent
-from stages.s02_rag.answer import NO_ANSWER, build_answer
+from stages.s02_rag.answer import CLOSE_DATA, NO_ANSWER, OPEN_DATA, build_answer
 from stages.s02_rag.chunk import split
-from stages.s02_rag.decision import SITUATIONS, decide
+from stages.s02_rag.decision import FINE_TUNING, PROMPT, RAG, RULES, SITUATIONS, decide
 from stages.s02_rag.documents import INTERNAL, NO_FILTER, PUBLIC, load_documents
+from stages.s02_rag.run import main as demo_main
 from stages.s02_rag.store import KnowledgeBase, SearchResult
-from stages.s02_rag.tools import describe, registry_with_search, search_knowledge_base, tool_for
+from stages.s02_rag.tools import (
+    describe,
+    registry_with_search,
+    search_knowledge_base,
+    sources_from_transcript,
+    tool_for,
+)
 
 SMALL = 40
 LARGE = 120
@@ -184,6 +193,165 @@ def check_tool_does_not_report_a_similarity_it_never_measured() -> None:
     assert NO_ANSWER in text
 
 
+# --- перевірки, що стверджують ВЛАСТИВІСТЬ, а не збіг ---------------------------
+
+
+def check_retrieved_text_is_fenced_off_from_the_instructions() -> None:
+    """ВІДМОВА · answer: огорожа блоку ДАНІ існує, а не просто слово «ДАНІ» у промпті"""
+    result = _base().search(RETURNS_QUESTION, access=PUBLIC, top_k=2)
+    prompt = build_answer(RETURNS_QUESTION, result, model_text="").prompt
+
+    assert OPEN_DATA in prompt and CLOSE_DATA in prompt, (
+        "маркерів блоку немає — знайдений текст приклеєний до інструкцій, і моделі нічим "
+        "відрізнити чужі слова від твоїх"
+    )
+    head, block = prompt.split(OPEN_DATA, 1)
+    block = block.split(CLOSE_DATA, 1)[0]
+    for hit in result.hits:
+        assert hit.fragment.text in block, (
+            f"фрагмент {hit.fragment.label} лежить поза огорожею — сама огорожа декоративна"
+        )
+        assert hit.fragment.text not in head, "фрагмент продубльовано в інструкції"
+    assert "ЛИШЕ на текст" in head, "інструкції мають лишатись до блоку, а не всередині"
+
+
+def check_provider_choice_actually_reads_the_configuration() -> None:
+    """ВІДМОВА · embeddings: фабрика читає конфігурацію, а не повертає дефолт завжди"""
+    configured = get_embedder(
+        Settings.load(
+            source={
+                "EMBEDDINGS_PROVIDER": "openai",
+                "EMBEDDINGS_MODEL": "text-embedding-3-small",
+                "LLM_BASE_URL": "https://example.invalid/v1",
+                "LLM_API_KEY": "sk_test_not_a_real_key",
+                "LLM_MODEL": "test",
+            }
+        )
+    )
+    assert configured.name == "api:text-embedding-3-small", (
+        f"фабрика віддала {configured.name!r} — вона ігнорує EMBEDDINGS_PROVIDER"
+    )
+    assert get_embedder(Settings.load(source={})).name == "hash-words"
+
+
+def check_unusable_embedder_configuration_is_refused_at_startup() -> None:
+    """ВІДМОВА · embeddings: непридатна конфігурація падає на старті, а не при першому запиті"""
+    for source, expect in (
+        ({"EMBEDDINGS_PROVIDER": "нісенітниця"}, "нісенітниця"),
+        ({"EMBEDDINGS_PROVIDER": "openai"}, "LLM_BASE_URL"),
+    ):
+        try:
+            get_embedder(Settings.load(source=source))
+        except ConfigError as error:
+            assert expect in str(error), f"текст помилки не називає причини: {error}"
+        else:
+            raise AssertionError(f"конфігурація {source} мала бути відхилена")
+
+
+def check_overlap_does_not_produce_a_fragment_inside_another() -> None:
+    """ВІДМОВА · chunk: перекриття не плодить фрагмент, цілком вкладений у попередній"""
+    fragments = split(" ".join(f"с{i}" for i in range(50)), source="doc", size=20, overlap=10)
+    assert len(fragments) == 4, [f.label for f in fragments]
+    assert fragments[-1].text not in fragments[-2].text, (
+        "останній фрагмент цілком лежить усередині попереднього — той самий текст "
+        "індексується двічі й з'їдає слот у top-k"
+    )
+    for document in load_documents():
+        pieces = split(document.body, source=document.name, size=SMALL, overlap=10)
+        texts = [p.text for p in pieces]
+        assert len(texts) == len(set(texts)), f"дублікати фрагментів у {document.name}"
+
+
+def check_decision_checklist_keeps_the_six_situations_it_documents() -> None:
+    """ВІДМОВА · decision: склад чекліста закріплено — заміна ситуацій не проходить тихо"""
+    names = [s.name for s in SITUATIONS]
+    assert len(names) == len(set(names)) == 7, f"склад чекліста змінився: {names}"
+
+    signals = {key for s in SITUATIONS for key in s.signals}
+    declared = {rule.signal for rule in RULES}
+    assert signals <= declared, (
+        f"ситуація вмикає сигнал, якого немає у правилах: {signals - declared}"
+    )
+    assert declared <= signals, f"правило не перевіряється жодною ситуацією: {declared - signals}"
+
+    verdicts = {decide(s.signals).answer for s in SITUATIONS}
+    assert verdicts == {RAG, FINE_TUNING, PROMPT}, (
+        f"чекліст дає не всі три вердикти: {verdicts} — ADR етапу 0004"
+    )
+
+
+def check_every_rule_is_exercised_by_a_situation() -> None:
+    """decision: кожне правило має ситуацію, яка його вмикає"""
+    for rule in RULES:
+        matched = [s for s in SITUATIONS if s.signals.get(rule.signal)]
+        assert matched, f"правило {rule.signal!r} не перевіряє жодна ситуація"
+        assert decide({rule.signal: True}).answer == rule.answer
+
+
+def check_demo_runs_offline_and_shows_five_scenes() -> None:
+    """e2e · демо проходить офлайн, показує п'ять сцен і пише трейс"""
+    buffer = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with redirect_stdout(buffer):
+            code = demo_main(trace_path=path)
+        steps = list(iter_steps(path))
+    output = buffer.getvalue()
+
+    assert code == 0, code
+    for number in range(1, 6):
+        assert f"\n{number}. " in output, f"сцена {number} не надрукувалась"
+    assert "ембеддер hash-words" in output, "джерела не названі одним рядком (рішення №8)"
+    assert output.count("[FakeLLM]") == 1, "другий банер повернувся"
+    assert "пропущено: empty" in output, "зіпсований документ не названо у виводі (AC-08b)"
+    assert "0.503" in output and "0.190" in output, "оцінки не видно в консолі (AC-01)"
+
+    kinds = {step["kind"] for step in steps}
+    assert {"search", "chunking", "threshold", "answer", "access"} <= kinds, kinds
+    access = [step for step in steps if step["kind"] == "access"]
+    assert any(step["filtered_out"] > 0 for step in access), (
+        "факт відсіювання не потрапив у трейс — тому, хто розбирає інцидент, слідів не лишилось"
+    )
+
+
+def check_agent_answer_carries_a_source_from_the_transcript() -> None:
+    """e2e · відповідь агента несе джерело, витягнуте системою зі стенограми (AC-09)"""
+    client = FakeLLM(
+        script=[
+            tool_call("search_knowledge_base", {"query": RETURNS_QUESTION}),
+            text("Повернути товар можна протягом 14 днів. Джерело вигадаю сам: fake-doc#7"),
+        ]
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        with trace_run("check", path=Path(tmp) / "t.jsonl", stage="s02") as tracer:
+            result = run_agent(
+                RETURNS_QUESTION,
+                client=client,
+                tracer=tracer,
+                tools=registry_with_search(access=PUBLIC),
+            )
+    sources = sources_from_transcript(result.transcript)
+    assert sources, "агент відповів без жодного джерела"
+    assert "fake-doc#7" not in sources, "вигадане моделлю посилання просочилось у джерела"
+    assert any("returns-policy" in label for label in sources), sources
+
+
+def check_lesson_numbers_match_the_suite() -> None:
+    """ВІДМОВА · урок: числа в прозі збігаються з тим, що друкує команда"""
+    total, failures = len(CHECKS), sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
+    here = Path(__file__).parent
+    for name, sentence in (
+        ("README.md", f"{total} перевірок, {failures} із них на режими відмови"),
+        ("CHECKLIST.md", f"{total} зелених перевірок, {failures} із них на режими відмови"),
+        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
+    ):
+        page = (here / name).read_text(encoding="utf-8")
+        assert sentence in page, (
+            f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
+            "команда, яку той самий урок наказує запустити"
+        )
+
+
 # --- T2 · нарізка -------------------------------------------------------------
 
 
@@ -309,7 +477,7 @@ def check_permitted_document_is_not_displaced_by_a_filtered_one() -> None:
 
 
 def check_broken_documents_do_not_break_the_index() -> None:
-    """ВІДМОВА · store: порожній і надто короткий документи названі, база лишається робочою"""
+    """ВІДМОВА · store: порожній документ названо, база лишається робочою"""
     base = _base()
     assert "empty" in base.report.skipped, base.report.skipped
     assert base.report.indexed >= 5, base.report.indexed
@@ -473,7 +641,7 @@ def check_stage_one_loop_is_untouched() -> None:
 
 def check_decision_checklist_answers_all_situations() -> None:
     """decision: кожна з шести ситуацій має рівно одну відповідь"""
-    assert len(SITUATIONS) == 6, len(SITUATIONS)
+    assert len(SITUATIONS) == 7, len(SITUATIONS)
     for situation in SITUATIONS:
         verdict = decide(situation.signals)
         assert verdict.answer == situation.expected, (
@@ -530,6 +698,15 @@ def check_checks_run_offline_and_cover_failure_modes() -> None:
 
 
 CHECKS = [
+    check_retrieved_text_is_fenced_off_from_the_instructions,
+    check_provider_choice_actually_reads_the_configuration,
+    check_unusable_embedder_configuration_is_refused_at_startup,
+    check_overlap_does_not_produce_a_fragment_inside_another,
+    check_decision_checklist_keeps_the_six_situations_it_documents,
+    check_every_rule_is_exercised_by_a_situation,
+    check_demo_runs_offline_and_shows_five_scenes,
+    check_agent_answer_carries_a_source_from_the_transcript,
+    check_lesson_numbers_match_the_suite,
     check_unknown_asker_cannot_become_full_access,
     check_full_access_is_an_explicit_named_choice,
     check_reindexing_does_not_duplicate_the_base,

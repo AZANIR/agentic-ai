@@ -18,8 +18,8 @@
 
 - [ ] `python -m stages.s02_rag.run` — бачив усі п'ять сцен.
 - [ ] `python -m stages.s02_rag.run --prompt` — подивився на межу блоку ДАНІ очима.
-- [ ] `python -m stages.s02_rag.check` — 29 зелених перевірок, з них 9 позначені `ВІДМОВА`.
-- [ ] `python -m stages.s02_rag.decision` — бачив шість ситуацій і відповідь на кожну.
+- [ ] `python -m stages.s02_rag.check` — 49 зелених перевірок, 24 із них на режими відмови.
+- [ ] `python -m stages.s02_rag.decision` — бачив сім ситуацій і відповідь на кожну.
 - [ ] Переставив фільтр після top-k (вправа 1) і побачив, що перевірка на витік лишилась
       зеленою, а червоною стала інша.
 - [ ] `python -m stages.s02_rag.solutions.exercise_1_filter_after_topk` — побачив числами,

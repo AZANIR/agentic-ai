@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from shared.embeddings import cosine
+from shared.embeddings import Embedder, cosine
 from stages.s02_rag.chunk import Fragment, split
 from stages.s02_rag.documents import NO_FILTER, Document
 
@@ -63,7 +63,7 @@ class SearchResult:
 class KnowledgeBase:
     """База знань у пам'яті: індексує фрагменти й шукає по них."""
 
-    def __init__(self, *, embedder, threshold: float = 0.2) -> None:
+    def __init__(self, *, embedder: Embedder, threshold: float = 0.2) -> None:
         self.embedder = embedder
         self.threshold = threshold
         self.fragments: list[Fragment] = []

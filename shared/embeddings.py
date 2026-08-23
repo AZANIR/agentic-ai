@@ -23,7 +23,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 import numpy as np
 
@@ -106,22 +106,16 @@ class ApiEmbedder:
         self.name = f"api:{self.model}"
 
     def embed(self, texts: list[str]) -> np.ndarray:
-        import openai
+        from shared.llm import make_client
 
-        client = openai.OpenAI(
-            base_url=self.settings.llm_base_url,
-            api_key=self.settings.llm_api_key,
-            timeout=60.0,
-            max_retries=2,
-        )
-        response = client.embeddings.create(model=self.model, input=texts)
+        response = make_client(self.settings).embeddings.create(model=self.model, input=texts)
         vectors = np.array([item.embedding for item in response.data], dtype=np.float32)
         lengths = np.linalg.norm(vectors, axis=1, keepdims=True)
         lengths[lengths == 0] = 1.0
         return vectors / lengths
 
 
-def get_embedder(settings: Settings | None = None) -> Any:
+def get_embedder(settings: Settings | None = None) -> Embedder:
     """Повернути ембеддер за конфігурацією. Дефолт — хеш: офлайн, детермінований, без ключа."""
     settings = settings or default_settings
     provider = settings.embeddings_provider

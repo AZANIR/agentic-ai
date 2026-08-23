@@ -85,6 +85,12 @@ SITUATIONS = [
         signals={"fixed_format": True},
     ),
     Situation(
+        name="Модель не знає внутрішнього жаргону компанії",
+        expected=FINE_TUNING,
+        why="Це не брак фактів, а брак словника. Пошук не вчить моделі говорити.",
+        signals={"domain_language": True},
+    ),
+    Situation(
         name="Вісім сторінок правил, які не мінялися два роки",
         expected=PROMPT,
         why="Усе влізе в промпт. RAG тут — інфраструктура заради інфраструктури.",

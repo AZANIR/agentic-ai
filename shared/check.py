@@ -192,7 +192,7 @@ def check_embedder_finds_literal_overlap_not_synonyms() -> None:
 
 
 def check_embedder_reports_its_name() -> None:
-    """ВІДМОВА · embeddings: банер називає ембеддер, інакше не видно, що працює"""
+    """embeddings: ембеддер називає себе, інакше не видно, що працює"""
     embedder = get_embedder()
     assert embedder.name, "ембеддер без імені — у банері буде порожньо"
     assert "hash" in embedder.name.lower(), embedder.name

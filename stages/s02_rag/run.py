@@ -38,9 +38,14 @@ BAIT = "яка сума автоматичного повернення"
 SCRIPT = [text("Повернути товар можна протягом 14 днів з дня отримання замовлення.")]
 
 
-def _base(*, size: int, threshold: float = 0.2) -> KnowledgeBase:
+def _base(*, size: int, threshold: float = 0.2, announce: bool = False) -> KnowledgeBase:
     base = KnowledgeBase(embedder=get_embedder(), threshold=threshold)
-    base.index(load_documents(), size=size, overlap=10)
+    report = base.index(load_documents(), size=size, overlap=10)
+    if announce:
+        print(f"  проіндексовано: {report.indexed} документів, {report.fragments} фрагментів")
+        for name, reason in report.skipped.items():
+            print(f"  пропущено: {name} — {reason}")
+        print()
     return base
 
 
@@ -59,7 +64,7 @@ def _show(result: SearchResult, *, indent: str = "    ") -> None:
 
 def scene_literal_vs_synonym(tracer) -> None:
     print("1. Те саме питання: словами документа й синонімами")
-    base = _base(size=40)
+    base = _base(size=40, announce=True)
     for label, question in (("дослівно ", LITERAL), ("синонімами", SYNONYM)):
         result = base.search(question, access=PUBLIC, top_k=3)
         print(f"  {label}: «{question}»")
@@ -127,7 +132,12 @@ def scene_access_levels(tracer) -> None:
         result = base.search(BAIT, access=access, top_k=3)
         print(f"  {who} (доступ {access}):")
         _show(result, indent="      ")
-        tracer.step("access", who=access, labels=[h.fragment.label for h in result.hits])
+        tracer.step(
+            "access",
+            who=access,
+            labels=[h.fragment.label for h in result.hits],
+            filtered_out=result.filtered_out,
+        )
     print("\n  Внутрішній документ виграв би за близькістю — і саме тому це перевірка")
     print("  фільтра, а не збіг обставин. Фільтр стоїть ДО відбору top-k, тому покупець")
     print("  бачить правильну публічну відповідь, а не «нічого не знайдено».\n")
@@ -135,8 +145,8 @@ def scene_access_levels(tracer) -> None:
 
 def main(*, show_prompt: bool = False, trace_path=None) -> int:
     client = get_client(demo_script=SCRIPT)
-    print(banner(client))
-    print(f"ембеддер: {get_embedder().name}\n")
+    print(banner(client, embedder=get_embedder().name))
+    print()
 
     with trace_run("Етап 2 · RAG", path=trace_path, stage="s02") as tracer:
         scene_literal_vs_synonym(tracer)
@@ -145,6 +155,8 @@ def main(*, show_prompt: bool = False, trace_path=None) -> int:
         scene_grounded_answer(tracer, client, show_prompt=show_prompt)
         scene_access_levels(tracer)
 
+    if trace_path is None:
+        print("Трейси прогонів: traces/ — їх читатиме етап 8.")
     if not show_prompt:
         print("Щоб побачити промпт, який іде моделі (там видно межу блоку ДАНІ):")
         print("    python -m stages.s02_rag.run --prompt")
