@@ -15,7 +15,7 @@ import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from shared.check_runner import run_checks
+from shared.check_runner import require_tag, run_checks
 from shared.config import ConfigError, Settings
 from shared.embeddings import get_embedder
 from shared.fake_llm import FakeLLM, text, tool_call
@@ -623,8 +623,20 @@ def check_stage_one_loop_is_untouched() -> None:
     """tools: цикл етапу 1 не змінено жодним рядком"""
     import subprocess
 
+    require_tag("stage-01")
+
     diff = subprocess.run(
-        ["git", "diff", "stage-01", "--stat", "--", "stages/s01_agent_loop/"],
+        # Лише реалізація: файл перевірок виключено з тієї ж причини, що й на етапі 3 —
+        # спільна інфраструктурна правка проходить крізь усі `check.py`.
+        [
+            "git",
+            "diff",
+            "stage-01",
+            "--stat",
+            "--",
+            "stages/s01_agent_loop/*.py",
+            ":(exclude)stages/s01_agent_loop/check.py",
+        ],
         capture_output=True,
         text=True,
         encoding="utf-8",

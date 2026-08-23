@@ -16,7 +16,7 @@ import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from shared.check_runner import NotVerified, run_checks
+from shared.check_runner import NotVerified, require_tag, run_checks
 from shared.config import Settings
 from shared.fake_llm import FakeLLM, text, tool_call
 from shared.trace import iter_steps, trace_run
@@ -571,8 +571,13 @@ def check_stage_one_and_two_are_untouched() -> None:
     """ВІДМОВА · етапи 1 і 2 не змінено — маршрут додано, нижні рівні не переписано"""
     import subprocess
 
+    require_tag("stage-02")
+
     diff = subprocess.run(
-        # Лише код: правка прози в уроці нижнього етапу — не переписування етапу.
+        # Лише реалізація. Проза уроку й файл перевірок навмисно поза межами: теза
+        # етапу — що не змінився **цикл**, а не що нижні етапи більше ніколи не
+        # отримають рядка. Спільна інфраструктурна правка (наприклад `require_tag`)
+        # проходить крізь усі `check.py` і переписуванням етапу не є.
         [
             "git",
             "diff",
@@ -581,6 +586,8 @@ def check_stage_one_and_two_are_untouched() -> None:
             "--",
             "stages/s01_agent_loop/*.py",
             "stages/s02_rag/*.py",
+            ":(exclude)stages/s01_agent_loop/check.py",
+            ":(exclude)stages/s02_rag/check.py",
         ],
         capture_output=True,
         text=True,

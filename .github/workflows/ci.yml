@@ -30,7 +30,11 @@ jobs:
         python-version: ["3.11", "3.13"]
 
     steps:
+      # fetch-depth: 0 — перевірки «нижній етап не змінено» звіряються з теґом
+      # попереднього етапу, а неглибокий клон теґів не тягне (ADR-0007).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -60,7 +64,11 @@ jobs:
   optional-extras:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 — перевірки «нижній етап не змінено» звіряються з теґом
+      # попереднього етапу, а неглибокий клон теґів не тягне (ADR-0007).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:

@@ -87,3 +87,26 @@ def run_checks(checks: list[Callable[[], None]], *, title: str) -> int:
 
     print(f"{GREEN}усі {len(checks)} перевірок пройшли{OFF}")
     return 0
+
+
+def require_tag(tag: str) -> None:
+    """Переконатися, що теґ доступний, або чесно сказати, що перевірку не виконано.
+
+    Перевірки «нижній етап не змінено» звіряються з теґом попереднього етапу. У свіжому
+    клоні його може не бути: `actions/checkout` тягне неглибоку історію **без теґів**, і
+    `git diff stage-02` там падає з `bad revision`.
+
+    Це не збій коду й не привід червоніти — це відсутній вхідний матеріал, тобто рівно
+    той стан, заради якого існує `NotVerified`. Але сам по собі він недостатній: якщо теґів
+    немає ніде, перевірка не виконається ніколи. Тому CI тягне повну історію
+    (`fetch-depth: 0`), і там вона справді працює.
+    """
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{tag}^{{commit}}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise NotVerified(f"немає теґа {tag} — потрібна повна історія: git fetch --tags")
