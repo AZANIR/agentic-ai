@@ -10,15 +10,21 @@
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 from shared.check_runner import run_checks
 from shared.config import Settings
 from shared.embeddings import get_embedder
+from shared.fake_llm import FakeLLM, text, tool_call
+from shared.trace import trace_run
+from stages.s01_agent_loop.loop import run_agent
 from stages.s02_rag.answer import NO_ANSWER, build_answer
 from stages.s02_rag.chunk import split
 from stages.s02_rag.decision import SITUATIONS, decide
 from stages.s02_rag.documents import INTERNAL, PUBLIC, load_documents
 from stages.s02_rag.store import KnowledgeBase
-from stages.s02_rag.tools import search_knowledge_base, tool_for
+from stages.s02_rag.tools import registry_with_search, search_knowledge_base, tool_for
 
 SMALL = 40
 LARGE = 120
@@ -330,6 +336,46 @@ def check_decision_checklist_stops_at_the_first_rule() -> None:
     assert "змін" in verdict.rule.lower(), verdict.rule
 
 
+# --- T8 · e2e -----------------------------------------------------------------
+
+
+def check_stage_one_agent_picks_the_search_tool() -> None:
+    """e2e · агент етапу 1 сам обирає пошук по базі й доводить відповідь до кінця"""
+    client = FakeLLM(
+        script=[
+            tool_call("search_knowledge_base", {"query": RETURNS_QUESTION}),
+            text("Повернути товар можна протягом 14 днів."),
+        ]
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        with trace_run("check", path=Path(tmp) / "t.jsonl", stage="s02") as tracer:
+            result = run_agent(
+                RETURNS_QUESTION,
+                client=client,
+                tracer=tracer,
+                tools=registry_with_search(access=PUBLIC),
+            )
+    assert result.ok, f"агент не дійшов до відповіді: {result}"
+    assert "14 днів" in (result.answer or "")
+    observed = [s for s in result.transcript if s.get("role") == "tool"]
+    assert observed, "інструмент не викликався — міст не працює"
+    assert "returns-policy" in observed[0]["content"], observed[0]["content"][:120]
+
+
+def check_checks_run_offline_and_cover_failure_modes() -> None:
+    """e2e · увесь набір іде без мережі, і відмов серед перевірок не менше трьох"""
+    assert not Settings.load(source={}).has_real_llm, (
+        "з порожнім оточенням провайдера бути не може — інакше набір мовчки пішов би в мережу"
+    )
+    labels = [(c.__doc__ or "") for c in CHECKS]
+    failures = [d for d in labels if d.startswith("ВІДМОВА")]
+    assert len(failures) >= 3, f"режимів відмови лише {len(failures)} — етап учить не тому"
+    assert all(labels), "перевірка без опису не читається у виводі"
+    assert get_embedder().name == "hash-words", (
+        "перевірки мають іти на детермінованому ембеддері, інакше числа попливуть"
+    )
+
+
 CHECKS = [
     check_chunking_covers_the_whole_text,
     check_chunking_overlap_keeps_the_seam,
@@ -357,6 +403,8 @@ CHECKS = [
     check_stage_one_loop_is_untouched,
     check_decision_checklist_answers_all_situations,
     check_decision_checklist_stops_at_the_first_rule,
+    check_stage_one_agent_picks_the_search_tool,
+    check_checks_run_offline_and_cover_failure_modes,
 ]
 
 if __name__ == "__main__":
