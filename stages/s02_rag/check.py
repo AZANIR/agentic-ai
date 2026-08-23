@@ -14,7 +14,8 @@ from shared.check_runner import run_checks
 from shared.config import Settings
 from shared.embeddings import get_embedder
 from stages.s02_rag.chunk import split
-from stages.s02_rag.store import PUBLIC, KnowledgeBase, load_documents
+from stages.s02_rag.documents import PUBLIC, load_documents
+from stages.s02_rag.store import KnowledgeBase
 
 SMALL = 40
 LARGE = 120

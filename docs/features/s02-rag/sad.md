@@ -137,6 +137,7 @@ C4Context
 ```
 stages/s02_rag/
 ├── chunk.py      нарізка документа на фрагменти; ≤50 рядків
+├── documents.py  читання бази знань, метадані, рівень доступу
 ├── store.py      індекс + косинус + top-k + поріг + фільтр доступу; ≤80 рядків
 ├── answer.py     складання відповіді: цитата додається системою
 ├── tools.py      інструмент пошуку для реєстру агента з етапу 1 (міст)
@@ -162,6 +163,7 @@ C4Container
         Container(run2, "run", "python module", "Demo - retrieval scenarios side by side")
         Container(check2, "check", "python module", "Offline assertions")
         Container(chunk, "chunk", "python module", "Splits a document into fragments")
+        Container(docs2, "documents", "python module", "Reads the knowledge base and its access metadata")
         Container(store, "store", "python module", "Index and cosine and top-k and threshold and access filter")
         Container(answer, "answer", "python module", "Builds the answer and attaches the source")
         Container(tools2, "tools", "python module", "Search tool for the stage 1 registry")
@@ -186,7 +188,8 @@ C4Container
     Rel(run2, chunk, "splits documents")
     Rel(chunk, store, "feeds fragments")
     Rel(store, emb, "embeds text")
-    Rel(store, kb, "reads documents")
+    Rel(docs2, kb, "reads documents")
+    Rel(store, docs2, "takes documents to index")
     Rel(answer, store, "takes fragments and their sources")
     Rel(store, trace2, "records the search")
     Rel(tools2, reg, "registers itself")
@@ -307,7 +310,7 @@ ADR-файли: `docs/features/s02-rag/adr/NNNN-*.md`.
 |---|---|---|---|
 | Open question: рівень доступу як параметр пошуку чи фільтр на рівні виклику | Open question | Дефолт — параметр пошуку (ADR-0002): інакше кожен викликач мусить пам'ятати про фільтр. Resolve before `sdd:implement` | Contributor |
 | Хеш-ембеддер не знаходить синоніми — читач може вирішити, що RAG узагалі не працює | Medium | Це не вада, а зміст уроку. Урок показує розрив числом і прямо каже, що саме він мотивує справжні ембеддинги | Contributor |
-| Ліміт «≤80 рядків» для пошуку затісний: у ньому косинус, top-k, поріг і фільтр доступу | Medium | Міряти на першій реалізації. При перевищенні — виносити фільтр доступу окремим модулем, як гейт на етапі 1, а не роздувати ліміт | Contributor |
+| ~~Ліміт «≤80 рядків» для пошуку затісний~~ **СПРАЦЮВАВ** | — | Перша реалізація дала 98/80. Мітигація вгадала факт, але не місце: виносити треба було **не фільтр**. Фільтр — чотири рядки, і суть ADR-0002 саме в тому, що вони стоять усередині пошуку; винести їх означало б сховати те, що має бути на видноті. Винесено **завантаження документів** (`documents.py`) — окрема відповідальність, 30 рядків. Пошук: 71/80 | Contributor |
 | Ін'єкція через знайдений документ показана, але не розв'язана | Medium | Свідомо: повний захист потребує рівня, якого на етапі 2 немає. Урок називає межу прямо, щоб читач не вважав задачу закритою | Contributor |
 | Фільтр доступу перевірено лише на двох рівнях | Low | Двох достатньо, щоб показати механізм; ієрархія рівнів — тема етапу 6 |
 
