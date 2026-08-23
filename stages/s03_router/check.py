@@ -11,15 +11,16 @@ from __future__ import annotations
 
 import ast
 import io
+import json
 import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from shared.check_runner import run_checks
+from shared.check_runner import NotVerified, run_checks
 from shared.config import Settings
 from shared.fake_llm import FakeLLM, text, tool_call
 from shared.trace import iter_steps, trace_run
-from stages.s02_rag.documents import INTERNAL, PUBLIC
+from stages.s02_rag.documents import INTERNAL, NO_FILTER, PUBLIC
 from stages.s03_router import graph as graph_module
 from stages.s03_router.decision import (
     CLASSIFIER,
@@ -27,6 +28,7 @@ from stages.s03_router.decision import (
     RULES,
     SITUATIONS,
     decide,
+    table,
 )
 from stages.s03_router.decision import (
     SUPERVISOR as SUPERVISOR_VERDICT,
@@ -87,15 +89,33 @@ def check_writing_an_undeclared_field_is_refused() -> None:
 
 def check_no_node_may_raise_the_access_level() -> None:
     """ВІДМОВА · state: рівень доступу не можна перезаписати з вузла (ADR-0003)"""
-    state = State(query="q", access="public")
-    for name in sorted(FROZEN):
+    # Склад FROZEN стверджується явно. Попередня версія ітерувала саму константу — і
+    # спорожнення FROZEN лишало перевірку зеленою, бо тіло циклу не виконувалось жодного разу.
+    assert FROZEN == {"query", "access", "revision_limit"}, f"склад FROZEN змінився: {FROZEN}"
+
+    state = State(query="q", access=PUBLIC)
+    for name, value in (("access", INTERNAL), ("query", "інше"), ("revision_limit", 99)):
         try:
-            setattr(state, name, "internal")
+            setattr(state, name, value)
         except StateFieldError as error:
             assert name in str(error), error
         else:
-            raise AssertionError(f"поле {name} перезаписалось — воно мало бути незмінним")
-    assert state.access == "public"
+            raise AssertionError(f"поле {name!r} перезаписалось — воно мало бути незмінним")
+    assert state.access == PUBLIC and state.revision_limit == 2
+
+
+def check_unknown_access_level_never_reaches_the_search() -> None:
+    """ВІДМОВА · state: чужий рівень доступу відхиляється на межі графа"""
+    for bad in (NO_FILTER, None, "", "Internal", "admin"):
+        try:
+            State(query="q", access=bad)
+        except StateFieldError as error:
+            assert "рівень доступу" in str(error), error
+        else:
+            raise AssertionError(
+                f"граф прийняв рівень доступу {bad!r} — сентинел «показати все» й "
+                "нерозв'язана резолюція не мають проходити межу"
+            )
 
 
 def check_counters_move_and_the_path_records_every_node() -> None:
@@ -181,6 +201,10 @@ def check_specialist_failure_becomes_a_result_not_a_crash() -> None:
 
 # --- T3 · граф ------------------------------------------------------------------
 
+# Для спеціаліста замовлень сценарій несе ще й кроки циклу етапу 1: клієнт один на весь
+# прогін, тож supervisor і спеціаліст беруть репліки з того самого списку.
+ORDERS_STEPS = [tool_call("get_order_status", {"order_id": "ord_4471"}), text("У дорозі.")]
+
 SIX = [
     ("який статус замовлення ord_4471", "orders"),
     ("хочу оформити повернення ord_9001", "orders"),
@@ -191,9 +215,14 @@ SIX = [
 ]
 
 
-def _scripted(*replies: str) -> FakeLLM:
-    """Клієнт, який відповідає рівно цими рядками, по одному на виклик."""
-    return FakeLLM(script=[text(r) for r in replies])
+def _scripted(*replies) -> FakeLLM:
+    """Клієнт на весь прогін: і supervisor, і спеціаліст беруть репліки звідси.
+
+    Рядок стає текстовою відповіддю, готовий запис проходить як є — так у сценарій можна
+    покласти виклик інструмента для циклу етапу 1. Один клієнт на прогін, а не окремий на
+    кожен вузол: саме так буде зі справжнім провайдером.
+    """
+    return FakeLLM(script=[text(r) if isinstance(r, str) else r for r in replies])
 
 
 def _run(query: str, *replies: str, access: str = PUBLIC, revision_limit: int = 2):
@@ -213,8 +242,13 @@ def _run(query: str, *replies: str, access: str = PUBLIC, revision_limit: int = 
 def check_six_queries_reach_their_expected_specialists() -> None:
     """e2e · шість запитів доходять до шести очікуваних спеціалістів"""
     for query, expected in SIX:
-        state, _ = _run(query, expected, "ok")
+        middle = ORDERS_STEPS if expected == "orders" else []
+        state, steps = _run(query, expected, *middle, "ok")
         assert state.path == [SUPERVISOR, expected], f"{query!r} -> {state.path}"
+        routed = [s for s in steps if s["kind"] == "route"]
+        assert routed and routed[0]["chosen"] == expected and routed[0]["known"], (
+            f"{query!r}: маршрут не видно у трейсі: {routed}"
+        )
         assert state.finish_reason == "answered", state.finish_reason
         assert state.handoffs == 1, f"{query!r}: передач {state.handoffs}, а мало бути 1"
         assert state.answer, f"{query!r}: відповіді немає"
@@ -302,10 +336,19 @@ def check_graph_fits_the_line_budget() -> None:
     """graph: маршрутизація вміщається в один екран (NFR-1: ≤80 рядків)"""
     source = Path(graph_module.__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)
+
+    # Викидаємо докстрінги й імпорти — але НЕ виклики-інструкції. Перша версія фільтрувала
+    # весь ast.Expr, тобто кожен tracer.step(...) і state.visit(...): у graph.py так зникало
+    # сім рядків, і шістдесят доданих викликів лишали лічильник на 37.
+    def _is_docstring(node) -> bool:
+        return isinstance(node, ast.Expr) and isinstance(getattr(node.value, "value", None), str)
+
     lines = {
         n.lineno
         for n in ast.walk(tree)
-        if isinstance(n, ast.stmt) and not isinstance(n, (ast.Expr, ast.Import, ast.ImportFrom))
+        if isinstance(n, ast.stmt)
+        and not isinstance(n, (ast.Import, ast.ImportFrom))
+        and not _is_docstring(n)
     }
     assert len(lines) <= 80, f"graph.py: {len(lines)} виконуваних рядків із 80 (SAD §11)"
 
@@ -353,6 +396,15 @@ def check_request_text_cannot_raise_the_access_level() -> None:
         f"формулювання запиту відкрило внутрішні документи: {state.sources}"
     )
     assert "1500" not in (state.answer or "")
+
+    # Позитивний контроль на ТОМУ САМОМУ тексті: без нього будь-яка правка формулювання
+    # зробила б перевірку вічнозеленою — вона перестала б дотягуватись до внутрішнього
+    # документа й нічого про фільтр не доводила б.
+    operator, _ = _run(claim, "knowledge", "ok", access=INTERNAL)
+    assert any("internal-refund-thresholds" in s for s in operator.sources), (
+        f"цей текст запиту взагалі не дотягується до внутрішнього документа: {operator.sources} — "
+        "перевірка на абʼюз стала б вічнозеленою"
+    )
 
 
 def check_operator_route_reaches_the_internal_document() -> None:
@@ -413,15 +465,12 @@ def check_structural_constraints_win_over_size() -> None:
 def check_langgraph_route_matches_the_hand_rolled_one() -> None:
     """МЕЖА · langgraph: ті самі маршрути — або чесно сказано, що не перевіряли"""
     if not langgraph_available():
-        print(
-            "        МЕЖА · LangGraph не встановлено: AC-06 НЕ ПЕРЕВІРЕНО.\n"
-            '        Щоб перевірити: pip install -e ".[s03]"'
-        )
-        return
+        raise NotVerified('LangGraph не встановлено — pip install -e ".[s03]"')
 
     for query, expected in SIX:
-        ours, _ = _run(query, expected, "ok")
-        theirs = langgraph_run(query, access=PUBLIC, client=_scripted(expected, "ok"))
+        middle = ORDERS_STEPS if expected == "orders" else []
+        ours, _ = _run(query, expected, *middle, "ok")
+        theirs = langgraph_run(query, access=PUBLIC, client=_scripted(expected, *middle, "ok"))
         assert theirs.path == ours.path, (
             f"{query!r}: власний граф {ours.path}, LangGraph {theirs.path}"
         )
@@ -497,9 +546,11 @@ def check_lesson_numbers_match_the_suite() -> None:
     total = len(CHECKS)
     failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
     here = Path(graph_module.__file__).parent
+    # Формулювання без узгодження за числом: «32 перевірки», але «36 перевірок» — і рядок,
+    # зібраний шаблоном, ставав неграматичним рівно тоді, коли змінювалась кількість.
     for name, sentence in (
-        ("README.md", f"{total} перевірок, {failures} із них на режими відмови"),
-        ("CHECKLIST.md", f"{total} зелених перевірок, {failures} із них на режими відмови"),
+        ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
+        ("CHECKLIST.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
         ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
     ):
         page = (here / name).read_text(encoding="utf-8")
@@ -542,7 +593,98 @@ def check_stage_one_and_two_are_untouched() -> None:
     )
 
 
+def check_contract_error_travels_out_of_the_graph() -> None:
+    """ВІДМОВА · graph: помилка контракту летить назовні, не переодягається в подію середовища"""
+
+    def reads_a_ghost(state, **kwargs):
+        return state.speciality  # noqa: B018 — саме читання неоголошеного поля й перевіряємо
+
+    original = SPECIALISTS["orders"]
+    SPECIALISTS["orders"] = Specialist(original.name, original.competence, reads_a_ghost)
+    try:
+        _run("який статус замовлення ord_4471", "orders", "ok")
+    except StateFieldError as error:
+        assert "speciality" in str(error), error
+        assert "orders" in str(error), "помилка контракту має називати вузол (AC-02b)"
+    else:
+        raise AssertionError(
+            "граф пережив читання неоголошеного поля — контракт стану переодягнувся в "
+            "«подію середовища», і робота пішла далі на порожньому значенні"
+        )
+    finally:
+        SPECIALISTS["orders"] = original
+
+
+def check_both_implementations_stop_at_the_revision_limit() -> None:
+    """МЕЖА · langgraph: обидві реалізації однаково зупиняються лімітом ревізій"""
+    if not langgraph_available():
+        raise NotVerified("LangGraph не встановлено")
+    replies = ("knowledge", "мало", "мало", "мало", "мало", "мало")
+    ours, _ = _run(SIX[2][0], *replies, revision_limit=2)
+    theirs = langgraph_run(SIX[2][0], access=PUBLIC, client=_scripted(*replies), revision_limit=2)
+    assert theirs.finish_reason == ours.finish_reason == "revision_limit", (
+        f"власний граф {ours.finish_reason!r}, LangGraph {theirs.finish_reason!r} — "
+        "друга реалізація не має циклу ревізій, і AC-06 на шести запитах цього не бачить"
+    )
+    assert theirs.revisions == ours.revisions == 2
+    assert theirs.answer is ours.answer is None, "відхилена відповідь видається за готову"
+
+
+def check_the_supervisor_survives_a_broken_provider() -> None:
+    """ВІДМОВА · graph: збій провайдера не лишає прогін без названої причини"""
+
+    class Broken:
+        class chat:  # noqa: N801 — форма клієнта, не наш клас
+            class completions:
+                @staticmethod
+                def create(**_):
+                    raise TimeoutError("провайдер мовчить")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        with trace_run("check", path=Path(tmp) / "t.jsonl", stage="s03") as tracer:
+            state = run_graph("будь-що", access=PUBLIC, client=Broken(), tracer=tracer)
+    assert state.done, "прогін завершився без причини — інваріант AC-02 зламано"
+    assert state.finish_reason == "no_specialist", state.finish_reason
+    assert state.path == [SUPERVISOR], state.path
+
+
+def check_decision_prose_is_generated_from_the_code() -> None:
+    """ВІДМОВА · decision: таблиця в DECISION.md збігається з тим, що дає код"""
+    page = (Path(graph_module.__file__).parent / "DECISION.md").read_text(encoding="utf-8")
+    assert table() in page, (
+        "DECISION.md розійшовся з decision.table() — правила в коді й у прозі різні, "
+        "і читач не дізнається, яка з двох версій справжня"
+    )
+
+
+def check_exercise_numbers_are_pinned_to_a_mutation_plan() -> None:
+    """ВІДМОВА · урок: числа вправ закріплені машинно, а не написані від руки"""
+    here = Path(graph_module.__file__).parent
+    plan = json.loads((here / "mutations.json").read_text(encoding="utf-8"))
+    assert plan["mutations"], "план мутацій порожній"
+
+    for mutation in plan["mutations"]:
+        assert mutation.get("expect_failed") is not None, (
+            f"{mutation['name']}: число не закріплене — воно розійдеться з прогоном мовчки"
+        )
+        assert (here.parent.parent / Path(mutation["file"])).exists(), mutation["file"]
+
+    # Що текст мутації справді є в коді, стверджує сам `scripts/mutate.py`: він єдиний
+    # знає, що дерево чисте. Тут це було б хибним спрацюванням — під час його ж прогону
+    # оригінал у файлі відсутній, а дві вправи можуть ділити один і той самий оригінал.
+    exercises = (here / "exercises.md").read_text(encoding="utf-8")
+    assert "scripts/mutate.py s03 --expect" in exercises, (
+        "вправи не називають команду, якою читач може звірити числа сам"
+    )
+
+
 CHECKS = [
+    check_decision_prose_is_generated_from_the_code,
+    check_exercise_numbers_are_pinned_to_a_mutation_plan,
+    check_unknown_access_level_never_reaches_the_search,
+    check_contract_error_travels_out_of_the_graph,
+    check_both_implementations_stop_at_the_revision_limit,
+    check_the_supervisor_survives_a_broken_provider,
     check_demo_runs_offline_and_shows_five_scenes,
     check_checks_run_offline_and_cover_failure_modes,
     check_lesson_numbers_match_the_suite,

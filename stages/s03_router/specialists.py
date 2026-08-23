@@ -27,7 +27,7 @@ from shared.trace import trace_run
 from stages.s01_agent_loop.loop import run_agent
 from stages.s02_rag.answer import build_answer
 from stages.s02_rag.tools import knowledge_base
-from stages.s03_router.state import State
+from stages.s03_router.state import State, StateFieldError
 
 _NUMBER = re.compile(r"-?\d+(?:[.,]\d+)?")
 
@@ -51,15 +51,23 @@ class Specialist:
     handle: Callable[..., Answer]
 
 
-def _orders(state: State, *, client: Any = None) -> Answer:
-    """Замовлення: цикл етапу 1 без жодної зміни в ньому."""
+def _orders(state: State, *, client: Any = None, tracer: Any = None) -> Answer:
+    """Замовлення: цикл етапу 1 без жодної зміни в ньому.
+
+    Трейсер приходить від графа, а не створюється тут. Перша версія писала кроки циклу
+    у тимчасову теку й губила їх: у трейсі прогону не було жодного `tool_call`, хоча
+    демо обіцяє, що ці трейси читатиме етап 8.
+    """
     from shared.fake_llm import text as scripted
     from shared.llm import get_client
 
     client = client or get_client(demo_script=[scripted("Не маю чим підтвердити.")])
-    with TemporaryDirectory() as tmp:
-        with trace_run("specialist", path=Path(tmp) / "t.jsonl", stage="s03") as tracer:
-            result = run_agent(state.query, client=client, tracer=tracer)
+    if tracer is not None:
+        result = run_agent(state.query, client=client, tracer=tracer)
+    else:
+        with TemporaryDirectory() as tmp:
+            with trace_run("specialist", path=Path(tmp) / "t.jsonl", stage="s03") as own:
+                result = run_agent(state.query, client=client, tracer=own)
     return Answer(text=result.answer or "", steps=result.steps)
 
 
@@ -128,11 +136,11 @@ def safely(specialist: Specialist, state: State, **kwargs: Any) -> Answer:
     Помилку схеми стану ця функція **не ловить** навмисно: `StateFieldError` означає, що
     контракт зламано, і продовжувати роботу на порожньому значенні — гірше, ніж упасти.
     """
-    from stages.s03_router.state import StateFieldError
-
     try:
         return specialist.handle(state, **kwargs)
-    except StateFieldError:
-        raise
+    except StateFieldError as error:
+        # Контракт зламано. Додаємо ім'я вузла й летимо далі: підміняти це на «подію
+        # середовища» означало б продовжити роботу на порожньому значенні (AC-02b).
+        raise StateFieldError(f"вузол {specialist.name!r}: {error}") from error
     except Exception as error:  # noqa: BLE001 — саме широкий перехват і є суттю функції
         return Answer(error=f"спеціаліст {specialist.name!r} зламався: {error}")

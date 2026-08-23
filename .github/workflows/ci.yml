@@ -52,3 +52,33 @@ jobs:
       # test_cmd з docs/architecture-map.md — офлайн, без ключів
       - name: Checks
         run: python scripts/check_all.py
+
+  # Друга робота існує через одну властивість: етапи мають проходитись БЕЗ необовʼязкових
+  # бібліотек, тому основна робота ставить лише [dev]. Наслідок — перевірки, які без них
+  # позначаються «НЕ ПЕРЕВІРЕНО», у CI не виконувались би ніде й ніколи, а пайплайн лишався
+  # б зеленим. Тут вони виконуються.
+  optional-extras:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install with per-stage extras
+        run: pip install -e ".[dev,s03]"
+
+      # Той самий набір, але тепер порівняння двох реалізацій графа справді відбувається.
+      - name: Checks
+        run: python scripts/check_all.py
+
+      - name: Nothing may stay unverified here
+        run: |
+          python scripts/check_all.py 2>&1 | tee /tmp/checks.log
+          if grep -q "НЕ ПЕРЕВІРЕНО" /tmp/checks.log; then
+            echo "::error::З установленими extras жодна перевірка не має лишатись невиконаною"
+            exit 1
+          fi

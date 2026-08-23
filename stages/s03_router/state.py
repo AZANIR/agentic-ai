@@ -30,6 +30,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from stages.s02_rag.documents import LEVELS
+
 DECLARED = (
     "query",  # що спитали
     "access",  # рівень доступу питальника; незмінний
@@ -56,6 +58,14 @@ class State:
     __slots__ = DECLARED
 
     def __init__(self, *, query: str, access: str, revision_limit: int = 2) -> None:
+        # Рівень доступу перевіряється на межі, а не всередині пошуку. Сюди легко потрапляє
+        # чуже: `None` від нерозвʼязаної резолюції, `NO_FILTER` з етапу 2, порожній рядок із
+        # конфігу. Кожне з них глибше означало б або витік, або мовчазну деградацію.
+        if access not in LEVELS:
+            raise StateFieldError(
+                f"невідомий рівень доступу {access!r}. Дозволені: {', '.join(sorted(LEVELS))}. "
+                "Сентинел «показати все» через граф не проходить навмисно."
+            )
         object.__setattr__(self, "query", query)
         object.__setattr__(self, "access", access)
         object.__setattr__(self, "revision_limit", revision_limit)
@@ -99,5 +109,13 @@ class State:
         self.path.append(node)
 
     def summary(self) -> dict[str, Any]:
-        """Стан як звичайний словник — для трейсу й для виводу."""
-        return {name: getattr(self, name) for name in DECLARED}
+        """Стан як звичайний словник — для трейсу й для виводу.
+
+        Списки копіюються: інакше `summary()` віддавав би живі посилання, і той, хто
+        просто хотів надрукувати стан, міг би його дописати. Докстрінг `visit()` каже
+        «єдиний спосіб потрапити в path» — без копії це було б неправдою.
+        """
+        return {
+            name: list(value) if isinstance(value := getattr(self, name), list) else value
+            for name in DECLARED
+        }

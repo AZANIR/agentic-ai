@@ -31,8 +31,10 @@ from typing import Any, TypedDict
 
 from stages.s03_router.graph import (
     NO_SPECIALIST,
+    REFUSAL,
     SUPERVISOR,
-    _ask,
+    ask,
+    judge_prompt,
     route_prompt,
 )
 from stages.s03_router.specialists import SPECIALISTS, safely
@@ -60,36 +62,50 @@ def available() -> bool:
 def _supervisor(carried: Carried) -> Carried:
     state = carried["state"]
     state.visit(SUPERVISOR)
-    choice = _ask(carried["client"], route_prompt(state), carried.get("model"))
+    choice = ask(carried["client"], route_prompt(state), carried.get("model"))
     return {**carried, "choice": choice if choice in SPECIALISTS else NO_SPECIALIST}
 
 
 def _specialist(carried: Carried) -> Carried:
+    """Вузол спеціаліста разом із оцінкою відповіді — саме сюди повертається ребро ревізій."""
     state, choice = carried["state"], carried["choice"]
-    answer = safely(SPECIALISTS[choice], state)
+    answer = safely(SPECIALISTS[choice], state, client=carried["client"], tracer=None)
     state.handoffs += 1
     state.visit(choice)
+
     if answer.error:
         state.error = answer.error
         state.finish_reason = "specialist_failed"
-    else:
+        return carried
+
+    verdict = ask(carried["client"], judge_prompt(state, answer.text), carried.get("model"))
+    if verdict.startswith("ok"):
         state.answer = answer.text
         state.sources = answer.sources
         state.finish_reason = "answered"
+    elif state.revisions >= state.revision_limit:
+        state.finish_reason = "revision_limit"
+    else:
+        state.revisions += 1
     return carried
 
 
 def _refuse(carried: Carried) -> Carried:
     state = carried["state"]
-    state.answer = "Не маю спеціаліста для цього запиту. Доступні компетенції: " + ", ".join(
-        SPECIALISTS
-    )
+    state.answer = REFUSAL + ", ".join(SPECIALISTS)
     state.finish_reason = "no_specialist"
     return carried
 
 
+def _after_specialist(carried: Carried) -> str:
+    """Ребро ревізій: назад у той самий вузол, доки причина завершення не названа."""
+    from langgraph.graph import END
+
+    return END if carried["state"].done else "specialist"
+
+
 def build() -> Any:
-    """Скласти граф. Три вузли, одне умовне ребро — рівно те саме, що в `graph.py`."""
+    """Скласти граф. Три вузли, два умовні ребра — рівно те саме, що в `graph.py`."""
     from langgraph.graph import END, StateGraph
 
     builder = StateGraph(Carried)
@@ -102,7 +118,11 @@ def build() -> Any:
         lambda carried: "refuse" if carried["choice"] == NO_SPECIALIST else "specialist",
         {"specialist": "specialist", "refuse": "refuse"},
     )
-    builder.add_edge("specialist", END)
+    # Ось те саме ребро, що в нас було `while`: воно повертається у вузол, який щойно
+    # відпрацював, доки стан не назве причину завершення.
+    builder.add_conditional_edges(
+        "specialist", _after_specialist, {"specialist": "specialist", END: END}
+    )
     builder.add_edge("refuse", END)
     return builder.compile()
 
@@ -117,5 +137,9 @@ def run_graph(
 ) -> State:
     """Той самий підпис, що у власного графа, — щоб порівняння було можливим."""
     state = State(query=query, access=access, revision_limit=revision_limit)
-    build().invoke({"state": state, "client": client, "model": model})
+    # recursion_limit: ребро ревізій — це справжній цикл, і LangGraph хоче знати межу.
+    build().invoke(
+        {"state": state, "client": client, "model": model},
+        {"recursion_limit": 2 * revision_limit + 8},
+    )
     return state

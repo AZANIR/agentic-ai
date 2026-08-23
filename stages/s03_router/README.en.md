@@ -15,7 +15,7 @@ compared and must match.
 ```bash
 python -m stages.s03_router.run             # demo: five scenes, offline, no key
 python -m stages.s03_router.run --prompt    # plus the prompt the route is chosen by
-python -m stages.s03_router.check           # 32 checks, 15 of them on failure modes
+python -m stages.s03_router.check           # 38 checks, 20 of them on failure modes
 python -m stages.s03_router.decision        # the do-you-need-a-supervisor checklist
 pip install -e ".[s03]"                     # optional: enables the LangGraph comparison
 ```
@@ -29,7 +29,7 @@ comparison prints that it was **not verified** rather than passing quietly.
 |---|---|
 | `state.py` | The state schema as a declared contract; three fields are immutable |
 | `specialists.py` | Three narrow competences, each built from code that already exists |
-| `graph.py` | Supervisor, route validation, revision loop with a counter — 37 lines |
+| `graph.py` | Supervisor, route validation, revision loop with a counter — 49 lines |
 | `langgraph_impl.py` | The same graph on LangGraph; imported only when installed |
 | `decision.py` | The checklist, as code, so prose and behaviour cannot drift apart |
 
@@ -75,6 +75,6 @@ frameworks on one example would be judging nothing; that is stage 9.
 
 ## Where to break it
 
-[`exercises.md`](exercises.md) — six exercises, each with the measured result: which checks go
+[`exercises.md`](exercises.md) — eight exercises, each with the measured result: which checks go
 red and how many. Removing the revision limit is the one to start with; the second check it
 turns red is more interesting than the first.

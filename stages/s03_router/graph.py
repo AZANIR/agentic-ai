@@ -46,24 +46,38 @@ _JUDGE = """Запит: {query}
 
 Ця відповідь закриває запит? Відповідай одним словом: ok або мало."""
 
+REFUSAL = "Не маю спеціаліста для цього запиту. Доступні компетенції: "
+
+
+def judge_prompt(state: State, answer: str) -> str:
+    """Промпт оцінки відповіді. Публічний із тієї ж причини, що й `route_prompt`."""
+    return _JUDGE.format(query=state.query, answer=answer)
+
 
 def route_prompt(state: State) -> str:
     """Промпт вибору маршруту. Окремою функцією, щоб перевірка бачила те саме, що модель."""
     return _ROUTE.format(catalogue=catalogue(), query=state.query, none=NO_SPECIALIST)
 
 
-def _ask(client: Any, prompt: str, model: str | None) -> str:
-    reply = client.chat.completions.create(
-        model=model or get_model(), messages=[{"role": "user", "content": prompt}]
-    )
-    return (reply.choices[0].message.content or "").strip().lower()
+def ask(client: Any, prompt: str, model: str | None) -> str:
+    """Спитати модель. Порожня чи зіпсована відповідь — теж відповідь, а не падіння.
+
+    Провайдер може віддати порожній `choices`, обірвати з'єднання чи повернути `None`.
+    Це подія середовища, така сама, як виняток спеціаліста: граф має її пережити й піти
+    гілкою «немає спеціаліста», а не завершитись без названої причини (AC-02).
+    """
+    try:
+        reply = client.chat.completions.create(
+            model=model or get_model(), messages=[{"role": "user", "content": prompt}]
+        )
+        return (reply.choices[0].message.content or "").strip().lower()
+    except Exception:  # noqa: BLE001 — будь-яка біда провайдера тут рівноцінна порожній відповіді
+        return ""
 
 
 def _refuse(state: State) -> State:
     """Компетенції немає. Чесна відмова з переліком — і жодного виклику спеціаліста."""
-    state.answer = "Не маю спеціаліста для цього запиту. Доступні компетенції: " + ", ".join(
-        SPECIALISTS
-    )
+    state.answer = REFUSAL + ", ".join(SPECIALISTS)
     state.finish_reason = "no_specialist"
     return state
 
@@ -81,7 +95,7 @@ def run_graph(
     state = State(query=query, access=access, revision_limit=revision_limit)
     state.visit(SUPERVISOR)
 
-    choice = _ask(client, route_prompt(state), model)
+    choice = ask(client, route_prompt(state), model)
     tracer.step("route", chosen=choice, known=choice in SPECIALISTS)
     if choice not in SPECIALISTS:
         # Вигадана назва — це «немає спеціаліста», а не помилка. Модель має право помилитись;
@@ -90,7 +104,7 @@ def run_graph(
 
     specialist = SPECIALISTS[choice]
     while True:
-        answer = safely(specialist, state)
+        answer = safely(specialist, state, client=client, tracer=tracer)
         state.handoffs += 1
         state.visit(choice)
 
@@ -100,7 +114,7 @@ def run_graph(
             tracer.step("specialist_failed", node=choice, error=answer.error)
             return state
 
-        verdict = _ask(client, _JUDGE.format(query=state.query, answer=answer.text), model)
+        verdict = ask(client, judge_prompt(state, answer.text), model)
         tracer.step("judge", node=choice, verdict=verdict, revisions=state.revisions)
         if verdict.startswith("ok"):
             state.answer = answer.text

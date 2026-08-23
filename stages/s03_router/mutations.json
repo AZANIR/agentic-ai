@@ -1,0 +1,70 @@
+{
+  "stage": "s03-router",
+  "executed_floor": 30,
+  "mutations": [
+    {
+      "name": "вправа 1 · звірку маршруту знято",
+      "file": "stages/s03_router/graph.py",
+      "old": "    if choice not in SPECIALISTS:",
+      "new": "    if False:",
+      "expect_failed": 5
+    },
+    {
+      "name": "вправа 2 · ліміт ревізій знято",
+      "file": "stages/s03_router/graph.py",
+      "old": "        if state.revisions >= state.revision_limit:",
+      "new": "        if state.revisions >= 10_000:",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 3 · доступ фіксовано літералом public",
+      "file": "stages/s03_router/specialists.py",
+      "old": "access=state.access",
+      "new": "access=\"public\"",
+      "expect_failed": 4
+    },
+    {
+      "name": "вправа 3b · доступ фіксовано літералом internal",
+      "file": "stages/s03_router/specialists.py",
+      "old": "access=state.access",
+      "new": "access=\"internal\"",
+      "expect_failed": 5
+    },
+    {
+      "name": "вправа 4a · FROZEN ігнорується",
+      "file": "stages/s03_router/state.py",
+      "old": "        if name in FROZEN:",
+      "new": "        if False:",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 4b · FROZEN спорожнено",
+      "file": "stages/s03_router/state.py",
+      "old": "FROZEN = frozenset({\"query\", \"access\", \"revision_limit\"})",
+      "new": "FROZEN = frozenset()",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 5 · компетенції порожні",
+      "file": "stages/s03_router/graph.py",
+      "old": "catalogue=catalogue()",
+      "new": "catalogue=\"\"",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 6 · ситуацію прибрано з чекліста",
+      "file": "stages/s03_router/decision.py",
+      "old": "        signals={\"many_tools\": True},",
+      "new": "        signals={},",
+      "expect_failed": 4
+    },
+    {
+      "name": "контракт стану переодягається в подію середовища",
+      "file": "stages/s03_router/specialists.py",
+      "old": "    except StateFieldError as error:",
+      "new": "    except (StateFieldError,) if False else () as error:",
+      "expect_failed": 1
+    }
+  ],
+  "note": "Числа заміряні З УСТАНОВЛЕНИМ LangGraph. Без нього вправи 1 і 2 дають на одну червону менше — та перевірка позначається НЕ ПЕРЕВІРЕНО, а не проходить."
+}
