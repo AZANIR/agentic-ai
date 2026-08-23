@@ -10,10 +10,13 @@
 from __future__ import annotations
 
 import ast
+import io
 import tempfile
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from shared.check_runner import run_checks
+from shared.config import Settings
 from shared.fake_llm import FakeLLM, text, tool_call
 from shared.trace import iter_steps, trace_run
 from stages.s02_rag.documents import INTERNAL, PUBLIC
@@ -37,6 +40,7 @@ from stages.s03_router.graph import (
 )
 from stages.s03_router.langgraph_impl import available as langgraph_available
 from stages.s03_router.langgraph_impl import run_graph as langgraph_run
+from stages.s03_router.run import main as demo_main
 from stages.s03_router.specialists import SPECIALISTS, Specialist, safely
 from stages.s03_router.state import DECLARED, FROZEN, State, StateFieldError
 
@@ -447,7 +451,103 @@ def check_langgraph_is_never_required_to_pass_the_stage() -> None:
             )
 
 
+# --- T8 · e2e й звірка -----------------------------------------------------------
+
+
+def check_demo_runs_offline_and_shows_five_scenes() -> None:
+    """e2e · демо проходить офлайн, показує п'ять сцен і пише трейс"""
+    buffer = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with redirect_stdout(buffer):
+            code = demo_main(trace_path=path)
+        steps = list(iter_steps(path))
+    output = buffer.getvalue()
+
+    assert code == 0, code
+    for number in range(1, 6):
+        assert f"\n{number}. " in output, f"сцена {number} не надрукувалась"
+    assert output.count("[FakeLLM]") == 1, "другий банер"
+    assert "supervisor -> orders" in output and "supervisor -> math" in output
+    assert "revision_limit" in output, "сцена ліміту не показала причини"
+    assert "no_specialist" in output, "сцена відмови не показала причини"
+    assert "internal-refund-thresholds" in output, "різниці прав не видно"
+
+    kinds = {step["kind"] for step in steps}
+    assert {"route", "judge", "revision", "revision_limit"} <= kinds, kinds
+    routes = [s for s in steps if s["kind"] == "route"]
+    assert any(not s["known"] for s in routes), "у трейсі немає вигаданого маршруту"
+
+
+def check_checks_run_offline_and_cover_failure_modes() -> None:
+    """e2e · увесь набір іде без мережі, і режимів відмови не менше третини"""
+    assert not Settings.load(source={}).has_real_llm, (
+        "з порожнім оточенням провайдера бути не може — інакше набір пішов би в мережу"
+    )
+    labels = [(c.__doc__ or "") for c in CHECKS]
+    assert all(labels), "перевірка без опису не читається у виводі"
+    failures = [d for d in labels if d.startswith("ВІДМОВА")]
+    assert len(failures) * 3 >= len(CHECKS), (
+        f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини (NFR-4)"
+    )
+
+
+def check_lesson_numbers_match_the_suite() -> None:
+    """ВІДМОВА · урок: числа в прозі збігаються з тим, що друкує команда"""
+    total = len(CHECKS)
+    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
+    here = Path(graph_module.__file__).parent
+    for name, sentence in (
+        ("README.md", f"{total} перевірок, {failures} із них на режими відмови"),
+        ("CHECKLIST.md", f"{total} зелених перевірок, {failures} із них на режими відмови"),
+        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
+    ):
+        page = (here / name).read_text(encoding="utf-8")
+        assert sentence in page, (
+            f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
+            "команда, яку той самий урок наказує запустити"
+        )
+
+
+def check_lesson_fits_the_reading_budget() -> None:
+    """урок: ≤2500 слів (NFR-2), інакше це вже не етап на 4–5 годин"""
+    here = Path(graph_module.__file__).parent
+    words = len((here / "README.md").read_text(encoding="utf-8").split())
+    assert words <= 2500, f"урок розрісся до {words} слів"
+
+
+def check_stage_one_and_two_are_untouched() -> None:
+    """ВІДМОВА · етапи 1 і 2 не змінено — маршрут додано, нижні рівні не переписано"""
+    import subprocess
+
+    diff = subprocess.run(
+        # Лише код: правка прози в уроці нижнього етапу — не переписування етапу.
+        [
+            "git",
+            "diff",
+            "stage-02",
+            "--stat",
+            "--",
+            "stages/s01_agent_loop/*.py",
+            "stages/s02_rag/*.py",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert diff.returncode == 0, diff.stderr
+    assert not diff.stdout.strip(), (
+        f"нижні етапи змінено — маршрут мав стати рівнем над ними:\n{diff.stdout}"
+    )
+
+
 CHECKS = [
+    check_demo_runs_offline_and_shows_five_scenes,
+    check_checks_run_offline_and_cover_failure_modes,
+    check_lesson_numbers_match_the_suite,
+    check_lesson_fits_the_reading_budget,
+    check_stage_one_and_two_are_untouched,
     check_langgraph_route_matches_the_hand_rolled_one,
     check_langgraph_is_never_required_to_pass_the_stage,
     check_access_level_survives_the_handoff,
