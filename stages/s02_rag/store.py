@@ -22,7 +22,7 @@ import numpy as np
 
 from shared.embeddings import cosine
 from stages.s02_rag.chunk import Fragment, split
-from stages.s02_rag.documents import Document
+from stages.s02_rag.documents import NO_FILTER, Document
 
 
 @dataclass
@@ -78,6 +78,10 @@ class KnowledgeBase:
         робити всю базу недоступною — це та сама fail-safe логіка, що й на етапі 1.
         """
         report = IndexReport()
+        # Індексація замінює вміст, а не додає до нього: інакше повторний виклик подвоює
+        # базу, і дублікат з'їдає слот у top-k, не сказавши про це жодним словом.
+        self.fragments.clear()
+        self.access.clear()
         for document in documents:
             pieces = split(document.body, source=document.name, size=size, overlap=overlap)
             if not pieces:
@@ -96,13 +100,21 @@ class KnowledgeBase:
         self.report = report
         return report
 
-    def search(self, query: str, *, access: str | None, top_k: int = 3) -> SearchResult:
+    def search(self, query: str, *, access: str, top_k: int = 3) -> SearchResult:
         """Знайти найближчі фрагменти, які питальнику дозволено бачити.
 
-        :param access: рівень доступу питальника. ``None`` означає «без фільтра» —
-            це режим для демонстрації того, що станеться без нього, і не має
-            використовуватись у відповідях реальному питальнику.
+        :param access: рівень доступу питальника, або ``NO_FILTER`` — названий сентинел
+            «показати все», потрібний демонстрації межі. ``None`` заборонено навмисно:
+            це значення дає будь-яка нерозв'язана резолюція «хто питає», і пропустити
+            його означало б відкрити базу тому, кого не вдалося впізнати.
         """
+        if access is None:
+            raise ValueError(
+                "access=None заборонено: невпізнаний питальник не отримує повного доступу. "
+                f"Передай рівень доступу або {NO_FILTER!r}, якщо фільтр справді не потрібен."
+            )
+        if top_k < 1:
+            raise ValueError(f"top_k={top_k} має бути щонайменше 1")
         if self.vectors is None or not self.fragments:
             return SearchResult(hits=[], closest=[], threshold=self.threshold)
 
@@ -110,7 +122,7 @@ class KnowledgeBase:
 
         # --- фільтр доступу. ДО відбору top-k, і саме в цьому вся справа (ADR-0002).
         allowed = [
-            i for i in range(len(self.fragments)) if access is None or self.access[i] == access
+            i for i in range(len(self.fragments)) if access == NO_FILTER or self.access[i] == access
         ]
         filtered_out = len(self.fragments) - len(allowed)
 

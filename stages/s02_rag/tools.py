@@ -25,7 +25,7 @@ from shared.embeddings import get_embedder
 from stages.s01_agent_loop.tools import Tool
 from stages.s02_rag.answer import NO_ANSWER
 from stages.s02_rag.documents import PUBLIC, load_documents
-from stages.s02_rag.store import KnowledgeBase
+from stages.s02_rag.store import KnowledgeBase, SearchResult
 
 SIZE = 40
 OVERLAP = 10
@@ -41,12 +41,23 @@ def knowledge_base() -> KnowledgeBase:
     return base
 
 
+def describe(result: SearchResult) -> str:
+    """Перекласти результат пошуку в текст, який агент отримає як спостереження.
+
+    Відмова розрізняє два стани, які легко злити в один: «розглянули, але далеко» і
+    «розглядати не було чого». Одне число 0.00 в обох випадках виглядало б як виміряна
+    близькість — тобто агент отримав би вигадану цифру замість чесного «нічого не було».
+    """
+    if result.hits:
+        return "\n\n".join(f"[{h.fragment.label}] {h.fragment.text}" for h in result.hits)
+    if result.closest:
+        return f"{NO_ANSWER} Найближче — {result.best_score:.2f}, поріг — {result.threshold}."
+    return f"{NO_ANSWER} Жодного доступного фрагмента не знайшлося, поріг — {result.threshold}."
+
+
 def search_knowledge_base(query: str, *, access: str = PUBLIC) -> str:
     """Знайти у базі знань те, що дозволено бачити питальнику, і повернути з мітками."""
-    result = knowledge_base().search(query, access=access, top_k=TOP_K)
-    if not result.hits:
-        return f"{NO_ANSWER} Найближче — {result.best_score:.2f}, поріг — {result.threshold}."
-    return "\n\n".join(f"[{hit.fragment.label}] {hit.fragment.text}" for hit in result.hits)
+    return describe(knowledge_base().search(query, access=access, top_k=TOP_K))
 
 
 def tool_for(*, access: str) -> Tool:

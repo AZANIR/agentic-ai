@@ -57,7 +57,7 @@ def build_prompt(query: str, hits: list[Hit]) -> str:
     )
 
 
-def build_answer(query: str, result: SearchResult, *, model_text: str) -> Answer:
+def build_answer(query: str, result: SearchResult, *, model_text: str | None) -> Answer:
     """Зібрати відповідь із результату пошуку й тексту, який видала модель.
 
     Якщо нічого не перетнуло поріг, відповідь не формується взагалі: замість неї — чесне
@@ -66,16 +66,20 @@ def build_answer(query: str, result: SearchResult, *, model_text: str) -> Answer
     prompt = build_prompt(query, result.hits)
 
     if not result.hits:
-        near = f" Найближче знайдене — {result.best_score:.2f}" if result.closest else ""
+        near = (
+            f" Найближче знайдене — {result.best_score:.2f}, поріг — {result.threshold}."
+            if result.closest
+            else f" Поріг — {result.threshold}."
+        )
         return Answer(
-            text=f"{NO_ANSWER}{near}, поріг — {result.threshold}.",
+            text=f"{NO_ANSWER}{near}",
             sources=[],
             prompt=prompt,
         )
 
     # Джерела беруться з видачі, а не з тексту моделі. Саме тут ADR-0003 стає кодом.
     return Answer(
-        text=model_text.strip(),
+        text=(model_text or "").strip(),
         sources=[hit.fragment.label for hit in result.hits],
         prompt=prompt,
     )

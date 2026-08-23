@@ -22,9 +22,9 @@ from stages.s01_agent_loop.loop import run_agent
 from stages.s02_rag.answer import NO_ANSWER, build_answer
 from stages.s02_rag.chunk import split
 from stages.s02_rag.decision import SITUATIONS, decide
-from stages.s02_rag.documents import INTERNAL, PUBLIC, load_documents
-from stages.s02_rag.store import KnowledgeBase
-from stages.s02_rag.tools import registry_with_search, search_knowledge_base, tool_for
+from stages.s02_rag.documents import INTERNAL, NO_FILTER, PUBLIC, load_documents
+from stages.s02_rag.store import KnowledgeBase, SearchResult
+from stages.s02_rag.tools import describe, registry_with_search, search_knowledge_base, tool_for
 
 SMALL = 40
 LARGE = 120
@@ -38,6 +38,150 @@ def _base(*, size: int = SMALL, threshold: float = 0.2) -> KnowledgeBase:
     base = KnowledgeBase(embedder=get_embedder(), threshold=threshold)
     base.index(load_documents(), size=size, overlap=10)
     return base
+
+
+# --- documents · рівень доступу -----------------------------------------------
+
+_BROKEN = {
+    "no-closing-fence": "---\ntitle: Секрет\naccess: internal\nВнутрішній секрет.\n",
+    "byte-order-mark": "\ufeff---\ntitle: Секрет\naccess: internal\n---\nВнутрішній секрет.\n",
+    "typo-in-key": "---\ntitle: Секрет\nacces: internal\n---\nВнутрішній секрет.\n",
+    "indented-key": "---\ntitle: Секрет\n access: internal\n---\nВнутрішній секрет.\n",
+    "wrong-case": "---\ntitle: Секрет\nAccess: Internal\n---\nВнутрішній секрет.\n",
+    "no-frontmatter": "Внутрішній секрет без жодних метаданих.\n",
+}
+
+
+def check_broken_frontmatter_does_not_make_a_document_public() -> None:
+    """ВІДМОВА · documents: зіпсовані метадані не роблять документ публічним"""
+    with tempfile.TemporaryDirectory() as tmp:
+        directory = Path(tmp)
+        for name, raw in _BROKEN.items():
+            (directory / f"{name}.md").write_text(raw, encoding="utf-8")
+        loaded = {d.name: d.access for d in load_documents(directory)}
+
+    assert len(loaded) == len(_BROKEN), loaded
+    public = sorted(name for name, access in loaded.items() if access == PUBLIC)
+    assert not public, (
+        f"зіпсовані метадані зробили документ публічним: {public} — дефолт має бути "
+        "закритим, як у валідаторі етапу 1"
+    )
+    assert loaded["byte-order-mark"] == INTERNAL, "BOM з'їв відкривальну лінію frontmatter"
+    assert loaded["wrong-case"] == INTERNAL, "ключ в іншому регістрі не розпізнано"
+
+
+def check_unknown_access_value_is_not_trusted() -> None:
+    """ВІДМОВА · documents: невідоме значення access не пропускається як є"""
+    with tempfile.TemporaryDirectory() as tmp:
+        directory = Path(tmp)
+        (directory / "typo-value.md").write_text(
+            "---\ntitle: Секрет\naccess: pubic\n---\nВнутрішній секрет.\n", encoding="utf-8"
+        )
+        (directory / "empty-value.md").write_text(
+            "---\ntitle: Секрет\naccess:\n---\nВнутрішній секрет.\n", encoding="utf-8"
+        )
+        loaded = {d.name: d.access for d in load_documents(directory)}
+
+    assert loaded == {"typo-value": INTERNAL, "empty-value": INTERNAL}, (
+        f"невідоме значення рівня доступу не звелося до закритого: {loaded}"
+    )
+
+
+def check_good_documents_still_load_with_their_declared_access() -> None:
+    """documents: справна база читається, рівні доступу ті, що написані"""
+    loaded = {d.name: d.access for d in load_documents()}
+    assert loaded["returns-policy"] == PUBLIC, loaded
+    assert loaded["internal-refund-thresholds"] == INTERNAL, loaded
+    assert sum(1 for a in loaded.values() if a == INTERNAL) == 2, loaded
+    assert all(d.title for d in load_documents()), "документ без заголовка"
+
+
+# --- крайові випадки, знайдені рев'ю ------------------------------------------
+
+
+def check_unknown_asker_cannot_become_full_access() -> None:
+    """ВІДМОВА · store: None як рівень доступу — помилка, а не «показати все»"""
+    base = _base()
+    try:
+        base.search(INTERNAL_BAIT, access=None, top_k=3)
+    except (ValueError, TypeError) as error:
+        assert "access" in str(error).lower() or "доступ" in str(error).lower(), error
+    else:
+        raise AssertionError(
+            "None пройшов як «без фільтра» — а саме це значення дасть будь-яка "
+            "нерозв'язана резолюція «хто питає»"
+        )
+
+
+def check_full_access_is_an_explicit_named_choice() -> None:
+    """store: «без фільтра» лишається можливим, але лише названим сентинелом"""
+    result = _base().search(INTERNAL_BAIT, access=NO_FILTER, top_k=3)
+    assert any("internal" in hit.fragment.source for hit in result.hits), (
+        "названий сентинел має давати повну видачу — інакше демо межі неможливе"
+    )
+    assert result.filtered_out == 0
+
+
+def check_reindexing_does_not_duplicate_the_base() -> None:
+    """ВІДМОВА · store: повторна індексація не подвоює базу"""
+    base = _base()
+    first = len(base.fragments)
+    report = base.index(load_documents(), size=SMALL, overlap=10)
+
+    assert len(base.fragments) == first, (
+        f"після повторної індексації фрагментів {len(base.fragments)} замість {first} — "
+        "дублікат з'їдає слот у top-k"
+    )
+    assert report.fragments == len(base.fragments), "звіт розійшовся з тим, що в індексі"
+    labels = [hit.fragment.label for hit in base.search(RETURNS_QUESTION, access=PUBLIC).hits]
+    assert len(labels) == len(set(labels)), f"дублікати у видачі: {labels}"
+
+
+def check_negative_overlap_is_rejected_not_silently_dropped() -> None:
+    """ВІДМОВА · chunk: від'ємне перекриття — помилка, а не мовчазна втрата тексту"""
+    try:
+        split("а б в г д", source="doc", size=2, overlap=-3)
+    except ValueError as error:
+        assert "перекриття" in str(error), error
+    else:
+        raise AssertionError("від'ємне перекриття викинуло слова з індексу мовчки")
+
+
+def check_negative_top_k_is_rejected() -> None:
+    """ВІДМОВА · store: від'ємний top_k — помилка, а не «майже все»"""
+    try:
+        _base().search(RETURNS_QUESTION, access=PUBLIC, top_k=-1)
+    except ValueError as error:
+        assert "top_k" in str(error), error
+    else:
+        raise AssertionError("від'ємний top_k віддав видачу замість того, щоб впасти")
+
+
+def check_answer_survives_a_model_that_returned_nothing() -> None:
+    """ВІДМОВА · answer: порожня відповідь моделі не валить прогін"""
+    result = _base().search(RETURNS_QUESTION, access=PUBLIC, top_k=2)
+    answer = build_answer(RETURNS_QUESTION, result, model_text=None)
+    assert answer.text == "", answer.text
+    assert answer.sources, "джерела не залежать від того, що сказала модель"
+
+
+def check_no_answer_text_is_a_readable_sentence() -> None:
+    """answer: відмова читається як речення й у випадку, коли не було чого розглядати"""
+    empty = SearchResult(hits=[], closest=[], threshold=0.2)
+    text = build_answer("будь-що", empty, model_text="").text
+    assert ".," not in text and "., " not in text, f"зіпсоване речення: {text}"
+    assert "поріг" in text.lower(), text
+
+
+def check_tool_does_not_report_a_similarity_it_never_measured() -> None:
+    """ВІДМОВА · tools: «найближче 0.00» не видається за виміряну близькість"""
+    with tempfile.TemporaryDirectory() as tmp:
+        base = KnowledgeBase(embedder=get_embedder(), threshold=0.2)
+        base.index(load_documents(Path(tmp)), size=SMALL)
+        assert not base.fragments
+    text = describe(base.search(RETURNS_QUESTION, access=PUBLIC, top_k=3))
+    assert "0.00" not in text, f"вигадана оцінка у відповіді інструмента: {text}"
+    assert NO_ANSWER in text
 
 
 # --- T2 · нарізка -------------------------------------------------------------
@@ -97,7 +241,7 @@ def check_internal_document_really_outranks_the_permitted_one() -> None:
     """kb: пастка AC-05 справді пастка — без фільтра внутрішній виграє"""
     base = KnowledgeBase(embedder=get_embedder(), threshold=0.0)
     base.index(load_documents(), size=SMALL, overlap=10)
-    unfiltered = base.search(INTERNAL_BAIT, access=None, top_k=2)
+    unfiltered = base.search(INTERNAL_BAIT, access=NO_FILTER, top_k=2)
     sources = {hit.fragment.source for hit in unfiltered.hits}
     assert sources == {"internal-refund-thresholds"}, (
         f"без фільтра мали виграти внутрішні, а виграли {sources}. "
@@ -386,6 +530,17 @@ def check_checks_run_offline_and_cover_failure_modes() -> None:
 
 
 CHECKS = [
+    check_unknown_asker_cannot_become_full_access,
+    check_full_access_is_an_explicit_named_choice,
+    check_reindexing_does_not_duplicate_the_base,
+    check_negative_overlap_is_rejected_not_silently_dropped,
+    check_negative_top_k_is_rejected,
+    check_answer_survives_a_model_that_returned_nothing,
+    check_no_answer_text_is_a_readable_sentence,
+    check_tool_does_not_report_a_similarity_it_never_measured,
+    check_broken_frontmatter_does_not_make_a_document_public,
+    check_unknown_access_value_is_not_trusted,
+    check_good_documents_still_load_with_their_declared_access,
     check_chunking_covers_the_whole_text,
     check_chunking_overlap_keeps_the_seam,
     check_chunking_survives_degenerate_documents,

@@ -45,8 +45,12 @@ def split(text: str, *, source: str, size: int, overlap: int = 0) -> list[Fragme
     Перекриття існує через межі: думка, що припала на стик двох фрагментів, інакше не
     знайдеться в жодному з них. Ціна — той самий текст індексується двічі.
     """
-    if overlap >= size:
-        raise ValueError(f"перекриття {overlap} має бути меншим за розмір {size}")
+    if size < 1:
+        raise ValueError(f"розмір фрагмента {size} має бути щонайменше 1")
+    # Не лише >= size: від'ємне перекриття робить крок більшим за вікно, і слова між
+    # вікнами не потрапляють у жоден фрагмент. Мовчазна втрата тексту гірша за виняток.
+    if not 0 <= overlap < size:
+        raise ValueError(f"перекриття {overlap} має бути в межах [0, {size})")
 
     words = _WORD.findall(text)
     if not words:
