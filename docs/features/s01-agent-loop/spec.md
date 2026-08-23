@@ -9,7 +9,7 @@ feature_size: "S"
 # Spec — s01-agent-loop
 
 > **Glossary:** [CONTEXT](../../../CONTEXT.md) (ролі + доменні об'єкти), [GLOSSARY](../../../GLOSSARY.md) (терміни курсу)
-> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §5, §9 (s01), §11 · `docs/architecture-map.md` · `docs/adr/0002`, `0003`, `0005`, `0006` · стаття-джерело `docs/01-what-is-an-ai-agent-the-simplest-explanation-youll-find.md`
+> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §5, §9 (s01), §11 · `docs/architecture-map.md` · `docs/adr/0002`, `0003`, `0005`, `0006` · стаття-джерело [статтю #1](https://blog.gopenai.com/what-is-an-ai-agent-the-simplest-explanation-youll-find-e7b176a31c44)
 
 ## 1. Context
 

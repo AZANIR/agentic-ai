@@ -74,5 +74,5 @@ ticket: "n/a"
 
 - Спека: [[../spec.md]] AC-03, §6 (розмір модуля валідації)
 - SAD: [[../sad.md]] §4, §5, §8, §11
-- Стаття-джерело: [[../../../01-what-is-an-ai-agent-the-simplest-explanation-youll-find]] — режим відмови 2
+- Стаття-джерело: [What is an AI Agent? The Simplest Explanation You’ll Find](https://blog.gopenai.com/what-is-an-ai-agent-the-simplest-explanation-youll-find-e7b176a31c44) — режим відмови 2
 - Пов'язані ADR: [[0001-split-stage-into-four-responsibility-modules]]

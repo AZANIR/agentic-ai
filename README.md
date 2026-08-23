@@ -41,16 +41,16 @@ tool-call, state graph, MCP, barge-in чи LLM-as-judge — і саме тому
 
 | # | Етап | Що будуєш | Стаття |
 |---|------|-----------|--------|
-| 1 ✅ | [Agent loop](stages/s01_agent_loop/README.md) | ReAct-цикл з нуля, без фреймворку | [#1](docs/01-what-is-an-ai-agent-the-simplest-explanation-youll-find.md) |
-| 2 | RAG | embed → cosine → top-k → відповідь із цитатою | [#2](docs/02-rag-vs-fine-tuning-which-one-actually-solves-your-problem.md) |
-| 3 | Router | Свій міні-граф, потім LangGraph | [#3](docs/03-build-a-multi-agent-router-with-langgraph-in-30-minutes.md) |
-| 4 | MCP | FastMCP-сервер і клієнт | [#4](docs/04-mcp-protocol-explained-the-new-standard-every-ai-developer-needs-to-know.md) |
-| 5 | Memory | extract → store → retrieve, семантичний пошук | [#5](docs/05-memory-in-ai-agents-why-your-agent-forgets-everything-and-how-to-fix-it.md) |
-| 6 | Platform | **Перший деплой:** FastAPI + HTTPS + метрики | [#6](docs/06-i-built-a-multi-connector-ai-platform-on-a-single-vm-heres-the-real-architecture.md) |
-| 7 | Voice | Батч проти стріму, barge-in, вимірювання | [#7](docs/07-voice-agents-at-scale-what-breaks-when-millions-of-people-talk-to-your-ai.md) |
-| 8 | Evaluation | Оцінка на 3 рівнях поверх трейсів | [#8](docs/08-agent-evaluation-how-do-you-know-your-agent-actually-works.md) |
-| 9 | Frameworks | Один таск трьома фреймворками | [#9](docs/09-langgraph-vs-crewai-vs-google-adk-i-built-the-same-agent-three-times.md) |
-| 10 | Capstone | **Другий деплой:** усе разом, під навантаженням | [#10](docs/10-the-capstone-building-one-real-agent-with-everything-from-this-series.md) |
+| 1 ✅ | [Agent loop](stages/s01_agent_loop/README.md) | ReAct-цикл з нуля, без фреймворку | [#1](https://blog.gopenai.com/what-is-an-ai-agent-the-simplest-explanation-youll-find-e7b176a31c44) |
+| 2 | RAG | embed → cosine → top-k → відповідь із цитатою | [#2](https://blog.gopenai.com/rag-vs-fine-tuning-which-one-actually-solves-your-problem-06df08b5dc40) |
+| 3 | Router | Свій міні-граф, потім LangGraph | [#3](https://blog.gopenai.com/build-a-multi-agent-router-with-langgraph-in-30-minutes-8ee979116b53) |
+| 4 | MCP | FastMCP-сервер і клієнт | [#4](https://blog.gopenai.com/mcp-protocol-explained-the-new-standard-every-ai-developer-needs-to-know-0e3e56aee2aa) |
+| 5 | Memory | extract → store → retrieve, семантичний пошук | [#5](https://blog.gopenai.com/memory-in-ai-agents-why-your-agent-forgets-everything-and-how-to-fix-it-250150317ff1) |
+| 6 | Platform | **Перший деплой:** FastAPI + HTTPS + метрики | [#6](https://blog.gopenai.com/i-built-a-multi-connector-ai-platform-on-a-single-vm-heres-the-real-architecture-656c9c3f3044) |
+| 7 | Voice | Батч проти стріму, barge-in, вимірювання | [#7](https://blog.gopenai.com/voice-agents-at-scale-what-breaks-when-millions-of-people-talk-to-your-ai-87750cc78054) |
+| 8 | Evaluation | Оцінка на 3 рівнях поверх трейсів | [#8](https://blog.gopenai.com/agent-evaluation-how-do-you-know-your-agent-actually-works-1c6b7cef5461) |
+| 9 | Frameworks | Один таск трьома фреймворками | [#9](https://blog.gopenai.com/langgraph-vs-crewai-vs-google-adk-i-built-the-same-agent-three-times-87c2f2ce3b59) |
+| 10 | Capstone | **Другий деплой:** усе разом, під навантаженням | [#10](https://blog.gopenai.com/the-capstone-building-one-real-agent-with-everything-from-this-series-23742b41fcc7) |
 
 Детальніше — у [CURRICULUM.md](CURRICULUM.md).
 

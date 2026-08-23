@@ -30,3 +30,10 @@ Thumbs.db
 # per-developer sdd settings
 .claude/*.local.md
 .worktrees/
+
+# Локальні копії статей-джерел: належать авторові, у публічний репозиторій не йдуть.
+# Конспекти й посилання — у docs/readme.md
+docs/[0-9][0-9]-*.md
+
+# IDE-специфіка; копія плану збережена в planning/
+.cursor/
