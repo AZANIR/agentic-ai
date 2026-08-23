@@ -4,10 +4,10 @@
 
 | # | Task | Layer | Owner | Estimate | Blocked by | Status |
 |---|---|---|---|---|---|---|
-| T1 | Адаптер ембеддингів у спільному шарі: hash | fastembed | openai | infra | Contributor | S | — | todo |
-| T2 | Нарізка документів на фрагменти | domain | Contributor | S | — | todo |
-| T3 | База знань NovaShop із метаданими рівня доступу | domain | Contributor | S | — | todo |
-| T4 | Індекс, косинус, top-k, поріг і фільтр доступу | app | Contributor | M | T1, T2, T3 | todo |
+| T1 | Адаптер ембеддингів у спільному шарі: hash | fastembed | openai | infra | Contributor | S | — | done |
+| T2 | Нарізка документів на фрагменти | domain | Contributor | S | — | done |
+| T3 | База знань NovaShop із метаданими рівня доступу | domain | Contributor | S | — | done |
+| T4 | Індекс, косинус, top-k, поріг і фільтр доступу | app | Contributor | M | T1, T2, T3 | done |
 | T5 | Складання відповіді з джерелом, яке додає система | app | Contributor | S | T4 | todo |
 | T6 | Інструмент пошуку для реєстру агента з етапу 1 | ports | Contributor | S | T4, T5 | todo |
 | T7 | Демо: пошук, поріг, нарізка й фільтр доступу поруч | ports | Contributor | M | T5, T6 | todo |

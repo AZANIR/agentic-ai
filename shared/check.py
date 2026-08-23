@@ -15,6 +15,7 @@ from pathlib import Path
 
 from shared.check_runner import run_checks
 from shared.config import LOCAL, PROD, ConfigError, Settings
+from shared.embeddings import get_embedder
 from shared.fake_llm import FakeLLM, FakeLLMError, text, tool_call
 from shared.llm import banner, get_client, is_fake
 from shared.trace import group_by_trace, trace_run
@@ -156,6 +157,47 @@ def check_llm_refuses_without_script() -> None:
         raise AssertionError("get_client() без провайдера і без сценарію мав впасти")
 
 
+# --- embeddings ----------------------------------------------------------------
+
+
+def check_embedder_is_deterministic() -> None:
+    """embeddings: той самий текст дає той самий вектор між викликами"""
+    a = get_embedder().embed(["політика повернення діє 14 днів"])
+    b = get_embedder().embed(["політика повернення діє 14 днів"])
+    assert a.shape == b.shape, (a.shape, b.shape)
+    assert (a == b).all(), "недетермінований ембеддер — перевірки етапу 2 стануть мигтливими"
+
+
+def check_embedder_normalises_vectors() -> None:
+    """embeddings: вектори нормовані — косинус зводиться до скалярного добутку"""
+    import numpy as np
+
+    vectors = get_embedder().embed(["коротко", "значно довший текст із багатьма словами"])
+    lengths = np.linalg.norm(vectors, axis=1)
+    assert np.allclose(lengths, 1.0), lengths
+    # довжина тексту не має впливати на норму — інакше довгі документи вигравали б завжди
+
+
+def check_embedder_finds_literal_overlap_not_synonyms() -> None:
+    """embeddings: хеш знаходить дослівний збіг і НЕ знаходить синоніми — межа за задумом"""
+    import numpy as np
+
+    embedder = get_embedder()
+    doc = embedder.embed(["повернення товару протягом 14 днів"])[0]
+    literal = embedder.embed(["скільки днів на повернення товару"])[0]
+    synonym = embedder.embed(["як оформити відмову від покупки"])[0]
+
+    assert float(np.dot(doc, literal)) > float(np.dot(doc, synonym)), "дослівне має бути ближчим"
+    assert float(np.dot(doc, synonym)) < 0.1, "синонім не має знаходитись — це межа з ADR-0001"
+
+
+def check_embedder_reports_its_name() -> None:
+    """ВІДМОВА · embeddings: банер називає ембеддер, інакше не видно, що працює"""
+    embedder = get_embedder()
+    assert embedder.name, "ембеддер без імені — у банері буде порожньо"
+    assert "hash" in embedder.name.lower(), embedder.name
+
+
 # --- trace -------------------------------------------------------------------
 
 
@@ -202,6 +244,10 @@ CHECKS = [
     check_fake_llm_can_loop_forever,
     check_llm_returns_fake_without_key,
     check_llm_refuses_without_script,
+    check_embedder_is_deterministic,
+    check_embedder_normalises_vectors,
+    check_embedder_finds_literal_overlap_not_synonyms,
+    check_embedder_reports_its_name,
     check_trace_writes_and_reads_back,
     check_trace_records_failures,
 ]
