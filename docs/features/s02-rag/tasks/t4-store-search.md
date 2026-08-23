@@ -3,7 +3,7 @@ id: T4
 title: "Індекс, косинус, top-k, поріг і фільтр доступу"
 layer: "app"
 deps: ["T1", "T2", "T3"]
-acs: ["AC-01", "AC-04", "AC-05"]
+acs: ["AC-01", "AC-04", "AC-05", "AC-08b"]
 files_hint: ["stages/s02_rag/store.py"]
 owner: "Contributor"
 estimate: "M"

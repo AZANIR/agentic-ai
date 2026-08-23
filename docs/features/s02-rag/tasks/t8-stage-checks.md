@@ -3,7 +3,7 @@ id: T8
 title: "Перевірки етапу за таблицею покриття"
 layer: "tests"
 deps: ["T4", "T5", "T6", "T7"]
-acs: ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05", "AC-06", "AC-08", "AC-09"]
+acs: ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05", "AC-06", "AC-08", "AC-09", "AC-08b"]
 files_hint: ["stages/s02_rag/check.py"]
 owner: "Contributor"
 estimate: "M"
