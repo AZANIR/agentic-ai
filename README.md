@@ -87,6 +87,7 @@ python scripts/check_all.py      # має бути зелено, офлайн, �
 | [SETUP.md](SETUP.md) | Встановлення, вибір LLM-провайдера, типові граблі |
 | [GLOSSARY.md](GLOSSARY.md) | Терміни українською й англійською |
 | [CONVENTIONS.md](CONVENTIONS.md) | Правила коду репозиторію |
+| [PLAYBOOK.md](PLAYBOOK.md) | Як робиться етап: конвеєр, гейт рев'ю, уроки з помилок |
 | [SECURITY.md](SECURITY.md) | Модель загроз публічного ендпоінта |
 | [docs/architecture-map.md](docs/architecture-map.md) | Архітектура: C4, модулі, сховища |
 | [docs/adr/](docs/adr/) | Шість рішень, які визначили решту |

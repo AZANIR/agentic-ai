@@ -1,6 +1,6 @@
 # Пам'ятка для агентів, що працюють у цьому репозиторії
 
-Повні правила — [CONVENTIONS.md](CONVENTIONS.md). Архітектура — [docs/architecture-map.md](docs/architecture-map.md).
+Повні правила — [CONVENTIONS.md](CONVENTIONS.md). Як робиться етап — [PLAYBOOK.md](PLAYBOOK.md). Архітектура — [docs/architecture-map.md](docs/architecture-map.md).
 Рішення й причини — [docs/adr/](docs/adr/). Не переухвалюй їх мовчки: незгоден — пиши новий ADR.
 
 ## Команди
