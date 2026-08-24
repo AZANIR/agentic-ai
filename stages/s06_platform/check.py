@@ -9,11 +9,17 @@
 from __future__ import annotations
 
 import io
+import json
 import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from shared.check_runner import NotVerified, code_mentions, run_checks
+from shared.check_runner import (
+    NotVerified,
+    code_mentions,
+    require_intact_source,
+    run_checks,
+)
 from shared.config import LOCAL, ConfigError, Settings
 from shared.counters import DAY, MINUTE, InMemory, Shared, get_counters
 from shared.factstore import DatabaseStore, FileStore
@@ -1229,6 +1235,109 @@ def check_the_demo_needs_no_key_no_network_and_no_container() -> None:
     assert "FakeLLM" in source, "демо не називає підробки явно"
 
 
+# --- урок і матеріали читача ---------------------------------------------------------------
+
+
+def check_the_failure_modes_are_at_least_a_third() -> None:
+    """перевірки: режимів відмови не менше третини (NFR-4)"""
+    labels = [(c.__doc__ or "").split(NEWLINE)[0] for c in CHECKS]
+    failures = [d for d in labels if d.startswith("ВІДМОВА")]
+    assert len(failures) * 3 >= len(CHECKS), (
+        f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини"
+    )
+
+
+def check_the_lesson_fits_the_reading_budget() -> None:
+    """урок: ≤2500 слів (NFR-3)"""
+    words = len((Path(__file__).parent / "README.md").read_text(encoding="utf-8").split())
+    assert words <= 2500, f"урок розрісся до {words} слів"
+
+
+def check_the_lesson_numbers_match_the_suite() -> None:
+    """ВІДМОВА · урок: числа в прозі збігаються з тим, що друкує команда"""
+    total = len(CHECKS)
+    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
+    here = Path(__file__).parent
+    for name, sentence in (
+        ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
+        ("CHECKLIST.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
+        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
+    ):
+        page = (here / name).read_text(encoding="utf-8")
+        assert sentence in page, (
+            f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
+            "команда, яку той самий урок наказує запустити"
+        )
+
+
+def check_the_lesson_line_counts_match_the_modules() -> None:
+    """ВІДМОВА · урок: розміри модулів у прозі — обчислені, а не переписані"""
+    here = Path(__file__).parent
+    lesson = (here / "README.md").read_text(encoding="utf-8")
+    english = (here / "README.en.md").read_text(encoding="utf-8")
+
+    for module, budget in (("app", 120), ("guards", 100)):
+        require_intact_source(f"{module}.py")
+        lines = _executable_lines(f"{module}.py")
+        assert f"`{module}.py` — {lines} із {budget}" in lesson, (
+            f"{module}.py має {lines} виконуваних рядків — урок називає інше число"
+        )
+        assert f"| {lines} / {budget} |" in english, f"README.en.md відстав: {module}"
+
+
+def check_the_exercises_are_generated_from_the_pinned_mutations() -> None:
+    """ВІДМОВА · вправи: числа червоних беруться з mutations.json, а не пишуться"""
+    here = Path(__file__).parent
+    pinned = json.loads((here / "mutations.json").read_text(encoding="utf-8"))["mutations"]
+    text_of = (here / "exercises.md").read_text(encoding="utf-8")
+
+    for mutation in pinned:
+        number = int(mutation["name"].split()[1])
+        assert f"## Вправа {number} ·" in text_of, f"вправи {number} немає в прозі"
+        assert f"**Червоних: {mutation['expect_failed']}.**" in text_of, (
+            f"вправа {number}: у прозі не {mutation['expect_failed']} червоних — проза "
+            "розійшлася з тим, що закріплено"
+        )
+
+    assert text_of.count("## Вправа") == len(pinned), (
+        f"вправ у прозі {text_of.count(chr(35) * 2 + ' Вправа')}, мутацій {len(pinned)}"
+    )
+
+
+def check_every_reader_file_exists() -> None:
+    """матеріали: урок, карта, вправи, чеклісти й розвʼязок на місці"""
+    here = Path(__file__).parent
+    for name in (
+        "README.md",
+        "README.en.md",
+        "exercises.md",
+        "CHECKLIST.md",
+        "DECISION.md",
+        "solutions/exercise_1_two_workers.py",
+        "solutions/README.md",
+    ):
+        path = here / name
+        assert path.exists() and path.read_text(encoding="utf-8").strip(), name
+
+
+def _executable_lines(name: str) -> int:
+    """Виконувані рядки модуля: statement без docstring і без import."""
+    import ast
+
+    source = (Path(__file__).parent / name).read_text(encoding="utf-8")
+    return len(
+        {
+            node.lineno
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.stmt)
+            and not isinstance(node, (ast.Import, ast.ImportFrom))
+            and not (
+                isinstance(node, ast.Expr) and isinstance(getattr(node.value, "value", None), str)
+            )
+        }
+    )
+
+
 CHECKS = [
     check_both_counters_answer_the_same_way_within_one_instance,
     check_the_window_forgets_what_fell_out_of_it,
@@ -1283,6 +1392,12 @@ CHECKS = [
     check_the_migration_runs_once_not_per_worker,
     check_the_demo_shows_seven_scenes_and_leaves_a_trace,
     check_the_demo_needs_no_key_no_network_and_no_container,
+    check_the_failure_modes_are_at_least_a_third,
+    check_the_lesson_fits_the_reading_budget,
+    check_the_lesson_numbers_match_the_suite,
+    check_the_lesson_line_counts_match_the_modules,
+    check_the_exercises_are_generated_from_the_pinned_mutations,
+    check_every_reader_file_exists,
 ]
 
 
