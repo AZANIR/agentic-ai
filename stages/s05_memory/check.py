@@ -14,7 +14,7 @@ import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from shared.check_runner import NotVerified, run_checks
+from shared.check_runner import NotVerified, require_intact_source, run_checks
 from shared.fake_llm import FakeLLM, text
 from shared.trace import iter_steps
 from stages.s05_memory.decision import RULES, Situation, decide
@@ -217,6 +217,7 @@ def check_the_prompt_shows_both_halves_apart() -> None:
 
 def check_short_term_fits_the_line_budget() -> None:
     """short: короткочасна памʼять вміщається в один екран (NFR-2: ≤50 рядків)"""
+    require_intact_source("short_term.py")
     assert _executable_lines("short_term.py") <= 50, _executable_lines("short_term.py")
 
 
@@ -453,6 +454,7 @@ def check_the_dictionary_retrieval_is_blind_to_synonyms() -> None:
 
 def check_long_term_fits_the_line_budget() -> None:
     """long: довготривала памʼять вміщається в бюджет (NFR-1: ≤90 рядків)"""
+    require_intact_source("long_term.py")
     assert _executable_lines("long_term.py") <= 90, _executable_lines("long_term.py")
 
 
@@ -580,6 +582,7 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
     english = (here / "README.en.md").read_text(encoding="utf-8")
 
     for module, budget in (("long_term", 90), ("short_term", 50)):
+        require_intact_source(f"{module}.py")
         lines = _executable_lines(f"{module}.py")
         assert f"`{module}.py` — {lines} із {budget}" in lesson, (
             f"{module}.py має {lines} виконуваних рядків — урок називає інше число"

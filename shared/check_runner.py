@@ -16,6 +16,7 @@ import sys
 import time
 import traceback
 from collections.abc import Callable
+from pathlib import Path
 
 
 def colors() -> dict[str, str]:
@@ -87,6 +88,24 @@ def run_checks(checks: list[Callable[[], None]], *, title: str) -> int:
 
     print(f"{GREEN}усі {len(checks)} перевірок пройшли{OFF}")
     return 0
+
+
+def require_intact_source(name: str) -> None:
+    """Відмовитись міряти файл, який зараз навмисно зламано мутаційним прогоном.
+
+    Перевірка розміру модуля реагує на будь-яку правку, тож під час мутації вона дає
+    червоне, яке нічого не означає. Гірше: воно розчиняє сигнал. «Червоних 2» замість
+    «червоних 1» читається як «спіймали двічі», хоча друга перевірка стверджує про
+    бюджет рядків, а не про властивість, яку мутація ламає.
+
+    :raises NotVerified: якщо триває мутаційний прогін саме цього файлу.
+    """
+    marker = Path(__file__).resolve().parent.parent / ".mutation-in-progress"
+    if not marker.exists():
+        return
+    mutated = marker.read_text(encoding="utf-8").strip()
+    if mutated.endswith(name):
+        raise NotVerified(f"{name} зараз зламано навмисно — бюджет рядків не міряється")
 
 
 def require_tag(tag: str) -> None:

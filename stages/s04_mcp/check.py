@@ -19,7 +19,7 @@ import time
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from shared.check_runner import NotVerified, require_tag, run_checks
+from shared.check_runner import NotVerified, require_intact_source, require_tag, run_checks
 from shared.fake_llm import FakeLLM, text, tool_call
 from shared.trace import iter_steps, trace_run
 from stages.s01_agent_loop import loop as stage_one_loop
@@ -287,11 +287,13 @@ def check_every_call_leaves_a_trace_record() -> None:
 
 def check_server_fits_the_line_budget() -> None:
     """server: оголошення інструментів вміщається в один екран (NFR-2: ≤60 рядків)"""
+    require_intact_source("server.py")
     assert _executable_lines("server.py") <= 60, _executable_lines("server.py")
 
 
 def check_client_fits_the_line_budget() -> None:
     """client: клієнт вміщається в один екран (NFR-1: ≤80 рядків)"""
+    require_intact_source("client.py")
     assert _executable_lines("client.py") <= 80, _executable_lines("client.py")
 
 
