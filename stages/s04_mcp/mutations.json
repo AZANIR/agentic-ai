@@ -29,14 +29,14 @@
       "file": "stages/s04_mcp/bridge.py",
       "old": "        if info.name not in ALLOWED or info.name in built:",
       "new": "        if False:",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 5 · рівень доступу лишається у схемі для моделі",
       "file": "stages/s04_mcp/bridge.py",
       "old": "    schema = _without(info.schema, fixed)",
       "new": "    schema = info.schema",
-      "expect_failed": 1
+      "expect_failed": 3
     },
     {
       "name": "вправа 6 · тайм-аут удесятеро довший за заявлений",
