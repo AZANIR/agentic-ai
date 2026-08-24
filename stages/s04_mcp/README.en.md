@@ -72,11 +72,15 @@ while the real cause sits inside the group.
 ## What it costs
 
 ```
-local function:  0.22 ms
-through MCP:      989 ms   (~4500x)
+local function:  ~0.04 ms   (mean of 1000)
+through MCP:     ~1000 ms
+difference:      three to four orders of magnitude
 ```
 
-One process spawned per call — the most expensive possible arrangement. A persistent
+One process spawned per call — the most expensive possible arrangement. The first
+draft printed a single-call ratio and it moved between 4500x and 25000x across runs:
+the local call is sub-millisecond, so one measurement is noise. Orders of magnitude is
+what the number actually supports. A persistent
 connection reduces it; nothing makes it zero. The protocol buys discoverability and a trust
 boundary, and that is the price.
 

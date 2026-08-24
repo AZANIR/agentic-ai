@@ -129,13 +129,18 @@ def scene_the_price(through_mcp: float) -> None:
 
     from stages.s01_agent_loop.tools import REGISTRY
 
+    # Локальний виклик субмілісекундний, тож один замір — це шум. Перша редакція демо
+    # друкувала відношення з одного виклику, і воно стрибало між 4500 і 7300 між прогонами
+    # — тобто урок називав число, якого читач у себе не побачить.
+    rounds = 1000
     started = time.perf_counter()
-    REGISTRY["get_order_status"].func("ord_4471")
-    local = time.perf_counter() - started
+    for _ in range(rounds):
+        REGISTRY["get_order_status"].func("ord_4471")
+    local = (time.perf_counter() - started) / rounds
 
-    ratio = through_mcp / max(local, 1e-9)
-    print(f"  локальна функція: {local * 1000:.2f} мс")
-    print(f"  через MCP:        {through_mcp * 1000:.0f} мс  (у {ratio:.0f} разів)")
+    print(f"  локальна функція: {local * 1000:.3f} мс  (середнє з {rounds})")
+    print(f"  через MCP:        {through_mcp * 1000:.0f} мс")
+    print(f"  різниця:          три-чотири порядки ({through_mcp / local:.0f}x цього прогону)")
     print("\n  Це ціна одного підняття процесу на виклик — найдорожчий можливий варіант.")
     print("  Постійне з'єднання зменшить її; нуля з неї не зробить ніщо.")
     print("  Протокол купує дискаверабельність і межу довіри. За них платять цим.\n")
