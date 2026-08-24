@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import tempfile
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -65,7 +66,7 @@ def _params(module: str = SERVER_MODULE, *, broken: bool = False) -> Any:
 
 
 @asynccontextmanager
-async def _session(params: Any) -> AsyncIterator[Any]:
+async def _session(params: Any, errlog: Any) -> AsyncIterator[Any]:
     """Сесія як контекстний менеджер, а не як асинхронний генератор.
 
     Перша версія була генератором, і `async for ...: return` лишав його незакритим: anyio
@@ -77,19 +78,25 @@ async def _session(params: Any) -> AsyncIterator[Any]:
     from mcp import ClientSession
     from mcp.client.stdio import stdio_client
 
-    async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+    # errlog — справжній файл, а не буфер у пам'яті: підпроцес отримує дескриптор, і
+    # `io.StringIO` тут дає `AttributeError: fileno`. Викидати stderr теж не можна —
+    # часто це єдине, що пояснює, чому процес не піднявся.
+    async with (
+        stdio_client(params, errlog=errlog) as (read, write),
+        ClientSession(read, write) as session,
+    ):
         await session.initialize()
         yield session
 
 
-async def _list(params: Any) -> list[ToolInfo]:
-    async with _session(params) as session:
+async def _list(params: Any, errlog: Any) -> list[ToolInfo]:
+    async with _session(params, errlog) as session:
         listed = await session.list_tools()
         return [ToolInfo(t.name, t.description or "", t.input_schema) for t in listed.tools]
 
 
-async def _call(params: Any, name: str, arguments: dict[str, Any]) -> str:
-    async with _session(params) as session:
+async def _call(params: Any, errlog: Any, name: str, arguments: dict[str, Any]) -> str:
+    async with _session(params, errlog) as session:
         result = await session.call_tool(name, arguments)
         if result.is_error:
             raise RuntimeError(f"сервер відхилив виклик {name!r}")
@@ -98,7 +105,8 @@ async def _call(params: Any, name: str, arguments: dict[str, Any]) -> str:
 
 def list_tools(*, module: str = SERVER_MODULE, broken: bool = False) -> list[ToolInfo]:
     """Спитати сервер, що він уміє. Саме цей виклик робить інтеграцію дискаверабельною."""
-    return asyncio.run(asyncio.wait_for(_list(_params(module, broken=broken)), TIMEOUT))
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as errlog:
+        return asyncio.run(asyncio.wait_for(_list(_params(module, broken=broken), errlog), TIMEOUT))
 
 
 def call_tool(
@@ -111,19 +119,21 @@ def call_tool(
     tracer: Any = None,
 ) -> CallResult:
     """Викликати інструмент і розібрати відповідь. Кожна фаза відмови названа окремо."""
-    raw = ""
-    try:
-        raw = asyncio.run(
-            asyncio.wait_for(_call(_params(module, broken=broken), name, arguments), timeout)
-        )
-    except TimeoutError as error:
-        return _traced(
-            CallResult(failure=describe_failure(error, phase="call")), name, arguments, tracer
-        )
-    except Exception as error:  # noqa: BLE001 — процес не піднявся; причин десятки, наслідок один
-        return _traced(
-            CallResult(failure=describe_failure(error, phase="startup")), name, arguments, tracer
-        )
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as errlog:
+        try:
+            raw = asyncio.run(
+                asyncio.wait_for(
+                    _call(_params(module, broken=broken), errlog, name, arguments), timeout
+                )
+            )
+        except TimeoutError as error:
+            return _traced(
+                CallResult(failure=describe_failure(error, phase="call")), name, arguments, tracer
+            )
+        except Exception as error:  # noqa: BLE001 — процес не піднявся; причин десятки, наслідок один
+            failure = describe_failure(error, phase="startup")
+            failure["reason"] = _with_stderr(failure["reason"], errlog)
+            return _traced(CallResult(failure=failure), name, arguments, tracer)
 
     try:
         payload = extract_payload(raw)
@@ -135,6 +145,13 @@ def call_tool(
             tracer,
         )
     return _traced(CallResult(payload=payload, raw=raw), name, arguments, tracer)
+
+
+def _with_stderr(reason: str, errlog: Any) -> str:
+    """Додати останній рядок stderr сервера — часто це єдине пояснення."""
+    errlog.seek(0)
+    noise = errlog.read().strip()
+    return f"{reason} | сервер написав: {noise.splitlines()[-1]}" if noise else reason
 
 
 def _traced(result: CallResult, name: str, arguments: dict[str, Any], tracer: Any) -> CallResult:

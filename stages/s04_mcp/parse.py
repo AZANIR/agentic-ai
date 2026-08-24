@@ -73,7 +73,21 @@ def describe_failure(error: Exception, *, phase: str) -> dict[str, str]:
     «відповів, але розібрати нічого» — три різні події, які з тексту помилки часто
     невідрізненні, а виправляються по-різному.
     """
-    # `str(TimeoutError())` — порожній рядок. Без назви типу від причини не лишається
-    # нічого, і в трейсі стоїть відмова без жодного слова про те, що сталось.
-    reason = str(error) or type(error).__name__
-    return {"phase": phase, "reason": reason}
+    return {"phase": phase, "reason": _reason(error)}
+
+
+def _reason(error: BaseException) -> str:
+    """Текст, за яким справді можна зрозуміти, що сталось.
+
+    Два випадки, у яких наївний `str(error)` не каже нічого:
+
+        TimeoutError()     -> порожній рядок
+        ExceptionGroup     -> "unhandled errors in a TaskGroup (1 sub-exception)"
+
+    Другий гірший: він виглядає як повідомлення, а справжня причина — «процес вийшов із
+    кодом 3» — лежить усередині, на глибині. Асинхронні бібліотеки загортають усе у групи,
+    тож у трейсі етапу стояла б відмова без жодного слова про те, що сталось.
+    """
+    while isinstance(error, BaseExceptionGroup) and error.exceptions:
+        error = error.exceptions[0]
+    return str(error) or type(error).__name__

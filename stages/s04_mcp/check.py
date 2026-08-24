@@ -13,14 +13,17 @@
 from __future__ import annotations
 
 import ast
+import io
 import tempfile
 import time
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from shared.check_runner import NotVerified, require_tag, run_checks
 from shared.trace import iter_steps, trace_run
 from stages.s01_agent_loop.tools import REGISTRY, Tool
 from stages.s02_rag.documents import INTERNAL, PUBLIC
+from stages.s04_mcp import run as demo_module
 from stages.s04_mcp.bridge import is_irreversible, registry, rejected, to_tool
 from stages.s04_mcp.client import ToolInfo, call_tool, list_tools
 from stages.s04_mcp.decision import (
@@ -33,6 +36,7 @@ from stages.s04_mcp.decision import (
     table,
 )
 from stages.s04_mcp.parse import NoPayload, describe_failure, extract_payload
+from stages.s04_mcp.run import main as demo_main
 
 # Реальна форма відповіді MCP-сервера, який любить поговорити. Проза до, проза після.
 CHATTY = """Ось що я знайшов у системі замовлень. Зверніть увагу, що дані актуальні
@@ -439,7 +443,61 @@ def check_decision_prose_is_generated_from_the_code() -> None:
     )
 
 
+# --- T6 · демо -------------------------------------------------------------------
+
+
+def check_demo_shows_six_scenes_and_writes_a_trace() -> None:
+    """e2e · демо показує шість сцен і лишає трейс"""
+    _require_mcp()
+    buffer = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with redirect_stdout(buffer):
+            code = demo_main(trace_path=path)
+        steps = [s for s in iter_steps(path) if s["kind"] == "mcp_call"]
+    output = buffer.getvalue()
+
+    assert code == 0, code
+    for number in range(1, 7):
+        assert f"\n{number}. " in output, f"сцена {number} не надрукувалась"
+    assert "startup" in output and "call" in output, "обидві фази мають бути видимі"
+    assert "wipe_customer_data" in output, "сцена чужого опису нічого не показала"
+    assert "через MCP" in output, "ціна межі процесу не названа"
+    assert "mute:" not in output, "stderr сервера тече у вивід замість буфера"
+
+    assert len(steps) >= 4, f"кроків у трейсі {len(steps)}"
+    assert {s["ok"] for s in steps} == {True, False}, "у трейсі немає обох результатів"
+
+
+def check_no_failure_reason_is_empty() -> None:
+    """ВІДМОВА · жодна причина відмови не порожня — інакше у трейсі відмова без слів"""
+    _require_mcp()
+    dead = call_tool("get_order_status", {"order_id": "x"}, broken=True)
+    mute = call_tool(
+        "get_order_status", {"order_id": "x"}, module="stages.s04_mcp.mute", timeout=1.5
+    )
+    for result in (dead, mute):
+        reason = result.failure["reason"]
+        assert reason.strip(), f"порожня причина для фази {result.failure['phase']}"
+        assert "TaskGroup" not in reason, (
+            f"причина не розгорнута з групи винятків: {reason!r} — так виглядає "
+            "повідомлення, яке здається поясненням і ним не є"
+        )
+
+
+def check_demo_without_mcp_says_what_it_did_not_show() -> None:
+    """демо: без MCP називає, чого саме не показало, і не вдає, що показало"""
+    source = (Path(demo_module.__file__)).read_text(encoding="utf-8")
+    assert "лишилось непоказаним" in source, (
+        "демо мовчки виходить без MCP — читач вирішить, що етап такий і є"
+    )
+    assert '".[s04]"' in source, "не сказано, як саме встановити"
+
+
 CHECKS = [
+    check_demo_shows_six_scenes_and_writes_a_trace,
+    check_no_failure_reason_is_empty,
+    check_demo_without_mcp_says_what_it_did_not_show,
     check_the_checklist_answers_every_situation,
     check_every_rule_has_a_situation_that_triggers_it,
     check_checklist_composition_is_pinned,
