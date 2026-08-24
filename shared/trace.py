@@ -94,7 +94,9 @@ def trace_run(
     if settings.trace_sink != "jsonl":
         raise ConfigError(
             f"TRACE_SINK={settings.trace_sink!r} ще не реалізовано. "
-            "Наразі підтримується лише 'jsonl'; стік у Langfuse додається на етапі 6."
+            "Наразі підтримується лише 'jsonl'. Зовнішній стік переїхав на етап 8: вимогу "
+            "до сховища трейсів формулює той, хто їх читає, а читає їх оцінювання "
+            "(етап 6, ADR-0008)."
         )
 
     target = Path(path) if path is not None else default_trace_path()
