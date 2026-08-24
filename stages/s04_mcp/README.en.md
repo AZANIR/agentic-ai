@@ -16,7 +16,7 @@ that against the `stage-03` tag.
 pip install -e ".[s04]"                  # the only stage where the demo needs the extra
 python -m stages.s04_mcp.run             # demo: six scenes
 python -m stages.s04_mcp.run --raw       # plus the server's raw response
-python -m stages.s04_mcp.check           # 28 checks, 16 of them on failure modes
+python -m stages.s04_mcp.check           # 36 checks, 21 of them on failure modes
 python -m stages.s04_mcp.decision        # the tool-or-endpoint checklist
 ```
 

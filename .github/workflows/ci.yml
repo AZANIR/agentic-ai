@@ -77,7 +77,7 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Install with per-stage extras
-        run: pip install -e ".[dev,s03]"
+        run: pip install -e ".[dev,s03,s04]"
 
       # Той самий набір, але тепер порівняння двох реалізацій графа справді відбувається.
       - name: Checks

@@ -1,6 +1,6 @@
 {
   "stage": "s04-mcp",
-  "executed_floor": 18,
+  "executed_floor": 30,
   "note": "Числа заміряні З УСТАНОВЛЕНИМ MCP. Без нього перевірки з підпроцесом позначаються НЕ ПЕРЕВІРЕНО, а не проходять. Мутація тайм-ауту множить його, а не ставить велику константу: перша редакція ставила 900 с, і мовчазний сервер тримав увесь прогін ці 900 с. Мутація має ламати властивість, а не робити прогін неможливим. Мутація тайм-ауту множить його на десять, а перевірка має межу, ПОХІДНУ від запитаного значення: константна межа проходила б, щойно тайм-аут зменшили заради швидкості набору.",
   "mutations": [
     {
@@ -27,8 +27,8 @@
     {
       "name": "вправа 4 · беремо все, що пропонує сервер",
       "file": "stages/s04_mcp/bridge.py",
-      "old": "    known = [info for info in declared if info.name in ALLOWED]",
-      "new": "    known = list(declared)",
+      "old": "        if info.name not in ALLOWED or info.name in built:",
+      "new": "        if False:",
       "expect_failed": 1
     },
     {
@@ -48,8 +48,8 @@
     {
       "name": "фаза відмови злита в одну",
       "file": "stages/s04_mcp/client.py",
-      "old": "            CallResult(failure=describe_failure(error, phase=\"call\")), name, arguments, tracer",
-      "new": "            CallResult(failure=describe_failure(error, phase=\"startup\")), name, arguments, tracer",
+      "old": "return \"call\" if isinstance(error, TimeoutError | ServerRefused) else \"startup\"",
+      "new": "return \"startup\"",
       "expect_failed": 2
     },
     {
@@ -57,13 +57,27 @@
       "file": "stages/s04_mcp/client.py",
       "old": "    if tracer is not None:",
       "new": "    if False:",
-      "expect_failed": 2
+      "expect_failed": 3
     },
     {
       "name": "незворотність береться з опису сервера",
       "file": "stages/s04_mcp/bridge.py",
       "old": "        irreversible=is_irreversible(info.name),",
       "new": "        irreversible=\"irreversible=false\" not in info.description,",
+      "expect_failed": 2
+    },
+    {
+      "name": "чужа схема валить реєстр",
+      "file": "stages/s04_mcp/bridge.py",
+      "old": "    declared = declared if isinstance(declared, dict) else {}",
+      "new": "    declared = declared",
+      "expect_failed": 1
+    },
+    {
+      "name": "дублікат імені затінює перше оголошення",
+      "file": "stages/s04_mcp/bridge.py",
+      "old": "        if info.name not in ALLOWED or info.name in built:",
+      "new": "        if info.name not in ALLOWED:",
       "expect_failed": 1
     }
   ]

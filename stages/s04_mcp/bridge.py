@@ -46,7 +46,13 @@ def is_irreversible(name: str) -> bool:
     return name in IRREVERSIBLE or name not in ALLOWED
 
 
-def to_tool(info: ToolInfo, *, extra: dict[str, Any] | None = None, tracer: Any = None) -> Tool:
+def to_tool(
+    info: ToolInfo,
+    *,
+    extra: dict[str, Any] | None = None,
+    tracer: Any = None,
+    broken: bool = False,
+) -> Tool:
     """Один оголошений інструмент — у форму, яку розуміє реєстр етапу 1.
 
     :param extra: аргументи, які підставляє клієнт, а не модель — рівень доступу насамперед.
@@ -58,7 +64,7 @@ def to_tool(info: ToolInfo, *, extra: dict[str, Any] | None = None, tracer: Any 
     schema = _without(info.schema, fixed)
 
     def run(**arguments: Any) -> str:
-        result = call_tool(info.name, {**arguments, **fixed}, tracer=tracer)
+        result = call_tool(info.name, {**arguments, **fixed}, tracer=tracer, broken=broken)
         if not result.ok:
             phase = result.failure["phase"]
             return f"Інструмент недоступний ({phase}): {result.failure['reason']}"

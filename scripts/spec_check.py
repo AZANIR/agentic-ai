@@ -45,3 +45,4 @@ for section in (
 
 print(f"US: {len(us)} | AC: {len(acs)} | рядків покриття: {len(rows)} | типи: {len(types)}")
 print("\n".join("ЗБІЙ · " + b for b in bad) if bad else "self-check чистий в обидва напрямки")
+sys.exit(1 if bad else 0)
