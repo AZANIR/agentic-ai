@@ -133,14 +133,27 @@ class DatabaseStore:
         return self._ranker.context_for(owner, question, now=now, limit=limit)
 
     def _query(self, sql: str, params: tuple[Any, ...] = ()) -> list[tuple[Any, ...]]:
-        with self._connection.cursor() as cursor:
-            cursor.execute(sql, params)
-            return list(cursor.fetchall())
+        try:
+            with self._connection.cursor() as cursor:
+                cursor.execute(sql, params)
+                return list(cursor.fetchall())
+        except Exception:
+            # Відкат ОБОВʼЯЗКОВИЙ. Невдалий запит лишає транзакцію в
+            # аварійному стані, і кожен наступний — включно з пробою стану —
+            # падає з `InFailedSqlTransaction`, навіть коли причина зникла.
+            # Знайдено розгортанням: таблиці ще не було, і сервіс лишався
+            # мертвим після її появи.
+            self._connection.rollback()
+            raise
 
     def _execute(self, sql: str, params: tuple[Any, ...] = ()) -> None:
-        with self._connection.cursor() as cursor:
-            cursor.execute(sql, params)
-        self._connection.commit()
+        try:
+            with self._connection.cursor() as cursor:
+                cursor.execute(sql, params)
+            self._connection.commit()
+        except Exception:
+            self._connection.rollback()
+            raise
 
 
 class _DatabaseMemory(Memory):

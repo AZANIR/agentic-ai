@@ -1,0 +1,125 @@
+# Продакшн-збірка: проксі, сервіс, планувальник окремим процесом, два сховища.
+#
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --wait
+#   ./deploy/smoke.sh https://localhost           # перевірити локально
+#   ./deploy/smoke.sh https://agentic.example     # перевірити на домені
+#
+# **Пʼять контейнерів, і планувальник — один із них.** Він виглядає зайвим доти, доки не
+# зʼявиться другий воркер: тоді планувальник усередині застосунку виконує задачу двічі за
+# інтервал, і жодної помилки в логах не буде (ADR-0003).
+#
+# Облікових даних тут немає. Вони в deploy/.env.prod, якого немає в репозиторії.
+
+name: agentic-prod
+
+x-service: &service
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  environment:
+    APP_PROFILE: prod
+    DATABASE_URL: postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+    REDIS_URL: redis://redis:6379/0
+    API_KEYS: ${API_KEYS:?}
+    LLM_BASE_URL: ${LLM_BASE_URL:-}
+    LLM_API_KEY: ${LLM_API_KEY:-}
+    LLM_MODEL: ${LLM_MODEL:-}
+    # Явний дозвіл підробки. Без нього профіль prod відмовляється стартувати, і це
+    # правильно: сервіс без справжнього провайдера обслуговує користувачів вигадками.
+    # Прапорець існує рівно для локальної перевірки prod-адаптерів (ADR-0009), і стан
+    # називає провайдера, тож у проді це видно ззовні.
+    ALLOW_FAKE_LLM: ${ALLOW_FAKE_LLM:-}
+    RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
+    BUDGET_USD_PER_DAY: ${BUDGET_USD_PER_DAY:-5.00}
+    TRACE_DIR: /data/traces
+  volumes:
+    # Трейси живуть у томі, а не в шарі контейнера (ADR-0008): інакше кожне оновлення
+    # образу стирає їх, і AC-10 червоніє саме на цьому.
+    - traces:/data/traces
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+  restart: unless-stopped
+
+services:
+  # Міграції — окремий одноразовий контейнер, а не крок у старті сервісу.
+  #
+  # Усередині старту вони виконувались би стільки разів, скільки воркерів, —
+  # та сама пастка, що з планувальником (ADR-0003), лише в місці, де ціна вища:
+  # два процеси, що одночасно змінюють схему, — це не подвоєна задача, це
+  # зіпсована база.
+  #
+  # Знайдено розгортанням: без цього сервісу таблиці просто не було, а перший
+  # невдалий запит лишав зʼєднання в аварійному стані назавжди.
+  migrate:
+    <<: *service
+    command: ["python", "scripts/migrate.py", "up"]
+    restart: "no"
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [api]
+    restart: unless-stopped
+
+  api:
+    <<: *service
+    command:
+      - uvicorn
+      - stages.s06_platform.serve:app
+      - --host=0.0.0.0
+      - --port=8000
+      # Два воркери навмисно: саме на них показується друга половина пастки. У профілі
+      # prod лічильники спільні, тож ліміт лишається лімітом — і це видно порівнянням
+      # із локальним прогоном, де вони процесо-локальні.
+      - --workers=2
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+
+  scheduler:
+    <<: *service
+    # Рівно один екземпляр. `deploy.replicas` тут був би помилкою, яку помітять нескоро.
+    command: ["python", "-m", "stages.s06_platform.schedule"]
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?} -d ${POSTGRES_DB:?}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  traces:

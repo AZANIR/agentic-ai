@@ -1,0 +1,101 @@
+# RUNBOOK — етап 6
+
+Що робити, коли впало. Написано **після** чотирьох справжніх поломок під час першого
+розгортання, а не з уяви.
+
+## Підняти
+
+```bash
+cp deploy/.env.prod.example deploy/.env.prod   # і заповнити
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
+API_KEY=<ключ> ./deploy/smoke.sh https://localhost
+```
+
+Порядок не довільний: `migrate` виконується **до** `api` (`service_completed_successfully`),
+бо сервіс без таблиці не просто не працює — він лишається мертвим після її появи.
+
+## Прочитати стан
+
+```bash
+curl -k https://localhost/healthz | python -m json.tool
+```
+
+| Поле | Що означає |
+|---|---|
+| `status` | `up` лише коли **всі** залежності живі |
+| `dependencies.<імʼя>.status` | кожна окремо; `reason` — **тип** помилки, не її текст |
+| `provider` | `real` або `fake`. `fake` у проді — це ALLOW_FAKE_LLM=1 (ADR-0009) |
+
+**`provider: fake` на справжньому домені означає, що користувачі отримують вигадки.**
+Це видно без ключа навмисно.
+
+## Що ламалось насправді
+
+### `502` від проксі, у логах `PermissionError: /data/traces/...`
+
+Том належить root, процес — непривілейованому користувачу. Каталог має створюватись **в
+образі** з правильним власником: Docker переносить права образу у свіжий іменований том лише
+при першому монтуванні.
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod down -v
+```
+
+`-v` обовʼязковий: том із неправильними правами переживе перезбірку образу.
+
+### `503`, у стані `store: InFailedSqlTransaction`
+
+Невдалий запит лишив транзакцію в аварійному стані. Наступні падають **навіть коли причина
+зникла**. Причина зазвичай одна: міграції не застосувались.
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod logs migrate
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod restart api
+```
+
+Код відкочує транзакцію сам — але зʼєднання, взяте до виправлення, лишиться зіпсованим до
+перезапуску.
+
+### Сервіс не стартує: `профіль prod налаштований небезпечно`
+
+Сторож робить свою роботу. Прочитай перелік — він називає кожну проблему окремо. Якщо
+бракує лише провайдера, а ти піднімаєш збірку **для перевірки**, постав `ALLOW_FAKE_LLM=1`
+і памʼятай, що стан це показує.
+
+### Планувальник перезапускається
+
+Він падає з тих самих причин, що й `api`, але його ніхто не смикає ззовні, тож помітити можна
+лише через `ps` або лог.
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod ps
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod logs scheduler
+```
+
+**Планувальник, що впав, не видно за метриками сервісу** — це названо в ADR-0003 як ціна
+винесення в окремий процес.
+
+### Ліміт пропускає більше, ніж написано
+
+Перевір `APP_PROFILE`. У `local` лічильники **навмисно** процесо-локальні, тож із двома
+воркерами ліміт подвоюється — це вправа етапу, а не вада. У `prod` лічильники спільні:
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod exec redis \
+	redis-cli --scan --pattern 's06:*'
+```
+
+Порожній список у `prod` під навантаженням означає, що сервіс насправді в `local`.
+
+## Відкликати ключ
+
+Ключі читаються при старті. Прибери зі списку `API_KEYS` і перезапусти `api` та `scheduler`.
+Відкликання без перезапуску не працює — це названа ціна ADR-0006.
+
+## Забрати все
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod down -v
+```
+
+`-v` стирає **і факти, і трейси**. Резервне копіювання приходить на етапі 10.

@@ -121,6 +121,37 @@ def _estimate_tokens(value: Any) -> int:
     return max(1, len(json.dumps(value, ensure_ascii=False, default=str)) // 4)
 
 
+# Слова, за якими видно, ЩО в промпта питають. Не розуміння — розпізнавання форми.
+_CATEGORIES = ("orders", "knowledge", "math")
+_JUDGING = ("чи відповідає", "оціни", "так або ні", "достатньо")
+
+
+def _auto_step(request: dict[str, Any]) -> dict[str, Any]:
+    """Відповідь на промпт, якого ніхто не передбачав.
+
+    **Це не модель і не імітація моделі.** Це розпізнавання форми запиту: якщо промпт
+    перелічує категорії — назвати категорію; якщо просить оцінити — сказати «так»;
+    інакше — речення тексту.
+
+    Навіщо: сервіс має підніматись і відповідати **без платного ключа**, інакше правило
+    курсу «усе працює офлайн» перестає діяти рівно там, де етап найбільший. Сценарій
+    тут неможливий за побудовою — запити пише користувач, а не автор перевірки.
+
+    **Межа названа чесно.** Відповіді беззмістовні: вони мають правильну ФОРМУ й нульовий
+    зміст. Демонстрація конвеєра — так; демонстрація якості відповідей — ні, і жодна
+    перевірка цього не стверджує.
+    """
+    messages = request.get("messages") or []
+    prompt = " ".join(str(m.get("content") or "") for m in messages).lower()
+
+    if all(name in prompt for name in _CATEGORIES):
+        # Промпт перелічує всі категорії — отже, просить обрати одну.
+        return text("knowledge")
+    if any(word in prompt for word in _JUDGING):
+        return text("так")
+    return text("Відповідь підробленого провайдера: змісту тут немає за побудовою.")
+
+
 @dataclass
 class FakeLLM:
     """Підробний OpenAI-сумісний клієнт, що розігрує заданий сценарій.
@@ -132,6 +163,10 @@ class FakeLLM:
     """
 
     script: list[dict[str, Any]] = field(default_factory=list)
+    # Відповідати на будь-який промпт, коли сценарій вичерпано. Потрібно рівно там,
+    # де запитів **наперед не знають**: у сервісі кожен запит інший, тож сценарій
+    # неможливий за побудовою. Ціна названа у `_auto_step`.
+    auto_reply: bool = False
     repeat_last: bool = False
     calls: list[dict[str, Any]] = field(default_factory=list, init=False)
     _cursor: int = field(default=0, init=False)
@@ -148,7 +183,9 @@ class FakeLLM:
     def call_count(self) -> int:
         return len(self.calls)
 
-    def _next_step(self) -> dict[str, Any]:
+    def _next_step(self, request: dict[str, Any] | None = None) -> dict[str, Any]:
+        if self.auto_reply and self._cursor >= len(self.script):
+            return _auto_step(request or {})
         if self._cursor < len(self.script):
             step = self.script[self._cursor]
             self._cursor += 1
@@ -205,4 +242,4 @@ class _Completions:
 
     def create(self, **kwargs: Any) -> FakeResponse:
         self.client.calls.append(kwargs)
-        return self.client._build(self.client._next_step(), kwargs)
+        return self.client._build(self.client._next_step(kwargs), kwargs)

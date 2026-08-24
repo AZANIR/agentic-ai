@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 from shared.check_runner import NotVerified, code_mentions, run_checks
-from shared.config import LOCAL, Settings
+from shared.config import LOCAL, ConfigError, Settings
 from shared.counters import DAY, MINUTE, InMemory, Shared, get_counters
 from shared.factstore import DatabaseStore, FileStore
 from shared.fake_llm import FakeLLM, text
@@ -995,6 +995,143 @@ def check_the_cleanup_job_is_idempotent_but_that_is_not_the_point() -> None:
     ), "у планувальнику зʼявилась незворотна дія — тоді подвоєння перестає бути вправою"
 
 
+# --- знайдене розгортанням ----------------------------------------------------------------
+
+DEPLOY = Path(__file__).resolve().parent.parent.parent / "deploy"
+
+
+def check_a_failed_query_does_not_poison_the_connection() -> None:
+    """ВІДМОВА · сховище: невдалий запит не лишає зʼєднання в аварійному стані"""
+    with _database() as connection:
+        store = DatabaseStore(connection)
+        try:
+            store._query("SELECT з_неіснуючої_таблиці")
+        except Exception:  # noqa: BLE001 — саме на це й розраховано
+            pass
+
+        # Наступний запит має працювати. Без відкату транзакція лишається аварійною, і
+        # КОЖЕН наступний падає з InFailedSqlTransaction — включно з пробою стану. Сервіс
+        # лишався мертвим уже після того, як причина зникла.
+        facts = store.all_facts()
+
+    assert isinstance(facts, list), facts
+
+
+def check_the_prod_profile_refuses_a_fake_provider_by_default() -> None:
+    """ВІДМОВА · конфігурація: prod без справжнього провайдера не стартує"""
+    base = {
+        "APP_PROFILE": "prod",
+        "API_KEYS": "k",
+        "DATABASE_URL": "postgresql://x",
+        "REDIS_URL": "redis://x",
+    }
+    try:
+        Settings.load(source=base)
+    except ConfigError as error:
+        assert "ALLOW_FAKE_LLM" in str(error), (
+            f"відмова не каже, що робити: {error}. Сторож, який не називає виходу, "
+            "спонукає прибрати сторожа"
+        )
+    else:
+        raise AssertionError(
+            "prod піднявся з підробкою без жодного дозволу — сервіс обслуговуватиме "
+            "справжніх користувачів вигадками"
+        )
+
+
+def check_the_explicit_flag_lets_it_start_and_shows_up_in_health() -> None:
+    """ВІДМОВА · дзеркальна: явний дозвіл працює, і його ВИДНО у стані"""
+    settings = Settings.load(
+        source={
+            "APP_PROFILE": "prod",
+            "API_KEYS": "k",
+            "DATABASE_URL": "postgresql://x",
+            "REDIS_URL": "redis://x",
+            "ALLOW_FAKE_LLM": "1",
+        }
+    )
+    assert settings.allow_fake_llm and not settings.has_real_llm, settings
+
+    # Без цього твердження дозвіл лишався б невидимим ззовні — тихий виняток, який одного
+    # дня стає інцидентом (ADR-0009).
+    report = Health(dependencies=[], provider="fake").report()
+    assert report["provider"] == "fake", report
+    assert Health(dependencies=[], provider="real").report()["provider"] == "real"
+
+
+def check_the_fake_answers_a_prompt_nobody_scripted() -> None:
+    """ВІДМОВА · підробка з auto_reply відповідає на будь-який промпт, а не падає"""
+    client = FakeLLM(auto_reply=True)
+
+    reply = client.chat.completions.create(
+        model="x", messages=[{"role": "user", "content": "щось, чого ніхто не передбачав"}]
+    )
+    assert reply.choices[0].message.content, "порожня відповідь"
+
+    # Форма розпізнається: промпт із переліком категорій дає категорію.
+    categorised = client.chat.completions.create(
+        model="x",
+        messages=[{"role": "user", "content": "обери: orders, knowledge або math"}],
+    )
+    assert categorised.choices[0].message.content.strip() in (ORDERS, KNOWLEDGE, MATH)
+
+    # І дзеркально: БЕЗ прапорця вичерпаний сценарій лишається помилкою.
+    strict = FakeLLM(script=[])
+    try:
+        strict.chat.completions.create(model="x", messages=[])
+    except Exception as error:  # noqa: BLE001
+        assert "сценарій" in str(error).lower(), error
+    else:
+        raise AssertionError(
+            "підробка без auto_reply відповіла на непередбачений промпт — тоді перевірки, "
+            "що спираються на вичерпання сценарію, нічого не доводять"
+        )
+
+
+def check_the_deployment_files_exist_and_say_what_they_do() -> None:
+    """розгортання: усі файли на місці, і смоук виконуваний"""
+    for name in ("Dockerfile", "Caddyfile", "docker-compose.prod.yml", "smoke.sh", "RUNBOOK.md"):
+        path = DEPLOY / name
+        assert path.exists(), f"немає {name}"
+        assert path.read_text(encoding="utf-8").strip(), f"{name} порожній"
+
+
+def check_the_smoke_script_runs_one_list_against_both_targets() -> None:
+    """ВІДМОВА · смоук: перелік перевірок не залежить від того, куди він дивиться"""
+    source = (DEPLOY / "smoke.sh").read_text(encoding="utf-8")
+
+    # Дві гілки з різними переліками означали б, що локальний прогін доводить не те, що
+    # прогін на домені. Різниця дозволена рівно одна — довіра до сертифіката.
+    assert source.count("$BASE") >= 5, "адреса не наскрізна — перелік залежить від цілі"
+    assert "--insecure" in source and "INSECURE=1" in source, (
+        "локальний самопідписаний сертифікат не оброблено явно"
+    )
+    assert "skip " in source and "не перевірено" in source, (
+        "скрипт не має третього стану. Мовчазний --insecure — це зелений колір за "
+        "неперевірене (spec AC-08)"
+    )
+    assert "exit 1" in source, "скрипт не падає на збої — тоді його вердикт нічого не значить"
+
+
+def check_the_migration_runs_once_not_per_worker() -> None:
+    """ВІДМОВА · розгортання: міграції — окремий контейнер, а не крок у старті сервісу"""
+    compose = (DEPLOY / "docker-compose.prod.yml").read_text(encoding="utf-8")
+
+    assert "migrate:" in compose, (
+        "у збірці немає застосування міграцій. Розгортання без них дає сервіс, у якого "
+        "перший же запит падає, а зʼєднання лишається аварійним"
+    )
+    assert "service_completed_successfully" in compose, (
+        "сервіс не чекає на завершення міграцій — старт стає перегонами"
+    )
+    # Всередині старту вони виконувались би стільки разів, скільки воркерів: та сама пастка,
+    # що з планувальником, у місці, де ціна вища.
+    serve = (Path(__file__).parent / "serve.py").read_text(encoding="utf-8")
+    assert not code_mentions(serve, {"migrate", "migration"}), (
+        "точка входу застосовує міграції — тоді два воркери змінюють схему одночасно"
+    )
+
+
 CHECKS = [
     check_both_counters_answer_the_same_way_within_one_instance,
     check_the_window_forgets_what_fell_out_of_it,
@@ -1039,6 +1176,13 @@ CHECKS = [
     check_the_doubled_rate_limit_is_the_half_nobody_sees,
     check_the_shared_store_fixes_the_half_nobody_sees,
     check_the_cleanup_job_is_idempotent_but_that_is_not_the_point,
+    check_a_failed_query_does_not_poison_the_connection,
+    check_the_prod_profile_refuses_a_fake_provider_by_default,
+    check_the_explicit_flag_lets_it_start_and_shows_up_in_health,
+    check_the_fake_answers_a_prompt_nobody_scripted,
+    check_the_deployment_files_exist_and_say_what_they_do,
+    check_the_smoke_script_runs_one_list_against_both_targets,
+    check_the_migration_runs_once_not_per_worker,
 ]
 
 

@@ -79,6 +79,10 @@ class Settings:
     rate_limit_per_minute: int = 30
     budget_usd_per_session: float = 0.25
     budget_usd_per_day: float = 5.00
+    # Явний дозвіл підробки у профілі prod. Потрібен рівно для одного: підняти
+    # продакшн-збірку локально й перевірити СПРАВЖНІ адаптери — Postgres замість
+    # файлу, Redis замість памʼяті процесу — не маючи платного ключа (ADR-0009).
+    allow_fake_llm: bool = False
     max_message_chars: int = 4000
     max_audio_seconds: int = 30
 
@@ -114,6 +118,7 @@ class Settings:
             agent_max_steps=_int(source, "AGENT_MAX_STEPS", 8),
             embeddings_provider=_env(source, "EMBEDDINGS_PROVIDER", "hash").lower(),
             embeddings_model=_env(source, "EMBEDDINGS_MODEL"),
+            allow_fake_llm=_env(source, "ALLOW_FAKE_LLM") == "1",
             trace_sink=_env(source, "TRACE_SINK", "jsonl").lower(),
             trace_dir=trace_dir,
             langfuse_host=_env(source, "LANGFUSE_HOST"),
@@ -148,8 +153,11 @@ class Settings:
             problems.append("DATABASE_URL порожній")
         if not self.redis_url:
             problems.append("REDIS_URL порожній — ліміти й бюджет не працюватимуть")
-        if not self.has_real_llm:
-            problems.append("LLM_BASE_URL/LLM_API_KEY порожні — у prod FakeLLM не має сенсу")
+        if not self.has_real_llm and not self.allow_fake_llm:
+            problems.append(
+                "LLM_BASE_URL/LLM_API_KEY порожні — у prod FakeLLM не має сенсу. "
+                "Якщо це навмисно (локальна перевірка prod-адаптерів) — ALLOW_FAKE_LLM=1"
+            )
         if problems:
             raise ConfigError(
                 "профіль prod налаштований небезпечно:\n  - " + "\n  - ".join(problems)

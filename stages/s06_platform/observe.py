@@ -51,9 +51,15 @@ class Dependency:
 
 @dataclass
 class Health:
-    """Стан сервісу. `ok` — лише коли **всі** залежності живі."""
+    """Стан сервісу. `ok` — лише коли **всі** залежності живі.
+
+    Крім залежностей, стан називає **провайдера моделі**. Це не діагностика: у профілі
+    prod підробка дозволена лише явним прапорцем, і стан — єдине місце, де це видно
+    без доступу до машини.
+    """
 
     dependencies: list[Dependency] = field(default_factory=list)
+    provider: str = ""
 
     def report(self) -> dict[str, Any]:
         seen = {
@@ -63,6 +69,11 @@ class Health:
         return {
             "status": UP if all(d["status"] == UP for d in seen.values()) else DOWN,
             "dependencies": seen,
+            # Провайдер у стані навмисно. Дозвіл на підробку у профілі prod (ADR-0009)
+            # має бути видно ЗЗОВНІ: виняток, якого не видно у стані, — тихий виняток,
+            # і рано чи пізно хтось обслуговуватиме справжніх користувачів підробкою,
+            # не знаючи про це.
+            "provider": self.provider,
         }
 
 
