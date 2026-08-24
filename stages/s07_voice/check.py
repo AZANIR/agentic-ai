@@ -26,6 +26,7 @@ from stages.s07_voice.pipeline import SILENT, SPEAK, STT, THINK, Audio, batch, s
 from stages.s07_voice.prefetch import WASTED, prefetched, synchronous
 from stages.s07_voice.stt import FakeRecogniser
 from stages.s07_voice.tts import FakeSynthesiser
+from stages.s07_voice.ws import MISSING, missing_models
 
 # Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
 BUDGET_SECONDS = 30
@@ -402,6 +403,148 @@ def check_the_stopwatch_refuses_a_second_first_audio() -> None:
         )
 
 
+# --- сторінка й живий режим ----------------------------------------------------------------
+
+HERE = Path(__file__).parent
+PAGE = HERE / "page.html"
+
+
+def check_the_microphone_needs_an_explicit_action() -> None:
+    """ВІДМОВА · сторінка: мікрофон береться лише після натискання, і зупинка звільняє"""
+    page = PAGE.read_text(encoding="utf-8")
+
+    # `getUserMedia` має бути **всередині** обробника, а не на рівні модуля скрипта.
+    # Сторінка, що бере мікрофон при завантаженні, порушує згоду незалежно від того, що
+    # робить зі звуком далі.
+    before, _, after = page.partition("getUserMedia")
+    assert "addEventListener" in after or "async function start" in before, (
+        "getUserMedia викликається поза обробником — мікрофон береться при завантаженні"
+    )
+    assert "async function start" in page and "getUserMedia" in page, page[:200]
+
+    # Дзеркальна половина: пристрій звільняється. Червона крапка, що лишається горіти після
+    # переходу на іншу сторінку, — це не косметика, це недотримана обіцянка.
+    assert "getTracks().forEach" in page and "track.stop()" in page, (
+        "доріжки не зупиняються — мікрофон лишається зайнятим після зупинки"
+    )
+    assert "pagehide" in page, "закриття вкладки не звільняє пристрій"
+
+
+def check_the_page_writes_down_numbers_and_nothing_else() -> None:
+    """ВІДМОВА · сеанс лишає числа — і не лишає ані семплів, ані тексту"""
+    page = PAGE.read_text(encoding="utf-8")
+    socket = (HERE / "ws.py").read_text(encoding="utf-8")
+
+    # Ані сторінка, ані сокет не мають писати звук чи текст у сховище.
+    for name, source in (("page.html", page), ("ws.py", socket)):
+        for forbidden in ("localStorage", "indexedDB", "write_bytes", "open(", "wav"):
+            if forbidden == "open(" and name == "page.html":
+                continue
+            assert forbidden not in source or forbidden == "wav", (
+                f"{name} зберігає щось із сеансу: {forbidden!r}"
+            )
+
+    # Дзеркальна половина: числа таки лишаються. Сеанс, що не лишає нічого, задовольняє
+    # «звук не зберігається» повністю й робить етап невимірюваним.
+    assert "first_audio" in socket and "as_rows" in socket, (
+        "сокет не віддає розкладу — тоді сторінка не може показати ті самі числа, що прогін"
+    )
+
+
+def check_a_missing_model_is_explained_not_crashed() -> None:
+    """ВІДМОВА · відсутня модель: сказано, що встановити, а не технічна помилка"""
+    absent = missing_models()
+    assert absent is None or absent == MISSING, absent
+
+    # Повідомлення має містити КОМАНДУ. Читач, який бачить `ModuleNotFoundError`,
+    # дізнається менше, ніж читач, який бачить, що набрати.
+    assert "pip install" in MISSING, MISSING
+    assert "ModuleNotFoundError" not in MISSING, MISSING
+    # І має сказати, що працює без моделей: інакше читач вирішить, що етап зламався.
+    assert "run" in MISSING, MISSING
+
+
+def check_the_socket_reuses_the_pipeline_it_does_not_copy_it() -> None:
+    """ВІДМОВА · сокет бере ТОЙ САМИЙ конвеєр — інакше числа розійдуться (AC-11)"""
+    socket = (HERE / "ws.py").read_text(encoding="utf-8")
+
+    assert "from stages.s07_voice.pipeline import" in socket, (
+        "сокет не імпортує конвеєра. Власна копія кроків означає, що числа на сторінці й "
+        "числа у прогоні можуть розійтися, і жодне не перевіряється другим"
+    )
+    # І не має власних затримок: усе, що спить, живе в адаптерах.
+    assert not code_mentions(socket, {"sleep"}) or "clock.sleep" in socket, socket[:120]
+
+
+def check_the_web_module_is_not_imported_on_a_bare_install() -> None:
+    """ВІДМОВА · перевірки не тягнуть веб-фреймворк — інакше базова установка червоніє"""
+    import ast
+
+    # Розбір ІМПОРТІВ, а не пошук у тексті. Перша редакція шукала рядок
+    # «...import create_app» — і знаходила його у власному ж повідомленні про помилку.
+    # Пʼятий випадок цієї пастки в курсі: перевірка про код має дивитись на код.
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    imported = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module == "stages.s07_voice.ws"
+        for alias in node.names
+    }
+    assert "create_app" not in imported, (
+        f"перевірки імпортують {sorted(imported)} — `create_app` тягне веб-фреймворк, "
+        "і на базовій установці це червоне замість «не перевірено»"
+    )
+    # Дзеркальна половина: щось із `ws` імпортувати таки треба, інакше перевірка
+    # відсутньої моделі нічого не перевіряє.
+    assert "missing_models" in imported, imported
+
+
+# --- e2e: демо ------------------------------------------------------------------------------
+
+
+def check_the_demo_shows_six_scenes_with_real_numbers() -> None:
+    """e2e · демо показує шість сцен, обидва числа й обидві частини виграшу"""
+    import io
+    from contextlib import redirect_stdout
+
+    from stages.s07_voice.run import main as demo_main
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        code = demo_main()
+    output = buffer.getvalue()
+
+    assert code == 0, code
+    assert output.startswith("[FakeClock]"), output.splitlines()[0]
+    for number in range(1, 7):
+        assert f"{NEWLINE}{number}. " in output, f"сцена {number} не надрукувалась"
+
+    # Тіла сцен, а не заголовки. Числа мають бути ті самі, що дає прогін.
+    batched = _run_batch().timing
+    stream, _ = _run_stream()
+    assert f"{batched.first_audio:.0f}" in output, "числа батчу немає у виводі"
+    assert f"{stream.timing.first_audio:.0f}" in output, "числа стрімінгу немає у виводі"
+
+    for word in ("перекриття", "однаково", "p95", "ПЕРЕРВАТИ", "марна робота"):
+        assert word in output, f"сцена без {word!r}"
+
+    # Дзеркальна половина сцени 5: у виводі є і «переривати», і «не переривати».
+    assert output.count("не переривати") == 2 and "ПЕРЕРВАТИ" in output, (
+        "barge-in показав не всі три рішення — а їх саме три, і в цьому урок"
+    )
+
+
+def check_the_demo_needs_no_microphone_models_or_network() -> None:
+    """ВІДМОВА · демо: жодної моделі, жодного мікрофона, жодної мережі"""
+    source = (HERE / "run.py").read_text(encoding="utf-8")
+
+    assert not code_mentions(source, {"faster_whisper", "piper", "socket", "requests"}), (
+        "демо тягне модель або мережу. Правило курсу: усе працює офлайн — і найбільше це "
+        "важить на етапі, де моделі важать гігабайти"
+    )
+    assert "FakeClock" in source, "демо не називає підробленого годинника явно"
+
+
 CHECKS = [
     check_the_batch_pipeline_reports_first_audio_and_its_parts,
     check_streaming_reaches_first_audio_at_least_twice_as_fast,
@@ -422,6 +565,13 @@ CHECKS = [
     check_the_fake_clock_does_not_actually_sleep,
     check_the_clock_factory_defaults_to_fake,
     check_the_stopwatch_refuses_a_second_first_audio,
+    check_the_microphone_needs_an_explicit_action,
+    check_the_page_writes_down_numbers_and_nothing_else,
+    check_a_missing_model_is_explained_not_crashed,
+    check_the_socket_reuses_the_pipeline_it_does_not_copy_it,
+    check_the_web_module_is_not_imported_on_a_bare_install,
+    check_the_demo_shows_six_scenes_with_real_numbers,
+    check_the_demo_needs_no_microphone_models_or_network,
 ]
 
 

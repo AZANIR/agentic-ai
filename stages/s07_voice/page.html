@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<title>Етап 7 — голос</title>
+<!--
+  Один файл, жодної збірки (ADR-0006). Етап про затримку, а не про складання інтерфейсів.
+
+  Мікрофон вмикається ЛИШЕ після натискання (AC-10). Сторінка, що бере мікрофон при
+  завантаженні, порушує згоду незалежно від того, що робить зі звуком далі — і браузер
+  правий, коли питає.
+
+  Ані семпли, ані розпізнаний текст нікуди не зберігаються (AC-10b). Числа — зберігаються:
+  сеанс, що не лишає нічого, робить етап невимірюваним.
+-->
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.6 system-ui, sans-serif;
+    max-width: 46rem; margin: 3rem auto; padding: 0 1.5rem;
+  }
+  h1 { font-size: 1.4rem; }
+  button {
+    font: inherit; padding: .6rem 1.2rem; border-radius: .4rem;
+    border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer;
+  }
+  button[disabled] { opacity: .4; cursor: not-allowed; }
+  #state { margin-left: 1rem; font-variant-numeric: tabular-nums; }
+  #state.live::before { content: "● "; color: #d33; }
+  table { border-collapse: collapse; margin-top: 1.5rem; width: 100%; }
+  th, td { text-align: left; padding: .3rem .6rem; border-bottom: 1px solid #8884; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .note { opacity: .75; font-size: .9rem; }
+  .bad { color: #d33; }
+</style>
+</head>
+<body>
+
+<h1>Етап 7 — той самий конвеєр двічі</h1>
+
+<p class="note">
+  Числа тут — ті самі, що друкує <code>python -m stages.s07_voice.run</code>.
+  Якщо вони розійшлися, бреше одне з двох, і це вже знахідка.
+</p>
+
+<p>
+  <button id="talk">Говорити</button>
+  <span id="state">мікрофон вимкнено</span>
+</p>
+
+<table id="rows">
+  <thead><tr><th>Крок</th><th class="num">мс</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<p id="verdict" class="note"></p>
+
+<script>
+// Стан сторінки — три речі й не більше. Складніше тут не потрібно, а простіше не вийде.
+let socket = null;
+let recorder = null;
+let stream = null;
+
+const talk = document.getElementById("talk");
+const state = document.getElementById("state");
+const rows = document.querySelector("#rows tbody");
+const verdict = document.getElementById("verdict");
+
+function show(text, live) {
+  state.textContent = text;
+  state.classList.toggle("live", Boolean(live));
+}
+
+function render(timing) {
+  rows.innerHTML = "";
+  for (const [name, millis] of timing.steps) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${name}</td><td class="num">${Math.round(millis)}</td>`;
+    rows.append(tr);
+  }
+  const first = document.createElement("tr");
+  first.innerHTML =
+    `<td><strong>до першого звуку</strong></td>` +
+    `<td class="num"><strong>${Math.round(timing.first_audio)}</strong></td>`;
+  rows.append(first);
+}
+
+// Мікрофон береться тут і ніде більше. Одна точка входу — одна точка звільнення.
+async function start() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (error) {
+    show("мікрофон не дозволено", false);
+    verdict.textContent =
+      "Браузер відмовив у доступі. Це не поломка сторінки: без явного дозволу " +
+      "мікрофон недоступний, і так і має бути.";
+    verdict.className = "note bad";
+    return false;
+  }
+
+  socket = new WebSocket(`ws://${location.host}/voice`);
+  socket.binaryType = "arraybuffer";
+
+  socket.onmessage = (event) => {
+    const message = JSON.parse(event.data);
+    if (message.kind === "timing") {
+      render(message.timing);
+      verdict.textContent = message.note || "";
+      verdict.className = "note";
+    }
+    if (message.kind === "missing") {
+      // AC-07b: чого бракує й що встановити — а не технічна помилка.
+      verdict.textContent = message.text;
+      verdict.className = "note bad";
+    }
+    if (message.kind === "audio") {
+      new Audio("data:audio/wav;base64," + message.data).play();
+    }
+  };
+
+  recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = (event) => {
+    if (socket && socket.readyState === WebSocket.OPEN) socket.send(event.data);
+  };
+  recorder.start(200);
+  return true;
+}
+
+// Зупинка звільняє пристрій. Індикатор показує фактичний стан, а не намір: доріжки
+// зупинені — червона крапка зникла.
+function stop() {
+  if (recorder && recorder.state !== "inactive") recorder.stop();
+  if (stream) stream.getTracks().forEach((track) => track.stop());
+  if (socket) socket.close();
+  recorder = stream = socket = null;
+}
+
+talk.addEventListener("click", async () => {
+  talk.disabled = true;
+  if (stream) {
+    stop();
+    show("мікрофон вимкнено", false);
+  } else if (await start()) {
+    show("слухаю", true);
+  }
+  talk.disabled = false;
+});
+
+// Вкладку закрили — пристрій звільнено. Без цього червона крапка браузера лишається
+// горіти після переходу на іншу сторінку, і користувач має рацію, коли лякається.
+window.addEventListener("pagehide", stop);
+</script>
+
+</body>
+</html>
