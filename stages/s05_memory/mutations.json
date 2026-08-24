@@ -1,0 +1,70 @@
+{
+  "stage": "s05-memory",
+  "executed_floor": 24,
+  "note": "Мутації ламають властивості, а не синтаксис. Найважливіші дві — фільтр власника й накопичення підсумку: обидві дають код, який ПРАЦЮЄ і при цьому неправильний. Перша не тече назовні (чуже все одно не в контексті) — вона тихо зʼїдає власну відповідь, тому й перевіряється дзеркальною парою. Друга не дає жодної помилки взагалі: текст лишається звʼязним і поступово перестає бути правдою. ПЕРША РЕДАКЦІЯ ВПРАВИ 2 ДАВАЛА НУЛЬ ЧЕРВОНИХ — і слабкою була не перевірка, а мутація: вона лишала `mine` уже відфільтрованим, тож чужі факти не займали слотів і вада не відтворювалась. Інструмент, яким перевіряють перевірки, бреше тим самим способом, що й вони. Нуль червоних — це питання «чи ламає мутація те, що обіцяє», а не одразу вирок набору.",
+  "mutations": [
+    {
+      "name": "вправа 1 · фільтр власника прибрано",
+      "file": "stages/s05_memory/long_term.py",
+      "old": "        mine = [f for f in self.all_facts() if f.owner == owner]",
+      "new": "        mine = list(self.all_facts())",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 2 · фільтр власника ПІСЛЯ відбору, а не до",
+      "file": "stages/s05_memory/long_term.py",
+      "old": "        scores = self.retrieval.score(question, [f.text for f in alive])\n        ranked = sorted(zip(scores, alive, strict=True), key=lambda pair: pair[0], reverse=True)",
+      "new": "        every = [f for f in self.all_facts() if is_active(f, now=now)]\n        every_scores = self.retrieval.score(question, [f.text for f in every])\n        top = sorted(zip(every_scores, every, strict=True), key=lambda p: p[0], reverse=True)[:limit]\n        ranked = [(s, f) for s, f in top if f.owner == owner]",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 3 · підсумок переписується замість накопичуватись",
+      "file": "stages/s05_memory/short_term.py",
+      "old": "        self.summary = f\"{self.summary}\\n{addition}\".strip() if self.summary else addition",
+      "new": "        self.summary = addition",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 4 · термін придатності не перевіряється",
+      "file": "stages/s05_memory/facts.py",
+      "old": "    return expires is None or now <= expires",
+      "new": "    return True",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 5 · замінений факт лишається активним",
+      "file": "stages/s05_memory/facts.py",
+      "old": "    if fact.status != ACTIVE:\n        return False",
+      "new": "    if False:\n        return False",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 6 · поріг релевантності вимкнено",
+      "file": "stages/s05_memory/long_term.py",
+      "old": "            if score >= self.threshold and len(taken) < limit:",
+      "new": "            if score >= 0.0 and len(taken) < limit:",
+      "expect_failed": 3
+    },
+    {
+      "name": "вправа 7 · зіпсований рядок стає фактом із порожніми полями",
+      "file": "stages/s05_memory/facts.py",
+      "old": "        missing = [name for name in _REQUIRED if not data.get(name)]",
+      "new": "        missing = []",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 8 · секрет перестає бути правилом",
+      "file": "stages/s05_memory/decision.py",
+      "old": "        applies=lambda s: s.secret,",
+      "new": "        applies=lambda s: False,",
+      "expect_failed": 4
+    },
+    {
+      "name": "вправа 9 · хвіст вікна переказується разом із рештою",
+      "file": "stages/s05_memory/short_term.py",
+      "old": "        return self.messages[: -self.size] if len(self.messages) > self.size else []",
+      "new": "        return list(self.messages)",
+      "expect_failed": 3
+    }
+  ]
+}
