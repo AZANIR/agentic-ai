@@ -9,19 +9,26 @@
 
 from __future__ import annotations
 
+import io
 import tempfile
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from shared.check_runner import NotVerified, run_checks
 from shared.fake_llm import FakeLLM, text
+from shared.trace import iter_steps
+from stages.s05_memory.decision import RULES, Situation, decide
 from stages.s05_memory.facts import ACTIVE, REPLACED, Fact, is_active
 from stages.s05_memory.long_term import OPEN_FACTS, Memory
 from stages.s05_memory.retrieval import get_retrieval
+from stages.s05_memory.run import main as demo_main
 from stages.s05_memory.short_term import SUMMARY_LABEL, Window
 
 # Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
 # Заміряно 0.8 с. Піднімати можна свідомо, разом із числом у NFR.
 BUDGET_SECONDS = 30
+
+NEWLINE = chr(10)
 
 DAY = 86_400.0
 NOW = 1_700_000_000.0  # фіксована точка: усі «зараз» у перевірках рахуються від неї
@@ -447,6 +454,127 @@ def check_long_term_fits_the_line_budget() -> None:
     assert _executable_lines("long_term.py") <= 90, _executable_lines("long_term.py")
 
 
+# --- AC-08: чекліст «що запамʼятовувати» -----------------------------------------------
+
+# По одній ситуації на кожне правило чекліста. Список навмисно тут, а не в `decision.py`:
+# правило й ситуація, що його вмикає, мають писатися різними руками, інакше «кожне правило
+# має ситуацію» доводить лише те, що автор двічі написав те саме.
+SITUATIONS = (
+    Situation("мій пароль — hunter2", secret=True, asked=True),
+    Situation("столиця Франції — Париж", about_world=True),
+    Situation("отже, мені 34 роки", derivable=True),
+    Situation("запамʼятай: я вегетаріанець", asked=True),
+    Situation("я живу в Києві", durable=True),
+    Situation("порахуй 17 плюс 4"),
+)
+
+
+def check_the_checklist_answers_every_situation() -> None:
+    """AC-08 · чекліст дає рівно одну відповідь на кожну ситуацію"""
+    for situation in SITUATIONS:
+        decision = decide(situation)
+        assert isinstance(decision.keep, bool), situation.text
+        assert decision.why, f"«{situation.text}» — рішення без причини"
+        assert decision.rule in {rule.question for rule in RULES}, decision.rule
+
+    kept = [s.text for s in SITUATIONS if decide(s).keep]
+    assert len(kept) == 2, f"чекліст, що зберігає {len(kept)} із шести, — це не чекліст: {kept}"
+
+
+def check_no_rule_of_the_checklist_is_dead() -> None:
+    """ВІДМОВА · дзеркальна: жодне правило не лишається без ситуації, що його вмикає"""
+    fired = {decide(situation).rule for situation in SITUATIONS}
+    dead = [rule.question for rule in RULES if rule.question not in fired]
+    assert not dead, (
+        "правила, яких не вмикає жодна ситуація: "
+        + "; ".join(dead)
+        + ". Таке правило виглядає як робота й не робить нічого — і чекліст усе одно "
+        "проходить перевірку «кожна ситуація має відповідь»."
+    )
+
+
+def check_the_order_of_the_checklist_is_load_bearing() -> None:
+    """ВІДМОВА · порядок питань — і є чекліст: секрет сильніший за пряме прохання"""
+    both = Situation("запамʼятай мій пароль", secret=True, asked=True)
+    assert not decide(both).keep, (
+        "секрет і прохання одночасно дали «запамʼятати» — питання про прохання стоїть "
+        "раніше за питання про секрет"
+    )
+
+    questions = [rule.question for rule in RULES]
+    secret = next(i for i, q in enumerate(questions) if "секрет" in q)
+    asked = next(i for i, q in enumerate(questions) if "прямо просив" in q)
+    assert secret < asked, f"секрет ({secret}) має стояти перед проханням ({asked})"
+
+    assert RULES[-1].applies(Situation("будь-що")), "останнє правило перестало ловити все"
+
+
+def check_the_prose_checklist_matches_the_code() -> None:
+    """ВІДМОВА · DECISION.md і decision.py не можуть розійтися мовчки"""
+    prose = (Path(__file__).parent / "DECISION.md").read_text(encoding="utf-8")
+
+    # Апостроф у прозі — типографський, у коді — теж; але markdown-таблиця писалась
+    # окремо, тож звіряємо за нормалізованим текстом, а не за байтами.
+    def flat(value: str) -> str:
+        return value.replace(chr(700), "'").replace(chr(8217), "'")
+
+    for rule in RULES:
+        assert flat(rule.question) in flat(prose), (
+            f"питання {rule.question!r} є в коді, але не в DECISION.md — проза й чекліст розійшлися"
+        )
+        assert flat(rule.why) in flat(prose), f"причина правила {rule.question!r} не в прозі"
+
+    rows = [line for line in prose.splitlines() if line.startswith("| ") and "|" in line[2:]]
+    body = [row for row in rows if row.split("|")[1].strip().isdigit()]
+    assert len(body) == len(RULES), (
+        f"у прозі {len(body)} правил, у коді {len(RULES)} — таблиця відстала від коду"
+    )
+
+    keeps = sum(1 for row in body if "**зберегти**" in row)
+    assert keeps == sum(1 for rule in RULES if rule.keep), (
+        "кількість «зберегти» у таблиці не збігається з кодом"
+    )
+
+
+# --- e2e: демо -------------------------------------------------------------------------
+
+
+def check_the_demo_shows_six_scenes_and_leaves_a_trace() -> None:
+    """e2e · демо показує шість сцен, обидва результати чекліста і лишає трейс"""
+    buffer = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with redirect_stdout(buffer):
+            code = demo_main(trace_path=path)
+        steps = [s for s in iter_steps(path) if s["kind"] == "memory"]
+    output = buffer.getvalue()
+
+    assert code == 0, code
+    for number in range(1, 7):
+        assert f"{NEWLINE}{number}. " in output, f"сцена {number} не надрукувалась"
+
+    # Заголовок сцени доводить лише те, що надрукувався заголовок. Тіло кожної сцени
+    # має лишити слід у виводі — це урок етапу 3, де перевірка стверджувала заголовки.
+    assert "Хрещатик" in output, "сцена 2 не показала жодного витягнутого факту"
+    assert "Учора був дощ" in output, "сцена 3 не назвала відкинутий факт"
+    assert "оцінка" in output and "< 0.3" in output, "причину відкидання не видно числом"
+    assert "статус replaced" in output, "сцена 4 не показала заміни"
+    assert "UTC" in output, "причина містить сиру мітку часу замість читабельної"
+    assert "Лесі Українки" in output, "сцена 5 не показала чужого факту"
+
+    # Дзеркальна половина: сцена ізоляції має показати, що СВОЄ дійшло, а не лише
+    # що чуже не дійшло. Без цього демо ілюструє порожню видачу.
+    olena = next(line for line in output.splitlines() if "Олена бачить" in line)
+    assert "Володимирськ" in olena, olena
+    assert "Лесі Українки" not in olena, olena
+
+    assert output.count("[так]") == 2, "чекліст показав не два «запамʼятати»"
+    assert output.count("[ ні]") == 4, "чекліст показав не чотири «ні»"
+
+    scenes = {s.get("scene") for s in steps}
+    assert scenes == {"window", "recall", "skip", "contradiction", "isolation", "checklist"}, scenes
+
+
 CHECKS = [
     check_a_fact_from_the_first_session_reaches_the_second,
     check_an_irrelevant_fact_does_not_reach_the_context,
@@ -471,6 +599,11 @@ CHECKS = [
     check_a_replaced_fact_never_returns_to_the_context,
     check_a_fact_survives_a_round_trip_through_a_line,
     check_a_corrupted_line_is_named_not_guessed,
+    check_the_checklist_answers_every_situation,
+    check_no_rule_of_the_checklist_is_dead,
+    check_the_order_of_the_checklist_is_load_bearing,
+    check_the_prose_checklist_matches_the_code,
+    check_the_demo_shows_six_scenes_and_leaves_a_trace,
 ]
 
 

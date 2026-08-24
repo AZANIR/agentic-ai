@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 ACTIVE = "active"
@@ -77,6 +78,11 @@ class Fact:
         return cls(**known)
 
 
+def _when(moment: float) -> str:
+    """Мить у читабельному вигляді. Годинник не читається — форматується подане."""
+    return datetime.fromtimestamp(moment, tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+
 def is_active(fact: Fact, *, now: float) -> bool:
     """Чи бере факт участь у вибірці станом на вказаний момент.
 
@@ -101,10 +107,10 @@ def describe_skip(fact: Fact, *, now: float) -> str | None:
     налагодити, ні пояснити користувачеві, чому система «забула».
     """
     if fact.status == REPLACED:
-        return f"замінено о {fact.replaced_at}"
+        return f"замінено {_when(fact.replaced_at)}"
     expires = fact.expires_at()
     if expires is not None and now > expires:
-        return f"протух о {expires}"
+        return f"протух {_when(expires)}"
     return None
 
 
