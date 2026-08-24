@@ -360,10 +360,12 @@ def check_the_owners_own_facts_still_arrive() -> None:
     """ВІДМОВА · дзеркальна: фільтр власника не звузив видачу до порожньої"""
     with tempfile.TemporaryDirectory() as tmp:
         memory = _memory(tmp)
-        # Чужих фактів більше, і вони релевантніші за формулюванням — щоб фільтр після
-        # відбору top-k гарантовано забрав слоти в законного власника.
+        # Чужих фактів більше, і вони релевантніші ЗА ОЦІНКОЮ (1.00 проти 0.67) — щоб фільтр
+        # після відбору top-k гарантовано забрав слоти в законного власника. Рівні оцінки
+        # тут не годяться: тоді перевірка трималась би на стабільності sorted(), тобто на
+        # порядку вставки, і зеленіла б на зламаному коді від перестановки двох рядків.
         for i in range(5):
-            _remember(memory, "petro", f"address{i}", "Доставляти замовлення на Банкову 11")
+            _remember(memory, "petro", f"address{i}", "Куди доставляти замовлення — на Банкову 11")
         _remember(memory, "olena", "address", "Доставляти замовлення на Хрещатик 22")
 
         context = memory.context_for("olena", "куди доставляти замовлення", now=NOW + DAY)
@@ -536,6 +538,55 @@ def check_the_prose_checklist_matches_the_code() -> None:
     )
 
 
+# --- урок і матеріали читача -----------------------------------------------------------
+
+
+def check_the_failure_modes_are_at_least_a_third() -> None:
+    """перевірки: режимів відмови не менше третини (NFR-5)"""
+    labels = [(c.__doc__ or "").split(NEWLINE)[0] for c in CHECKS]
+    failures = [d for d in labels if d.startswith("ВІДМОВА")]
+    assert len(failures) * 3 >= len(CHECKS), (
+        f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини"
+    )
+
+
+def check_the_lesson_fits_the_reading_budget() -> None:
+    """урок: ≤2500 слів (NFR-3)"""
+    words = len((Path(__file__).parent / "README.md").read_text(encoding="utf-8").split())
+    assert words <= 2500, f"урок розрісся до {words} слів"
+
+
+def check_the_lesson_numbers_match_the_suite() -> None:
+    """ВІДМОВА · урок: числа в прозі збігаються з тим, що друкує команда"""
+    total = len(CHECKS)
+    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
+    here = Path(__file__).parent
+    for name, sentence in (
+        ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
+        ("CHECKLIST.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
+        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
+    ):
+        page = (here / name).read_text(encoding="utf-8")
+        assert sentence in page, (
+            f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
+            "команда, яку той самий урок наказує запустити"
+        )
+
+
+def check_the_lesson_line_counts_match_the_modules() -> None:
+    """ВІДМОВА · урок: розміри модулів у прозі — обчислені, а не переписані"""
+    here = Path(__file__).parent
+    lesson = (here / "README.md").read_text(encoding="utf-8")
+    english = (here / "README.en.md").read_text(encoding="utf-8")
+
+    for module, budget in (("long_term", 90), ("short_term", 50)):
+        lines = _executable_lines(f"{module}.py")
+        assert f"`{module}.py` — {lines} із {budget}" in lesson, (
+            f"{module}.py має {lines} виконуваних рядків — урок називає інше число"
+        )
+        assert f"{lines} / {budget}" in english, f"README.en.md відстав: {module} = {lines}"
+
+
 # --- e2e: демо -------------------------------------------------------------------------
 
 
@@ -604,6 +655,10 @@ CHECKS = [
     check_the_order_of_the_checklist_is_load_bearing,
     check_the_prose_checklist_matches_the_code,
     check_the_demo_shows_six_scenes_and_leaves_a_trace,
+    check_the_failure_modes_are_at_least_a_third,
+    check_the_lesson_fits_the_reading_budget,
+    check_the_lesson_numbers_match_the_suite,
+    check_the_lesson_line_counts_match_the_modules,
 ]
 
 
