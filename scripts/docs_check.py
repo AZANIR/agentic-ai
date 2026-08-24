@@ -46,7 +46,11 @@ def main(selector: str | None = None) -> int:
     failed: list[tuple[str, str]] = []
     for slug in slugs(selector):
         feature = FEATURES / slug
-        jobs: list[tuple[str, list[str]]] = [("spec_check.py", [slug]), ("tasks_check.py", [slug])]
+        # Етап у роботі має spec.md і ще не має tasks.json — це стан конвеєра, а не збій.
+        # Валідатор, що падає трейсбеком на нормальному стані, привчає ігнорувати червоне.
+        jobs: list[tuple[str, list[str]]] = [("spec_check.py", [slug])]
+        if (feature / "tasks.json").exists():
+            jobs.append(("tasks_check.py", [slug]))
         for document in ("sad.md", "spec.md"):
             if (feature / document).exists():
                 jobs.append(("mermaid_check.py", [str(feature / document)]))
