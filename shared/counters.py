@@ -35,6 +35,7 @@
 from __future__ import annotations
 
 from typing import Any, Protocol
+from uuid import uuid4
 
 from shared.config import PROD, Settings
 from shared.config import settings as default_settings
@@ -106,9 +107,16 @@ class Shared:
     def add(self, key: str, amount: float, *, now: float, window: float) -> float:
         name = f"{self._prefix}:{key}"
         pipe = self._client.pipeline()
-        # Унікальний член: мітка часу плюс сума. Дві події тієї самої миті з тією самою
-        # сумою — не однакові події, і множина не має їх схлопувати.
-        pipe.zadd(name, {f"{now:.6f}:{amount}": now})
+        # Унікальний член: час, **випадковий токен**, сума. Перша редакція складала член
+        # із часу й суми — і дві події тієї самої миті з тією самою вартістю ставали
+        # одним членом множини, бо множина за визначенням не тримає дублікатів.
+        #
+        # Наслідок був тихий і однобічний: ліміт **недо**раховував. Шість запитів за одну
+        # мить проходили при межі три. У `InMemory` цього не було — там події лягають у
+        # список, який дублікатів не помічає. Дві реалізації розійшлися саме там, де
+        # контракт їх не звіряв: фікстура щоразу збільшувала час.
+        member = f"{now:.6f}:{uuid4().hex[:8]}:{amount}"
+        pipe.zadd(name, {member: now})
         pipe.zremrangebyscore(name, 0, now - window)
         pipe.zrange(name, 0, -1)
         pipe.expire(name, int(window) + 1)
@@ -121,7 +129,7 @@ class Shared:
 
 
 def _sum_members(members: list[Any]) -> float:
-    """Підсумувати суми з членів множини. Член має вигляд ``<час>:<сума>``."""
+    """Підсумувати суми з членів. Член має вигляд ``<час>:<токен>:<сума>``."""
     total = 0.0
     for member in members:
         raw = member.decode() if isinstance(member, bytes) else str(member)

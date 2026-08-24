@@ -30,6 +30,15 @@ from stages.s06_platform.guards import (
     owner_of,
 )
 from stages.s06_platform.intent import KNOWLEDGE, MATH, ORDERS, classify
+from stages.s06_platform.jobs import (
+    INSIDE,
+    SEPARATE,
+    Ledger,
+    Scheduler,
+    Worker,
+    cleanup,
+    run_interval,
+)
 from stages.s06_platform.observe import DOWN, UP, Dependency, Health, Metrics
 
 # Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
@@ -78,6 +87,17 @@ def check_both_counters_answer_the_same_way_within_one_instance() -> None:
         # Ключі не змішуються.
         assert counter.add("other", 5, now=NOW, window=MINUTE) == 5.0, counter.name
         assert counter.total("k", now=NOW + 2, window=MINUTE) == 2.0, counter.name
+
+        # ТОЙ САМИЙ час і ТА САМА сума тричі. Дві події однієї миті — це дві події, і
+        # реалізація на множині схильна вважати їх однією: перша редакція складала член
+        # із часу й суми, тож шість запитів за мить проходили при межі три. Фікстура,
+        # що щоразу збільшує час, цього не бачить — а продакшн бачить під навантаженням.
+        for _ in range(3):
+            counter.add("same", 1, now=NOW, window=MINUTE)
+        assert counter.total("same", now=NOW, window=MINUTE) == 3.0, (
+            f"{counter.name}: три однакові події за одну мить дали "
+            f"{counter.total('same', now=NOW, window=MINUTE)} — лічильник недорахував"
+        )
 
 
 def check_the_window_forgets_what_fell_out_of_it() -> None:
@@ -866,6 +886,115 @@ def check_the_service_survives_a_dependency_that_is_gone() -> None:
                 raise AssertionError(f"несподівана помилка: {type(error).__name__}") from error
 
 
+# --- пастка двох воркерів: обидві половини ------------------------------------------------
+
+DUE = NOW + 1.0
+
+
+def _workers(mode: str, ledger: Ledger, count: int = 2) -> list:
+    return [Worker(name=f"worker-{i}", ledger=ledger, mode=mode) for i in range(count)]
+
+
+def check_two_workers_run_the_job_twice() -> None:
+    """ВІДМОВА · пастка: планувальник усередині застосунку виконує задачу ДВІЧІ"""
+    ledger = Ledger()
+    ran = run_interval(_workers(INSIDE, ledger), None, now=DUE, due_at=DUE)
+
+    assert ran == 2, (
+        f"задача виконалась {ran} раз(и), а не двічі. Пастка не відтворилась — тоді вправа "
+        "показує читачеві правильну поведінку й називає її вадою"
+    )
+    assert sorted(ledger.runs) == ["worker-0", "worker-1"], ledger.runs
+
+
+def check_one_scheduler_runs_the_job_once() -> None:
+    """ВІДМОВА · дзеркальна: винесений планувальник — один раз за тих самих двох воркерів"""
+    ledger = Ledger()
+    workers = _workers(SEPARATE, ledger)
+    ran = run_interval(workers, Scheduler(ledger=ledger), now=DUE, due_at=DUE)
+
+    assert ran == 1, f"задача виконалась {ran} раз(и), а не один: {ledger.runs}"
+    assert ledger.runs == ["scheduler"], (
+        f"задачу виконав воркер, а не планувальник: {ledger.runs}. Виправлення полягає саме "
+        "в тому, що воркери про час не знають"
+    )
+    # Кількість воркерів більше ні на що не впливає — саме це й купується винесенням.
+    for count in (1, 4, 8):
+        many = Ledger()
+        run_interval(_workers(SEPARATE, many, count), Scheduler(ledger=many), now=DUE, due_at=DUE)
+        assert many.count() == 1, (count, many.runs)
+
+
+def check_the_job_does_not_run_before_its_time() -> None:
+    """ВІДМОВА · пастка: до настання часу не виконує ніхто — інакше перевірки нічого не значать"""
+    ledger = Ledger()
+    run_interval(_workers(INSIDE, ledger), Scheduler(ledger=ledger), now=DUE - 1, due_at=DUE)
+
+    assert ledger.count() == 0, (
+        f"задача виконалась до свого часу: {ledger.runs}. Тоді «двічі» й «один раз» вище — "
+        "це не про планувальник, а про те, що він спрацьовує завжди"
+    )
+
+
+def check_the_doubled_rate_limit_is_the_half_nobody_sees() -> None:
+    """ВІДМОВА · пастка: другий воркер подвоює ЛІМІТ — і цього не видно ніде"""
+    settings = _settings()
+    limit = settings.rate_limit_per_minute
+
+    # Два воркери, у кожного свій процесо-локальний лічильник — саме те, що дає профіль local.
+    first, second = InMemory(), InMemory()
+    allowed = 0
+    for i in range(limit * 2):
+        counters = first if i % 2 == 0 else second
+        if admit(KEY, counters, settings, now=NOW).allowed:
+            allowed += 1
+
+    assert allowed == limit * 2, (
+        f"пропущено {allowed} із {limit * 2}. Пастка не відтворилась — а вона важливіша за "
+        "подвоєну задачу: ту видно в логах, а подвоєний ліміт не видно НІДЕ. Сервіс "
+        "поводиться нормально, просто межа означає вдвічі більше"
+    )
+
+
+def check_the_shared_store_fixes_the_half_nobody_sees() -> None:
+    """ВІДМОВА · дзеркальна: спільне сховище повертає лімітові його значення"""
+    settings = _settings()
+    limit = settings.rate_limit_per_minute
+    first, second = _shared_pair()
+
+    allowed = 0
+    for i in range(limit * 2):
+        counters = first if i % 2 == 0 else second
+        if admit(KEY, counters, settings, now=NOW).allowed:
+            allowed += 1
+
+    assert allowed == limit, (
+        f"пропущено {allowed} при межі {limit}. Спільне сховище не спільне — тоді переїзд "
+        "у профіль prod не дав нічого, крім залежності"
+    )
+
+
+def check_the_cleanup_job_is_idempotent_but_that_is_not_the_point() -> None:
+    """jobs: прибирання нешкідливе двічі — і це властивість задачі, а не механізму"""
+    with tempfile.TemporaryDirectory() as tmp:
+        store = FileStore(Path(tmp) / "m.jsonl")
+        store.remember(_fact("olena", "promo", "Діє знижка", ttl=1.0))
+        store.remember(_fact("olena", "name", "Звати Олена"))
+
+        first = cleanup(store, now=NOW + 10)
+        second = cleanup(store, now=NOW + 10)
+
+    assert first == second == 1, (first, second)
+    # Твердження не про безпеку подвоєння, а про його МЕЖУ: наступна задача в тому самому
+    # планувальнику надішле лист або спише гроші, і там ідемпотентності не буде.
+    assert (
+        code_mentions(
+            (Path(__file__).parent / "jobs.py").read_text(encoding="utf-8"), {"send", "charge"}
+        )
+        == []
+    ), "у планувальнику зʼявилась незворотна дія — тоді подвоєння перестає бути вправою"
+
+
 CHECKS = [
     check_both_counters_answer_the_same_way_within_one_instance,
     check_the_window_forgets_what_fell_out_of_it,
@@ -904,6 +1033,12 @@ CHECKS = [
     check_a_healthy_service_reports_healthy,
     check_metrics_tell_the_failure_kinds_apart,
     check_the_service_survives_a_dependency_that_is_gone,
+    check_two_workers_run_the_job_twice,
+    check_one_scheduler_runs_the_job_once,
+    check_the_job_does_not_run_before_its_time,
+    check_the_doubled_rate_limit_is_the_half_nobody_sees,
+    check_the_shared_store_fixes_the_half_nobody_sees,
+    check_the_cleanup_job_is_idempotent_but_that_is_not_the_point,
 ]
 
 
