@@ -1,0 +1,91 @@
+{
+  "stage": "s07-voice",
+  "executed_floor": 20,
+  "note": "Мутації ламають властивості, а не синтаксис. Найважливіші три стосуються не звуку, а ВИМІРЮВАННЯ: підроблений годинник стає справжнім, секундомір перестає складати кроки, а перекриття розпізнавання зникає. Усі три лишають код працездатним і дають числа, які виглядають правдоподібно — саме тому їх складно помітити без перевірки.",
+  "mutations": [
+    {
+      "name": "вправа 1 · підроблений годинник починає спати насправді",
+      "file": "stages/s07_voice/clock.py",
+      "old": "        self.waits.append(millis)\n        self._now += millis",
+      "new": "        import time as _t\n\n        self.waits.append(millis)\n        _t.sleep(millis / 100000.0)\n        self._now += millis",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 2 · перший звук можна позначити двічі",
+      "file": "stages/s07_voice/measure.py",
+      "old": "        if self.timing.first_audio is not None:",
+      "new": "        if False:",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 3 · кроки секундоміра перекриваються",
+      "file": "stages/s07_voice/measure.py",
+      "old": "        cost = now - self._mark\n        self._mark = now",
+      "new": "        cost = now - self._started",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 4 · розпізнавання перестає перекриватися з мовленням",
+      "file": "stages/s07_voice/stt.py",
+      "old": "        cost = FINALISE_MILLIS if self.incremental else self.millis_per_second * seconds",
+      "new": "        cost = self.millis_per_second * seconds",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 5 · стрімінг чекає всіх фрагментів перед першим звуком",
+      "file": "stages/s07_voice/pipeline.py",
+      "old": "            if index == 0:\n                watch.first_audio()",
+      "new": "            if index == len(CHUNKS_SENTINEL) - 1:\n                watch.first_audio()",
+      "expect_failed": 4
+    },
+    {
+      "name": "вправа 6 · barge-in дивиться лише на рівень",
+      "file": "stages/s07_voice/bargein.py",
+      "old": "    if sound.millis < min_millis:",
+      "new": "    if False:",
+      "expect_failed": 3
+    },
+    {
+      "name": "вправа 7 · barge-in дивиться лише на тривалість",
+      "file": "stages/s07_voice/bargein.py",
+      "old": "    if sound.level < level:",
+      "new": "    if False:",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 8 · p95 інтерполюється замість брати справжній прогін",
+      "file": "stages/s07_voice/measure.py",
+      "old": "        p95=ordered[rank],",
+      "new": "        p95=sum(ordered) / len(ordered) * 1.5,",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 9 · розподіл із нуля прогонів дає нулі",
+      "file": "stages/s07_voice/measure.py",
+      "old": "    if not values:\n        raise ValueError(\"розподіл із нуля прогонів не існує\")",
+      "new": "    if not values:\n        return Distribution(runs=0, mean=0.0, p95=0.0, worst=0.0)",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 10 · мовчання йде в модель",
+      "file": "stages/s07_voice/pipeline.py",
+      "old": "    if heard.silent:\n        return _silence(watch)",
+      "new": "    if False:\n        return _silence(watch)",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 11 · prefetch перестає називати марну роботу",
+      "file": "stages/s07_voice/prefetch.py",
+      "old": "        outcome.note = f\"{WASTED}: інструмент викликано, результат відкинуто\"",
+      "new": "        outcome.note = \"\"",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 12 · prefetch чекає обидві затримки замість перекриття",
+      "file": "stages/s07_voice/prefetch.py",
+      "old": "    clock.sleep(max(tool_millis, think_millis))",
+      "new": "    clock.sleep(tool_millis + think_millis)",
+      "expect_failed": 1
+    }
+  ]
+}

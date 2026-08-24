@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from shared.check_runner import code_mentions, run_checks
+from shared.check_runner import code_mentions, require_intact_source, run_checks
 from stages.s07_voice.bargein import (
     MIN_SPEECH_MILLIS,
     QUIET,
@@ -545,6 +545,126 @@ def check_the_demo_needs_no_microphone_models_or_network() -> None:
     assert "FakeClock" in source, "демо не називає підробленого годинника явно"
 
 
+# --- урок і матеріали читача -------------------------------------------------------------
+
+
+def check_the_failure_modes_are_at_least_a_third() -> None:
+    """перевірки: режимів відмови не менше третини (NFR-4)"""
+    labels = [(c.__doc__ or "").split(NEWLINE)[0] for c in CHECKS]
+    failures = [d for d in labels if d.startswith("ВІДМОВА")]
+    assert len(failures) * 3 >= len(CHECKS), (
+        f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини"
+    )
+
+
+def check_the_lesson_fits_the_reading_budget() -> None:
+    """урок: ≤2500 слів (NFR-3)"""
+    words = len((HERE / "README.md").read_text(encoding="utf-8").split())
+    assert words <= 2500, f"урок розрісся до {words} слів"
+
+
+def check_the_lesson_numbers_match_the_suite() -> None:
+    """ВІДМОВА · урок: числа в прозі збігаються з тим, що друкує команда"""
+    total = len(CHECKS)
+    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
+    for name, sentence in (
+        ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
+        ("CHECKLIST.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
+        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
+    ):
+        page = (HERE / name).read_text(encoding="utf-8")
+        assert sentence in page, (
+            f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
+            "команда, яку той самий урок наказує запустити"
+        )
+
+
+def check_the_lesson_numbers_match_the_measurements() -> None:
+    """ВІДМОВА · урок: числа конвеєра в прозі — обчислені, а не переписані"""
+    lesson = (HERE / "README.md").read_text(encoding="utf-8")
+    english = (HERE / "README.en.md").read_text(encoding="utf-8")
+
+    batched = _run_batch().timing
+    stream, _ = _run_stream()
+    ratio = batched.first_audio / stream.timing.first_audio
+
+    for page, name in ((lesson, "README.md"), (english, "README.en.md")):
+        assert f"{batched.first_audio:.0f}" in page, f"{name}: числа батчу немає"
+        assert f"{stream.timing.first_audio:.0f}" in page, f"{name}: числа стрімінгу немає"
+        assert f"{ratio:.1f}" in page, f"{name}: відношення {ratio:.1f} немає"
+
+    for step in batched.steps:
+        assert f"{step.millis:.0f}" in lesson, f"кроку {step.name} немає в уроці"
+
+
+def check_the_lesson_line_counts_match_the_modules() -> None:
+    """ВІДМОВА · урок: розмір `pipeline.py` у прозі — обчислений"""
+    require_intact_source("pipeline.py")
+    lines = _executable_lines("pipeline.py")
+    lesson = (HERE / "README.md").read_text(encoding="utf-8")
+
+    assert f"`pipeline.py` — {lines} із 110" in lesson, (
+        f"pipeline.py має {lines} виконуваних рядків — урок називає інше число"
+    )
+    assert lines <= 110, f"{lines} > 110 (NFR-1)"
+
+
+def check_the_exercises_match_the_pinned_mutations() -> None:
+    """ВІДМОВА · вправи: диф і числа беруться з mutations.json, а не пишуться"""
+    import json
+
+    pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
+    text_of = (HERE / "exercises.md").read_text(encoding="utf-8")
+
+    for mutation in pinned:
+        number = int(mutation["name"].split()[1])
+        expected = mutation["expect_failed"]
+        assert f"## Вправа {number} ·" in text_of, f"вправи {number} немає в прозі"
+        assert f"**Червоних: {expected}.**" in text_of, number
+        for side in ("old", "new"):
+            for line in mutation[side].split(NEWLINE):
+                assert line.strip() in text_of, (
+                    f"вправа {number}: рядка {line.strip()!r} немає в прозі — читач не "
+                    "побачить, ЩО саме міняти"
+                )
+
+    assert text_of.count("## Вправа") == len(pinned), len(pinned)
+
+
+def check_every_reader_file_exists() -> None:
+    """матеріали: урок, карта, вправи, чеклісти й розвʼязок на місці"""
+    for name in (
+        "README.md",
+        "README.en.md",
+        "exercises.md",
+        "CHECKLIST.md",
+        "DECISION.md",
+        "page.html",
+        "solutions/exercise_4_where_the_gain_lives.py",
+        "solutions/README.md",
+    ):
+        path = HERE / name
+        assert path.exists() and path.read_text(encoding="utf-8").strip(), name
+
+
+def _executable_lines(name: str) -> int:
+    """Виконувані рядки модуля: statement без docstring і без import."""
+    import ast
+
+    source = (HERE / name).read_text(encoding="utf-8")
+    return len(
+        {
+            node.lineno
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.stmt)
+            and not isinstance(node, (ast.Import, ast.ImportFrom))
+            and not (
+                isinstance(node, ast.Expr) and isinstance(getattr(node.value, "value", None), str)
+            )
+        }
+    )
+
+
 CHECKS = [
     check_the_batch_pipeline_reports_first_audio_and_its_parts,
     check_streaming_reaches_first_audio_at_least_twice_as_fast,
@@ -572,6 +692,13 @@ CHECKS = [
     check_the_web_module_is_not_imported_on_a_bare_install,
     check_the_demo_shows_six_scenes_with_real_numbers,
     check_the_demo_needs_no_microphone_models_or_network,
+    check_the_failure_modes_are_at_least_a_third,
+    check_the_lesson_fits_the_reading_budget,
+    check_the_lesson_numbers_match_the_suite,
+    check_the_lesson_numbers_match_the_measurements,
+    check_the_lesson_line_counts_match_the_modules,
+    check_the_exercises_match_the_pinned_mutations,
+    check_every_reader_file_exists,
 ]
 
 
