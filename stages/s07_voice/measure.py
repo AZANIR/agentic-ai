@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from stages.s07_voice.clock import Clock
@@ -34,8 +35,14 @@ class Timing:
     """Розклад одного прогону.
 
     `first_audio` — головне число етапу: час від кінця репліки до першого звуку. `total` —
-    уся робота. У батчевому конвеєрі вони збігаються; у стрімінговому — ні, і саме ця
-    різниця й є результатом.
+    увесь час від початку до кінця прогону. У батчевому конвеєрі вони збігаються; у
+    стрімінговому — ні, і саме ця різниця й є результатом.
+
+    **Чому `handover` — окреме поле.** У стрімінгу між фрагментами керування має споживач:
+    він шле кадр у сокет, малює рядок, чекає на мережу. Цей час — не робота конвеєра, і
+    приписати його наступному кроку означало б звинуватити модель у чужій затримці. Перша
+    редакція саме це й робила: споживач, що витрачав секунду між фрагментами, отримував
+    «відповідь моделі: 2750 мс» при моделі, що спала 750.
     """
 
     steps: list[Step] = field(default_factory=list)
@@ -43,18 +50,42 @@ class Timing:
     # на ньому не спрацьовувала, і другий виклик мовчки затирав перший. Знайшла
     # це перевірка, яка чекала на помилку й не отримала її.
     first_audio: float | None = None
-    total: float = 0.0
+    # `None` з тієї самої причини, і з другої: нуль тут — правдоподібне число.
+    # Розклад, прочитаний після першого фрагмента, показував `total 0.0` поруч із
+    # непорожнім переліком кроків, і це виглядало як миттєвий прогін.
+    total: float | None = None
+    handover: float = 0.0
 
     def named(self, name: str) -> float:
         """Скільки коштував крок із цим імʼям. Нуль, якщо кроку не було."""
         return sum(step.millis for step in self.steps if step.name == name)
+
+    def work(self) -> float:
+        """Робота конвеєра: сума кроків, без часу споживача."""
+        return sum(step.millis for step in self.steps)
+
+    def unaccounted(self) -> float:
+        """Час, не приписаний ані кроку, ані споживачеві.
+
+        Закон збереження етапу: `work() + handover + unaccounted() == total`, і третій
+        доданок має бути нулем. Ненульовий означає, що щось поміряли повз — саме той клас
+        помилки, через який розклад не сходиться із загальним числом.
+        """
+        if self.total is None:
+            raise RuntimeError("прогін ще не завершено: `total` буде відомий після `done()`")
+        return self.total - self.work() - self.handover
 
     def slowest(self) -> Step | None:
         """Найдорожчий крок. Той, який варто оптимізувати першим."""
         return max(self.steps, key=lambda step: step.millis, default=None)
 
     def as_rows(self) -> list[tuple[str, float]]:
-        return [(step.name, step.millis) for step in self.steps]
+        """Кроки, згорнуті за іменем. Стрімінг проходить крок «синтез» тричі — три
+        однойменні рядки в таблиці не складаються ні в що й читаються як помилка."""
+        folded: dict[str, float] = {}
+        for step in self.steps:
+            folded[step.name] = folded.get(step.name, 0.0) + step.millis
+        return list(folded.items())
 
 
 class Stopwatch:
@@ -78,6 +109,19 @@ class Stopwatch:
         self.timing.steps.append(Step(name=name, millis=cost))
         return cost
 
+    def handover(self) -> float:
+        """Закрити проміжок, у якому керування було **не в конвеєра**.
+
+        Кличеться там, де конвеєр віддав фрагмент і чекає, доки його заберуть. Без цього
+        час споживача мовчки додається до наступного кроку, і найдорожчим кроком стає той,
+        після якого споживач думав найдовше.
+        """
+        now = self._clock.now()
+        gap = now - self._mark
+        self._mark = now
+        self.timing.handover += gap
+        return gap
+
     def first_audio(self) -> float:
         """Позначити момент першого звуку. Кличеться **один** раз за прогін."""
         if self.timing.first_audio is not None:
@@ -89,7 +133,12 @@ class Stopwatch:
         return self.timing.first_audio
 
     def done(self) -> Timing:
-        """Завершити прогін. Після цього `total` дорівнює сумі кроків."""
+        """Завершити прогін.
+
+        Після цього `total` — увесь час прогону, а `work() + handover` має дорівнювати
+        йому. `total` НЕ обчислюється як сума: тоді закон збереження став би тавтологією й
+        перестав ловити крок, який забули поміряти.
+        """
         self.timing.total = self._clock.now() - self._started
         return self.timing
 
@@ -115,11 +164,17 @@ def summarise(values: list[float]) -> Distribution:
     p95 береться **найближчим рангом**, без інтерполяції: на ста прогонах це 95-й за
     зростанням. Інтерполяція дала б число, якого не було в жодному прогоні, — а тут важливо,
     що p95 це **справжній** прогін, який хтось справді відчув.
+
+    Найближчий ранг — це `ceil(0.95·n)`, **не** `round`. Перша редакція округлювала, і на
+    приблизно половині розмірів вибірки (11–19, 30–39, 51–59 …) ранг падав на одиницю
+    нижче: на тридцяти прогонах p95 дорівнював 400 мс, тоді як 6.7 % прогонів були гірші.
+    Модуль, що існує рівно щоб показати хвіст, ховав його — і ловилось це лише на тих
+    розмірах вибірки, яких у наборі не було.
     """
     if not values:
         raise ValueError("розподіл із нуля прогонів не існує")
     ordered = sorted(values)
-    rank = max(0, min(len(ordered) - 1, int(round(0.95 * len(ordered))) - 1))
+    rank = max(0, min(len(ordered) - 1, math.ceil(0.95 * len(ordered)) - 1))
     return Distribution(
         runs=len(ordered),
         mean=sum(ordered) / len(ordered),

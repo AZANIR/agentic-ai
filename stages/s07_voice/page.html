@@ -12,6 +12,10 @@
 
   Ані семпли, ані розпізнаний текст нікуди не зберігаються (AC-10b). Числа — зберігаються:
   сеанс, що не лишає нічого, робить етап невимірюваним.
+
+  Індикатор показує ФАКТИЧНИЙ стан. Це означає, що сторінка слухає не лише свої наміри, а
+  й те, що з нею сталося: обірваний сокет, забраний дозвіл, відсутній кодек. Перша редакція
+  цього не робила — сервер закривав зʼєднання, а червона крапка й далі горіла.
 -->
 <style>
   :root { color-scheme: light dark; }
@@ -30,8 +34,10 @@
   table { border-collapse: collapse; margin-top: 1.5rem; width: 100%; }
   th, td { text-align: left; padding: .3rem .6rem; border-bottom: 1px solid #8884; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.sum td { border-top: 1px solid currentColor; }
   .note { opacity: .75; font-size: .9rem; }
   .bad { color: #d33; }
+  #said { margin-top: 1rem; min-height: 1.6em; }
 </style>
 </head>
 <body>
@@ -39,14 +45,25 @@
 <h1>Етап 7 — той самий конвеєр двічі</h1>
 
 <p class="note">
-  Числа тут — ті самі, що друкує <code>python -m stages.s07_voice.run</code>.
-  Якщо вони розійшлися, бреше одне з двох, і це вже знахідка.
+  Той самий конвеєр, що й у <code>python -m stages.s07_voice.run</code>, — але репліка тут
+  твоя, тож і числа інші. Збігатися має <strong>структура</strong> розкладу: ті самі кроки,
+  і сума кроків плюс віддача дорівнює загальному часу. Якщо не сходиться — це знахідка.
+</p>
+
+<p class="note">
+  І ще одне, чому число тут більше: живий режим має лише <strong>одну</strong> з двох частин
+  виграшу. Генерація стрімінгова, розпізнавання — ні: кадри накопичуються, доки ти говориш,
+  і розпізнаються після паузи. Справжнє стрімінгове розпізнавання (часткові гіпотези,
+  endpointing) — окрема робота, якої тут немає. Перекриття, тобто дорожча половина, у
+  прогоні є, а на цій сторінці немає.
 </p>
 
 <p>
   <button id="talk">Говорити</button>
   <span id="state">мікрофон вимкнено</span>
 </p>
+
+<p id="said"></p>
 
 <table id="rows">
   <thead><tr><th>Крок</th><th class="num">мс</th></tr></thead>
@@ -61,69 +78,104 @@ let socket = null;
 let recorder = null;
 let stream = null;
 
+// Скільки звуку в кадрі. Сервер вивести це з довжини кадру не може: MediaRecorder віддає
+// стиснутий opus, і байти не пропорційні секундам. Тому сторінка каже це числом.
+const FRAME_MILLIS = 200;
+
 const talk = document.getElementById("talk");
 const state = document.getElementById("state");
 const rows = document.querySelector("#rows tbody");
 const verdict = document.getElementById("verdict");
+const said = document.getElementById("said");
 
 function show(text, live) {
   state.textContent = text;
   state.classList.toggle("live", Boolean(live));
 }
 
-function render(timing) {
-  rows.innerHTML = "";
-  for (const [name, millis] of timing.steps) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${name}</td><td class="num">${Math.round(millis)}</td>`;
-    rows.append(tr);
-  }
-  const first = document.createElement("tr");
-  first.innerHTML =
-    `<td><strong>до першого звуку</strong></td>` +
-    `<td class="num"><strong>${Math.round(timing.first_audio)}</strong></td>`;
-  rows.append(first);
+function complain(text) {
+  verdict.textContent = text;
+  verdict.className = "note bad";
 }
 
-// Мікрофон береться тут і ніде більше. Одна точка входу — одна точка звільнення.
+function row(name, millis, cls) {
+  const tr = document.createElement("tr");
+  if (cls) tr.className = cls;
+  const value = millis === null || millis === undefined ? "—" : Math.round(millis);
+  tr.innerHTML = `<td>${name}</td><td class="num">${value}</td>`;
+  rows.append(tr);
+}
+
+function render(timing) {
+  rows.innerHTML = "";
+  for (const [name, millis] of timing.steps) row(name, millis);
+  // Віддача — час, коли керування було в цієї сторінки, а не в конвеєра. Окремим рядком,
+  // бо приписати його моделі означало б звинуватити її в затримці браузера.
+  row("віддача споживачеві", timing.handover);
+  row("усього", timing.total, "sum");
+  // `null` тут — не нуль: модель не віддала жодного фрагмента, і звуку не було взагалі.
+  row("до першого звуку", timing.first_audio, "sum");
+  if (timing.first_audio === null) complain("Модель не віддала жодного фрагмента — звуку не було.");
+}
+
+// Мікрофон береться тут і ніде більше. Одна точка входу — одна точка звільнення, і
+// звільнення має спрацювати ТАКОЖ тоді, коли зламалось щось після дозволу: сокет не
+// відкрився, кодека немає. Інакше дозвіл узято, крапка горить, а звільнити нічим.
 async function start() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (error) {
-    show("мікрофон не дозволено", false);
-    verdict.textContent =
+    complain(
       "Браузер відмовив у доступі. Це не поломка сторінки: без явного дозволу " +
-      "мікрофон недоступний, і так і має бути.";
-    verdict.className = "note bad";
+      "мікрофон недоступний, і так і має бути."
+    );
+    show("мікрофон не дозволено", false);
     return false;
   }
 
-  socket = new WebSocket(`ws://${location.host}/voice`);
-  socket.binaryType = "arraybuffer";
+  try {
+    socket = new WebSocket(`ws://${location.host}/voice`);
+    socket.binaryType = "arraybuffer";
+    socket.onopen = () => socket.send(JSON.stringify({ seconds: FRAME_MILLIS / 1000 }));
+    socket.onmessage = onMessage;
+    // Сокет може померти сам: сервер закрив його, мережа зникла, сторінка відкрита по
+    // https. Без цих двох рядків індикатор показував намір, а не стан.
+    socket.onclose = () => { if (stream) { stop(); show("зʼєднання закрито", false); } };
+    socket.onerror = () => complain("Сокет не відкрився. Сторінка не з того ж походження?");
 
-  socket.onmessage = (event) => {
-    const message = JSON.parse(event.data);
-    if (message.kind === "timing") {
-      render(message.timing);
-      verdict.textContent = message.note || "";
-      verdict.className = "note";
-    }
-    if (message.kind === "missing") {
-      // AC-07b: чого бракує й що встановити — а не технічна помилка.
-      verdict.textContent = message.text;
-      verdict.className = "note bad";
-    }
-    if (message.kind === "audio") {
-      new Audio("data:audio/wav;base64," + message.data).play();
-    }
-  };
-
-  recorder = new MediaRecorder(stream);
-  recorder.ondataavailable = (event) => {
-    if (socket && socket.readyState === WebSocket.OPEN) socket.send(event.data);
-  };
-  recorder.start(200);
+    recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = (event) => {
+      if (socket && socket.readyState === WebSocket.OPEN) socket.send(event.data);
+    };
+    recorder.start(FRAME_MILLIS);
+  } catch (error) {
+    stop();
+    complain(`Запис не почався: ${error.message}`);
+    show("мікрофон вимкнено", false);
+    return false;
+  }
   return true;
+}
+
+function onMessage(event) {
+  const message = JSON.parse(event.data);
+  if (message.kind === "chunk") {
+    said.textContent += message.text;
+    // Звук приходить лише у справжньому режимі: підроблений синтез байтів не має.
+    if (message.audio) {
+      new Audio("data:audio/wav;base64," + message.audio).play().catch(
+        (error) => complain(`Фрагмент не програвся: ${error.message}`)
+      );
+    }
+  }
+  if (message.kind === "timing") {
+    render(message.timing);
+    // Розклад прийшов — конвеєр закінчив. Сокет можна закривати: стану, який пережив би
+    // зʼєднання, на тому кінці немає навмисно.
+    stop();
+    show("готово", false);
+  }
+  if (message.kind === "missing") complain(message.text);  // AC-07b: що встановити.
 }
 
 // Зупинка звільняє пристрій. Індикатор показує фактичний стан, а не намір: доріжки
@@ -135,15 +187,35 @@ function stop() {
   recorder = stream = socket = null;
 }
 
+// Кінець репліки — окремо від кінця сеансу. Мікрофон звільняється НЕГАЙНО, а сокет живе
+// далі: саме зараз конвеєр і рахує головне число етапу, час від кінця репліки до першого
+// звуку. Закрити сокет тут означало б обірвати вимір, заради якого все й будувалось.
+function finish() {
+  if (recorder && recorder.state !== "inactive") recorder.stop();
+  if (stream) stream.getTracks().forEach((track) => track.stop());
+  stream = recorder = null;
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ end: true }));
+    show("рахую…", false);
+  } else {
+    show("мікрофон вимкнено", false);
+  }
+}
+
 talk.addEventListener("click", async () => {
   talk.disabled = true;
-  if (stream) {
-    stop();
-    show("мікрофон вимкнено", false);
-  } else if (await start()) {
-    show("слухаю", true);
+  try {
+    if (stream) {
+      finish();
+    } else {
+      said.textContent = "";
+      if (await start()) show("слухаю", true);
+    }
+  } finally {
+    // `finally`, а не останній рядок тіла. Будь-яка помилка всередині лишала кнопку
+    // навіки вимкненою — при живому мікрофоні, який уже нічим не звільнити.
+    talk.disabled = false;
   }
-  talk.disabled = false;
 });
 
 // Вкладку закрили — пристрій звільнено. Без цього червона крапка браузера лишається

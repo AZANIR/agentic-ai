@@ -25,16 +25,33 @@ WASTED = "марна робота"
 
 @dataclass
 class Outcome:
-    """Що дав прогін: скільки тривав і чи знадобився ранній виклик."""
+    """Що дав прогін: скільки тривав, чи знадобився ранній виклик і скільки коштував дарма.
+
+    **Два числа, а не одне.** `millis` — те, що читач хоче бачити; `wasted_millis` — те,
+    що він платить. Урок, який показує лише перше, агітує за prefetch замість пояснювати
+    його, тож ціна живе в тому самому обʼєкті, що й виграш, а не в примітці.
+    """
 
     millis: float
     used: bool
     note: str = ""
+    wasted_millis: float = 0.0
 
 
-def synchronous(tool: Any, *, clock: Clock, needed: bool, tool_millis: float) -> Outcome:
-    """Спершу думати, потім кликати. Затримка інструмента додається до відповіді."""
+def synchronous(
+    tool: Any, *, clock: Clock, needed: bool, tool_millis: float, think_millis: float
+) -> Outcome:
+    """Спершу думати, потім кликати. Затримки складаються.
+
+    `think_millis` тут **обовʼязковий**, хоча синхронний шлях і не міг би без нього
+    працювати інакше. Перша редакція його не приймала й не спала: `synchronous().millis`
+    дорівнював лише часу інструмента, `prefetched().millis` — максимуму двох, і наївне
+    порівняння двох чисел показувало, що prefetch **повільніший** на 250 мс. Обидва
+    споживачі зшивали різницю руками, додаючи час роздуму ззовні, — тобто правильне число
+    існувало лише в демо, а не в API, яке урок пропонує читати.
+    """
     start = clock.now()
+    clock.sleep(think_millis)
     if needed:
         clock.sleep(tool_millis)
         tool()
@@ -51,10 +68,18 @@ def prefetched(
     """
     start = clock.now()
     tool()
-    clock.sleep(max(tool_millis, think_millis))
-    outcome = Outcome(millis=clock.now() - start, used=needed)
-    if not needed:
-        # Виклик відбувся й результат нікому не потрібен. Це не помилка — це ціна, і вона
-        # має бути названа, інакше етап продає prefetch замість пояснювати його.
-        outcome.note = f"{WASTED}: інструмент викликано, результат відкинуто"
+    if needed:
+        clock.sleep(max(tool_millis, think_millis))
+        return Outcome(millis=clock.now() - start, used=True)
+
+    # Результат не знадобився — і чекати на нього **не треба**. Перша редакція спала
+    # `max(tool, think)` незалежно від потреби: за повільного інструмента відповідь
+    # чекала на результат, який рядком нижче оголошувався марною роботою. Обидві точки
+    # виклику були підібрані так (500 проти 600), що різниці не було видно.
+    clock.sleep(think_millis)
+    outcome = Outcome(millis=clock.now() - start, used=False)
+    # Виклик відбувся й результат нікому не потрібен. Це не помилка — це ціна, і вона
+    # має бути названа, інакше етап продає prefetch замість пояснювати його.
+    outcome.note = f"{WASTED}: інструмент викликано, результат відкинуто"
+    outcome.wasted_millis = tool_millis
     return outcome

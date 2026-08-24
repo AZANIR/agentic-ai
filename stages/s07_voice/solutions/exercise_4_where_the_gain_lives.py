@@ -14,25 +14,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from stages.s07_voice.clock import FakeClock
+from stages.s07_voice.model import in_chunks, whole
 from stages.s07_voice.pipeline import SPEAK, STT, THINK, Audio, batch, streaming
 from stages.s07_voice.stt import FakeRecogniser
 from stages.s07_voice.tts import FakeSynthesiser
 
-ANSWER = "Замовлення в дорозі. Очікуйте доставку завтра до вечора."
-CHUNKS = ["Замовлення в дорозі.", " Очікуйте доставку", " завтра до вечора."]
-THINK_MILLIS = 750.0
 LENGTHS = (1.0, 2.0, 5.0, 10.0)
-
-
-def _think(_: str, *, clock) -> str:
-    clock.sleep(THINK_MILLIS)
-    return ANSWER
-
-
-def _think_chunks(_: str, *, clock):
-    for chunk in CHUNKS:
-        clock.sleep(THINK_MILLIS / len(CHUNKS))
-        yield chunk
 
 
 @dataclass
@@ -52,7 +39,11 @@ def measure(seconds: float) -> Row:
     said = Audio(seconds=seconds, says="який статус мого замовлення")
 
     batched = batch(
-        said, clock=FakeClock(), stt=FakeRecogniser(), tts=FakeSynthesiser(), think=_think
+        said,
+        clock=FakeClock(),
+        stt=FakeRecogniser(),
+        tts=FakeSynthesiser(),
+        think=whole(),
     ).timing
 
     stream = streaming(
@@ -60,7 +51,7 @@ def measure(seconds: float) -> Row:
         clock=FakeClock(),
         stt=FakeRecogniser(incremental=True),
         tts=FakeSynthesiser(),
-        think_chunks=_think_chunks,
+        think_chunks=in_chunks(),
     )
     list(stream.chunks)
 

@@ -1,4 +1,4 @@
-"""Демонстрація етапу 7: шість сцен підряд.
+"""Демонстрація етапу 7: сім сцен підряд.
 
     python -m stages.s07_voice.run
     python -m stages.s07_voice.run --real    # справжній годинник: те саме, тільки повільно
@@ -12,9 +12,10 @@
     1. батчевий конвеєр: число «до» й розклад            AC-01, AC-03
     2. стрімінговий: число «після» на тих самих даних     AC-02
     3. звідки береться різниця — дві різні частини        AC-02b
-    4. розподіл: чому p95, а не середнє                   AC-04
+    4. розподіл: сто СПРАВЖНІХ прогонів, p95 і хвіст      AC-04
     5. barge-in: три входи, три рішення                   AC-05, AC-05b, AC-05c
     6. prefetch: скільки купує й скільки марнує            AC-06, AC-06b
+    7. трейс: той самий розклад, здобутий інакше          AC-11
 
 **Головна тут — третя.** Перші дві дають два числа; третя пояснює, чому вони різні, і саме
 вона відрізняє результат від загальновідомої фрази «стрімінг швидший».
@@ -23,19 +24,25 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
+from shared.trace import group_by_trace, trace_run
 from stages.s07_voice.bargein import Sound, should_interrupt
-from stages.s07_voice.clock import FakeClock, get_clock
+from stages.s07_voice.clock import get_clock
 from stages.s07_voice.measure import summarise
+from stages.s07_voice.model import CHUNKS, SLOW_EVERY, THINK_MILLIS, in_chunks, whole
 from stages.s07_voice.pipeline import SPEAK, STT, THINK, Audio, batch, streaming
 from stages.s07_voice.prefetch import prefetched, synchronous
 from stages.s07_voice.stt import FakeRecogniser
 from stages.s07_voice.tts import FakeSynthesiser
 
 SAID = Audio(seconds=2.0, says="який статус мого замовлення")
-ANSWER = "Замовлення в дорозі. Очікуйте доставку завтра до вечора."
-CHUNKS = ["Замовлення в дорозі.", " Очікуйте доставку", " завтра до вечора."]
-THINK_MILLIS = 750.0
+TOOL_MILLIS = 500.0
+
+# Скільки прогонів для розподілу. Під справжнім годинником сто прогонів по півтори секунди
+# — це дві з половиною хвилини, тож `--real` бере менше й каже про це вголос.
+RUNS = 100
+REAL_RUNS = 20
 
 BANNER = (
     "[FakeClock] Затримки підроблені за порядком величини реальних. Числа — про "
@@ -43,41 +50,32 @@ BANNER = (
 )
 
 
-def _think(_: str, *, clock) -> str:
-    clock.sleep(THINK_MILLIS)
-    return ANSWER
-
-
-def _think_chunks(_: str, *, clock):
-    for chunk in CHUNKS:
-        clock.sleep(THINK_MILLIS / len(CHUNKS))
-        yield chunk
-
-
-def _batch(clock=None):
+def _batch(clock, *, run: int = 0, tracer=None):
     return batch(
         SAID,
-        clock=clock or FakeClock(),
+        clock=clock,
         stt=FakeRecogniser(),
         tts=FakeSynthesiser(),
-        think=_think,
+        think=whole(run=run),
+        tracer=tracer,
     )
 
 
-def _stream(clock=None):
+def _stream(clock, *, run: int = 0, tracer=None):
     stream = streaming(
         SAID,
-        clock=clock or FakeClock(),
+        clock=clock,
         stt=FakeRecogniser(incremental=True),
         tts=FakeSynthesiser(),
-        think_chunks=_think_chunks,
+        think_chunks=in_chunks(run=run),
+        tracer=tracer,
     )
     return stream, list(stream.chunks)
 
 
-def scene_batch() -> None:
+def scene_batch(fresh, tracer) -> None:
     print("1. Батчевий конвеєр — число «до»")
-    timing = _batch().timing
+    timing = _batch(fresh(), tracer=tracer).timing
     for name, millis in timing.as_rows():
         print(f"   {name:<20} {millis:>6.0f} мс")
     print(f"   {'ДО ПЕРШОГО ЗВУКУ':<20} {timing.first_audio:>6.0f} мс")
@@ -88,9 +86,9 @@ def scene_batch() -> None:
     print()
 
 
-def scene_stream() -> None:
+def scene_stream(fresh, tracer) -> None:
     print("2. Стрімінговий конвеєр — число «після» на ТИХ САМИХ даних")
-    stream, spoken = _stream()
+    stream, spoken = _stream(fresh(), tracer=tracer)
     for chunk in spoken:
         print(f"   фрагмент: {chunk.text!r}")
     print(f"   {'ДО ПЕРШОГО ЗВУКУ':<20} {stream.timing.first_audio:>6.0f} мс")
@@ -100,10 +98,10 @@ def scene_stream() -> None:
     print()
 
 
-def scene_where_the_gain_comes_from() -> None:
+def scene_where_the_gain_comes_from(fresh) -> None:
     print("3. Звідки береться різниця — ДВІ різні частини")
-    batched = _batch().timing
-    stream, _ = _stream()
+    batched = _batch(fresh()).timing
+    stream, _ = _stream(fresh())
 
     overlap = batched.named(STT) - stream.timing.named(STT)
     answer_batch = batched.named(THINK) + batched.named(SPEAK)
@@ -123,23 +121,26 @@ def scene_where_the_gain_comes_from() -> None:
     print()
 
 
-def scene_distribution() -> None:
+def scene_distribution(fresh, runs: int) -> None:
     print("4. Розподіл — чому p95, а не середнє")
-    # Дев'яносто швидких прогонів і десять повільних: типовий хвіст будь-якого конвеєра
-    # з мережею.
-    values = [450.0] * 90 + [1700.0] * 10
+    # Сто СПРАВЖНІХ прогонів, а не список, набраний руками. Розкид вносить модель:
+    # `latency(run)` — чиста функція номера прогону, тож хвіст справжній, а повторний
+    # прогін демо дає ті самі сто чисел.
+    values = [_batch(fresh(), run=run).timing.first_audio for run in range(runs)]
     seen = summarise(values)
+    slow = sum(1 for value in values if value > seen.mean)
 
-    print(f"   прогонів:  {seen.runs}")
+    print(f"   прогонів:  {seen.runs}   з них повільніших за середнє: {slow}")
     print(f"   середнє:   {seen.mean:>6.0f} мс")
     print(f"   p95:       {seen.p95:>6.0f} мс   ({seen.tail_ratio:.1f}x до середнього)")
     print(f"   найгірший: {seen.worst:>6.0f} мс")
     print()
-    print("   Середнє — число для звіту. p95 — те, що відчуває користувач: кожен двадцятий")
-    print("   прогін учетверо повільніший, і середнє цього майже не помічає.")
+    print("   Середнє — число для звіту. p95 — те, що відчуває користувач: кожен")
+    print(f"   {SLOW_EVERY}-й прогін учетверо повільніший, і середнє цього майже не помічає.")
     print()
     print("   p95 тут — СПРАВЖНІЙ прогін, а не інтерпольоване число: важливо, що хтось його")
-    print("   справді відчув.")
+    print("   справді відчув. І береться найближчим рангом, а не округленням: округлення")
+    print("   на половині розмірів вибірки дає ранг на одиницю нижче й ховає хвіст.")
     print()
 
 
@@ -159,47 +160,89 @@ def scene_bargein() -> None:
     print()
 
 
-def scene_prefetch() -> None:
+def scene_prefetch(fresh, tracer) -> None:
     print("6. Prefetch — скільки купує й скільки марнує")
     calls: list[str] = []
 
     def tool() -> None:
         calls.append("call")
 
-    slow = synchronous(tool, clock=FakeClock(), needed=True, tool_millis=500.0)
-    fast = prefetched(
-        tool, clock=FakeClock(), needed=True, tool_millis=500.0, think_millis=THINK_MILLIS
-    )
-    wasted = prefetched(
-        tool, clock=FakeClock(), needed=False, tool_millis=500.0, think_millis=THINK_MILLIS
-    )
+    both = dict(tool_millis=TOOL_MILLIS, think_millis=THINK_MILLIS)
+    slow = synchronous(tool, clock=fresh(), needed=True, **both)
+    fast = prefetched(tool, clock=fresh(), needed=True, **both)
+    wasted = prefetched(tool, clock=fresh(), needed=False, **both)
 
-    print(f"   синхронно:      {slow.millis + THINK_MILLIS:>6.0f} мс (роздум + інструмент)")
-    print(f"   з prefetch:     {fast.millis:>6.0f} мс")
-    print(f"   куплено:        {slow.millis + THINK_MILLIS - fast.millis:>6.0f} мс")
-    print(f"   коли не треба:  {wasted.note}")
+    # Обидва числа беруться з тих самих полів того самого типу. Перша редакція додавала
+    # час роздуму до синхронного числа ЗЗОВНІ, бо `synchronous` його не спав, — і читач,
+    # який порівняв би два `.millis` навпростець, дійшов би протилежного висновку.
+    print(f"   синхронно:      {slow.millis:>6.0f} мс (роздум, потім інструмент)")
+    print(f"   з prefetch:     {fast.millis:>6.0f} мс (обидва разом)")
+    print(f"   куплено:        {slow.millis - fast.millis:>6.0f} мс")
+    print(f"   коли не треба:  {wasted.millis:>6.0f} мс відповіді")
+    print(f"   змарновано:     {wasted.wasted_millis:>6.0f} мс роботи, яку відкинули")
+    print(f"                   {wasted.note}")
+    tracer.step("prefetch", bought=slow.millis - fast.millis, wasted=wasted.wasted_millis)
     print()
-    print("   Prefetch виконує виклик, який може не знадобитись: це запит до чужої системи,")
-    print("   місце в черзі, іноді гроші. Стаття, що закінчується словом «швидше», дає")
-    print("   оптимізацію без умов її застосування.")
+    print("   Відкинутий виклик НЕ затримує відповідь: на нього просто не чекають. Але він")
+    print("   стався — це запит до чужої системи, місце в черзі, іноді гроші. Стаття, що")
+    print("   закінчується словом «швидше», дає оптимізацію без умов її застосування.")
     print()
 
 
-def main(*, real: bool = False) -> int:
-    clock = get_clock(real=real)
+def scene_trace(path: Path | None, trace_id: str) -> None:
+    print("7. Трейс — той самий розклад, здобутий іншим механізмом")
+    # Саме ЦЯ траєкторія, а не весь файл: `traces/` накопичується між прогонами, і
+    # «кроків: 84» після четвертого запуску нічого не сказало б про цей.
+    steps = group_by_trace(path).get(trace_id, [])
+    kinds = [step["kind"] for step in steps]
+
+    print(f"   траєкторія: {trace_id}   кроків: {len(steps)}")
+    print(f"   види кроків: {', '.join(sorted(set(kinds) - {'run_start', 'run_end'}))}")
+    for step in steps:
+        if step["kind"] == "first_audio":
+            print(f"   {step['pipeline']:<10} до першого звуку: {step['millis']:>6.0f} мс")
+    print()
+    print("   Розклад і трейс — два НЕЗАЛЕЖНІ механізми, і саме тому одним можна звірити")
+    print("   інший. Число, що збіглося в обох, помилилось би двічі однаково — а це вже не")
+    print("   випадковість. Трейси читатиме етап 8.")
+    print()
+
+
+def main(*, real: bool = False, trace_path: Path | None = None) -> int:
     print(BANNER if not real else "[RealClock] Справжній годинник: числа мигтітимуть.")
-    print(f"   годинник: {clock.name}")
+    print(f"   годинник: {get_clock(real=real).name}")
+    print(f"   фрагментів у відповіді моделі: {len(CHUNKS)}")
     print()
 
-    scene_batch()
-    scene_stream()
-    scene_where_the_gain_comes_from()
-    scene_distribution()
-    scene_bargein()
-    scene_prefetch()
+    # Годинник створюється НА КОЖЕН прогін: спільний накопичував би час між сценами, і
+    # друга сцена починалася б із того місця, де скінчилась перша. Прапорець доходить
+    # сюди, а не лишається в банері — перша редакція друкувала «[RealClock]» і далі
+    # будувала `FakeClock()` у кожній сцені.
+    def fresh():
+        return get_clock(real=real)
 
+    with trace_run("Етап 7 · Voice", path=trace_path, stage="s07") as tracer:
+        scene_batch(fresh, tracer)
+        scene_stream(fresh, tracer)
+        scene_where_the_gain_comes_from(fresh)
+        runs = REAL_RUNS if real else RUNS
+        if real:
+            print(f"   (справжній годинник: {runs} прогонів замість {RUNS} — інакше хвилини)")
+        scene_distribution(fresh, runs)
+        scene_bargein()
+        scene_prefetch(fresh, tracer)
+        trace_id = tracer.trace_id
+    scene_trace(trace_path, trace_id)
+
+    if trace_path is None:
+        print("Трейси прогонів: traces/ — їх читатиме етап 8.")
+    print()
     print("Живий режим (потрібні мікрофон і моделі):")
-    print('    pip install -e ".[voice,s06]"')
+    print('    pip install -e ".[s07,voice]"')
+    print("    uvicorn stages.s07_voice.ws:create_real_app --factory")
+    print()
+    print("Сторінка без моделей — конвеєр і числа працюють, звуку не буде:")
+    print('    pip install -e ".[s07]"')
     print("    uvicorn stages.s07_voice.ws:create_app --factory")
     return 0
 

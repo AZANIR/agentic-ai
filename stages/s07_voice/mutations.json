@@ -1,7 +1,7 @@
 {
   "stage": "s07-voice",
   "executed_floor": 20,
-  "note": "Мутації ламають властивості, а не синтаксис. Найважливіші три стосуються не звуку, а ВИМІРЮВАННЯ: підроблений годинник стає справжнім, секундомір перестає складати кроки, а перекриття розпізнавання зникає. Усі три лишають код працездатним і дають числа, які виглядають правдоподібно — саме тому їх складно помітити без перевірки.",
+  "note": "Мутації ламають властивості, а не синтаксис. Найважливіші стосуються не звуку, а ВИМІРЮВАННЯ: підроблений годинник стає справжнім, секундомір перестає складати кроки, перекриття розпізнавання зникає, час споживача приписується моделі, p95 округлюється. Усі вони лишають код працездатним і дають числа, які виглядають правдоподібно — саме тому їх складно помітити без перевірки. Число `expect_failed` копіюється з ПРОГОНУ, а не пишеться від руки: вправа 5 колись обіцяла зламану властивість, а насправді давала NameError, і жодного ассерту в тих пʼяти червоних досягнуто не було.",
   "mutations": [
     {
       "name": "вправа 1 · підроблений годинник починає спати насправді",
@@ -22,7 +22,7 @@
       "file": "stages/s07_voice/measure.py",
       "old": "        cost = now - self._mark\n        self._mark = now",
       "new": "        cost = now - self._started",
-      "expect_failed": 2
+      "expect_failed": 4
     },
     {
       "name": "вправа 4 · розпізнавання перестає перекриватися з мовленням",
@@ -32,11 +32,11 @@
       "expect_failed": 2
     },
     {
-      "name": "вправа 5 · стрімінг чекає всіх фрагментів перед першим звуком",
+      "name": "вправа 5 · стрімінг збирає всі фрагменти перед першим звуком",
       "file": "stages/s07_voice/pipeline.py",
-      "old": "            if index == 0:\n                watch.first_audio()",
-      "new": "            if index == len(CHUNKS_SENTINEL) - 1:\n                watch.first_audio()",
-      "expect_failed": 4
+      "old": "        for index, chunk in enumerate(think_chunks(heard.text, clock=clock)):",
+      "new": "        for index, chunk in enumerate(list(think_chunks(heard.text, clock=clock))):",
+      "expect_failed": 1
     },
     {
       "name": "вправа 6 · barge-in дивиться лише на рівень",
@@ -57,7 +57,7 @@
       "file": "stages/s07_voice/measure.py",
       "old": "        p95=ordered[rank],",
       "new": "        p95=sum(ordered) / len(ordered) * 1.5,",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 9 · розподіл із нуля прогонів дає нулі",
@@ -69,22 +69,50 @@
     {
       "name": "вправа 10 · мовчання йде в модель",
       "file": "stages/s07_voice/pipeline.py",
-      "old": "    if heard.silent:\n        return _silence(watch)",
-      "new": "    if False:\n        return _silence(watch)",
+      "old": "    if heard.silent:\n        return _silence(watch, tracer)",
+      "new": "    if False:\n        return _silence(watch, tracer)",
       "expect_failed": 1
     },
     {
       "name": "вправа 11 · prefetch перестає називати марну роботу",
       "file": "stages/s07_voice/prefetch.py",
-      "old": "        outcome.note = f\"{WASTED}: інструмент викликано, результат відкинуто\"",
-      "new": "        outcome.note = \"\"",
+      "old": "    outcome.note = f\"{WASTED}: інструмент викликано, результат відкинуто\"",
+      "new": "    outcome.note = \"\"",
       "expect_failed": 2
     },
     {
       "name": "вправа 12 · prefetch чекає обидві затримки замість перекриття",
       "file": "stages/s07_voice/prefetch.py",
-      "old": "    clock.sleep(max(tool_millis, think_millis))",
-      "new": "    clock.sleep(tool_millis + think_millis)",
+      "old": "        clock.sleep(max(tool_millis, think_millis))",
+      "new": "        clock.sleep(tool_millis + think_millis)",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 13 · час споживача приписується наступному кроку",
+      "file": "stages/s07_voice/measure.py",
+      "old": "        gap = now - self._mark\n        self._mark = now\n        self.timing.handover += gap",
+      "new": "        gap = now - self._mark\n        self.timing.handover += gap",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 14 · p95 округлюється замість брати найближчий ранг",
+      "file": "stages/s07_voice/measure.py",
+      "old": "    rank = max(0, min(len(ordered) - 1, math.ceil(0.95 * len(ordered)) - 1))",
+      "new": "    rank = max(0, min(len(ordered) - 1, int(round(0.95 * len(ordered))) - 1))",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 15 · відкинутий prefetch усе одно чекає на інструмент",
+      "file": "stages/s07_voice/prefetch.py",
+      "old": "    clock.sleep(think_millis)\n    outcome = Outcome(millis=clock.now() - start, used=False)",
+      "new": "    clock.sleep(max(tool_millis, think_millis))\n    outcome = Outcome(millis=clock.now() - start, used=False)",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 16 · фрагменти можна пройти двічі",
+      "file": "stages/s07_voice/pipeline.py",
+      "old": "        if self._walked:",
+      "new": "        if False:",
       "expect_failed": 1
     }
   ]
