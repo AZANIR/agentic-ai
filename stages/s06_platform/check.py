@@ -16,7 +16,9 @@ from shared.config import LOCAL, Settings
 from shared.counters import DAY, MINUTE, InMemory, Shared, get_counters
 from shared.factstore import DatabaseStore, FileStore
 from shared.fake_llm import FakeLLM, text
+from shared.trace import iter_steps, trace_run
 from stages.s05_memory.facts import Fact
+from stages.s06_platform.app import Service
 from stages.s06_platform.fake_store import FakeStore
 from stages.s06_platform.guards import (
     BUDGET_EXHAUSTED,
@@ -28,6 +30,7 @@ from stages.s06_platform.guards import (
     owner_of,
 )
 from stages.s06_platform.intent import KNOWLEDGE, MATH, ORDERS, classify
+from stages.s06_platform.observe import DOWN, UP, Dependency, Health, Metrics
 
 # Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
 BUDGET_SECONDS = 60
@@ -35,6 +38,19 @@ BUDGET_SECONDS = 60
 NEWLINE = chr(10)
 NOW = 1_700_000_000.0
 QUESTION = "куди доставляти замовлення"
+
+
+def _script_for(branch: str) -> list:
+    """Сценарій підробки: класифікація плюс те, що робить обрана гілка."""
+    if branch in (ORDERS, MATH):
+        # Гілка йде в граф етапу 3: маршрут, спеціаліст, оцінка.
+        return [
+            text(branch),
+            text(branch if branch != MATH else "math"),
+            text("Відповідь спеціаліста."),
+            text("так"),
+        ]
+    return [text(branch), text("Відповідь агента.")]
 
 
 def _fact(owner: str, topic: str, text: str, **kwargs) -> Fact:
@@ -608,6 +624,248 @@ def check_there_is_no_fallback_when_the_budget_is_gone() -> None:
         )
 
 
+# --- зшивання, стан і метрики -------------------------------------------------------------
+
+
+def _service(tmp: str, tracer, *, script: list, settings=None):
+    """Сервіс на файловому сховищі й підробленій моделі. Ні мережі, ні контейнерів."""
+    return Service(
+        settings=settings or _settings(),
+        counters=InMemory(),
+        store=FileStore(Path(tmp) / "m.jsonl"),
+        tracer=tracer,
+        client=FakeLLM(script=script),
+    )
+
+
+def _steps(path: Path, kind: str) -> list[dict]:
+    return [step for step in iter_steps(path) if step["kind"] == kind]
+
+
+def check_three_requests_take_three_branches() -> None:
+    """integration · три різні запити йдуть трьома різними гілками"""
+    asked = [
+        ("який статус замовлення ord_4471", ORDERS),
+        ("скільки днів на повернення товару", KNOWLEDGE),
+        ("скільки буде 1200 плюс 340", MATH),
+    ]
+    branches = []
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        for question, expected in asked:
+            with trace_run("s06", path=path, stage="s06") as tracer:
+                service = _service(tmp, tracer, script=_script_for(expected))
+                answer = service.ask(KEY, question, now=NOW)
+            assert answer.ok, answer
+            branches.append(answer.branch)
+            assert answer.branch == expected, (question, answer.branch)
+
+        intents = _steps(path, "intent")
+
+    assert len(set(branches)) == 3, f"гілок {len(set(branches))}, а не три: {branches}"
+    # Гілка видна у ТРЕЙСІ, а не лише у відповіді. Формулювання відповіді нічого не доводить:
+    # три різні тексти можуть прийти однією гілкою.
+    assert {step["branch"] for step in intents} == {ORDERS, KNOWLEDGE, MATH}, intents
+
+
+def check_the_trace_names_every_step_and_its_reason() -> None:
+    """integration · трейс несе кроки сервісу по порядку, і кожен із причиною"""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("s06", path=path, stage="s06") as tracer:
+            service = _service(tmp, tracer, script=_script_for(KNOWLEDGE))
+            answer = service.ask(KEY, "скільки днів на повернення", now=NOW)
+        recorded = list(iter_steps(path))
+
+    mine = [step for step in recorded if step.get("trace_ref") == answer.trace_id]
+    order = [step["kind"] for step in mine]
+
+    assert order[:3] == ["guard", "intent", "memory"], (
+        f"порядок кроків {order}. Гілка після відповіді нічого не пояснює — вона переказує "
+        "те, що вже сталося"
+    )
+    assert "done" in order, order
+
+    guard = next(step for step in mine if step["kind"] == "guard")
+    assert guard["verdict"] == OK and guard["owner"] == owner_of(KEY), (
+        f"крок воротаря не каже, ЩО він вирішив: {guard}. Поле не можна назвати "
+        "`kind` — воно вже зайняте родом самого кроку, і трейсер відхилить виклик"
+    )
+    memory = next(step for step in mine if step["kind"] == "memory")
+    assert "skipped" in memory, (
+        "у кроці памʼяті немає причин відкидання. Етап 5 їх повертає у Context.skipped і "
+        "у трейс не пише — перенести їх має сервіс, бо це його рішення (ADR-0005)"
+    )
+    # Трейс знаходиться за ідентифікатором, а не «десь у файлі».
+    assert answer.trace_id and len(mine) >= 4, (answer.trace_id, len(mine))
+
+
+def check_a_refused_request_leaves_only_its_refusal() -> None:
+    """ВІДМОВА · integration · відхилений запит не лишає у трейсі нічого, крім відмови"""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("s06", path=path, stage="s06") as tracer:
+            service = _service(tmp, tracer, script=[])
+            answer = service.ask("чужий ключ", "будь-що", now=NOW)
+        recorded = list(iter_steps(path))
+
+    assert not answer.ok and answer.kind == UNAUTHENTICATED, answer
+    mine = [step for step in recorded if step.get("trace_ref") == answer.trace_id]
+    assert [step["kind"] for step in mine] == ["guard"], (
+        f"у трейсі відхиленого запиту є зайве: {[s['kind'] for s in mine]}. Порожній "
+        "сценарій моделі означає, що жодного виклику не сталося — інакше FakeLLM упав би"
+    )
+
+
+def check_the_key_never_reaches_the_trace_or_the_answer() -> None:
+    """ВІДМОВА · integration · ключ не трапляється ні у трейсі, ні у відповіді"""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("s06", path=path, stage="s06") as tracer:
+            service = _service(tmp, tracer, script=_script_for(KNOWLEDGE))
+            answer = service.ask(KEY, "скільки днів на повернення", now=NOW)
+        written = path.read_text(encoding="utf-8")
+
+    assert KEY not in written, "ключ у файлі трейсу — тобто у файлі, який читає налагоджувач"
+    assert KEY not in f"{answer.text} {answer.trace_id} {answer.branch}", answer
+    assert owner_of(KEY) in written, (
+        "у трейсі немає навіть похідного власника — тоді запит неможливо привʼязати ні до "
+        "кого, і ключ прибрано ціною відповідальності"
+    )
+
+
+def check_two_owners_do_not_see_each_others_memory_through_the_service() -> None:
+    """ВІДМОВА · integration · два ключі — дві памʼяті; і кожна своя доходить"""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        store = FileStore(Path(tmp) / "m.jsonl")
+        store.remember(_fact(owner_of(KEY), "address", "Доставляти замовлення на Хрещатик 22"))
+        store.remember(
+            _fact(owner_of(OTHER_KEY), "address", "Куди доставляти замовлення — на Банкову 11")
+        )
+
+        seen = {}
+        for key in (KEY, OTHER_KEY):
+            with trace_run("s06", path=path, stage="s06") as tracer:
+                service = Service(
+                    settings=_settings(),
+                    counters=InMemory(),
+                    store=store,
+                    tracer=tracer,
+                    client=FakeLLM(script=_script_for(KNOWLEDGE)),
+                )
+                seen[key] = service.ask(key, QUESTION, now=NOW).facts_used
+
+    assert any("Хрещатик" in text for text in seen[KEY]), seen[KEY]
+    assert not any("Банков" in text for text in seen[KEY]), f"витік: {seen[KEY]}"
+    assert any("Банков" in text for text in seen[OTHER_KEY]), (
+        f"власна памʼять другого власника не дійшла: {seen[OTHER_KEY]}. Витоку немає; "
+        "відповіді теж немає — і перевірка на витік цього не бачить"
+    )
+
+
+def check_health_names_each_dependency_separately() -> None:
+    """ВІДМОВА · стан: несправна залежність названа, і сервіс не рапортує «живий»"""
+
+    def broken() -> None:
+        raise ConnectionError("postgresql://agentic:agentic@10.0.0.1:5432/agentic")
+
+    health = Health(
+        dependencies=[
+            Dependency(name="store", probe=lambda: None),
+            Dependency(name="counters", probe=broken),
+        ]
+    )
+    report = health.report()
+
+    assert report["status"] == DOWN, report
+    assert report["dependencies"]["store"]["status"] == UP, report
+    assert report["dependencies"]["counters"]["status"] == DOWN, report
+
+    # Причина — тип помилки, не її текст: текст несе адресу, користувача й порт, а стан
+    # читає той, у кого ключа немає.
+    written = str(report)
+    assert "10.0.0.1" not in written and "agentic" not in written, (
+        f"стан розкриває рядок підключення: {written}"
+    )
+    assert report["dependencies"]["counters"]["reason"] == "ConnectionError", report
+
+
+def check_a_healthy_service_reports_healthy() -> None:
+    """ВІДМОВА · дзеркальна: справний сервіс каже «живий» — монітор не кричить завжди"""
+    health = Health(
+        dependencies=[
+            Dependency(name="store", probe=lambda: None),
+            Dependency(name="counters", probe=lambda: None),
+        ]
+    )
+    report = health.report()
+
+    assert report["status"] == UP, report
+    assert all(d["status"] == UP for d in report["dependencies"].values()), report
+    assert all(not d["reason"] for d in report["dependencies"].values()), report
+    # Без цього твердження ендпоінт, зашитий у «зламано», задовольняє перевірку вище
+    # повністю. Монітор, що кричить завжди, — та сама вада, що воротар, який нікого не пускає.
+
+
+def check_metrics_tell_the_failure_kinds_apart() -> None:
+    """ВІДМОВА · метрики: типи відмов розрізняються, і успішні звіряються з трейсами"""
+    metrics = Metrics()
+    for kind in (OK, OK, UNAUTHENTICATED, RATE_LIMITED, BUDGET_EXHAUSTED):
+        metrics.request(kind)
+    metrics.trace_written()
+    metrics.trace_written()
+
+    rendered = metrics.render()
+    for kind in (OK, UNAUTHENTICATED, RATE_LIMITED, BUDGET_EXHAUSTED):
+        assert f'kind="{kind}"' in rendered, (
+            f"у метриках немає роду {kind!r}. «3 % відхилено» однаково описує зламану "
+            "автентифікацію, зловживання й вичерпаний бюджет — це три різні дії оператора"
+        )
+
+    assert 's06_requests_total{kind="ok"} 2' in rendered, rendered
+    assert "s06_traces_total 2" in rendered, rendered
+    # Звірка: успішних стільки ж, скільки трейсів. Стверджується для ОДНОГО воркера —
+    # збирач процесо-локальний, і за N воркерів видача показує зріз одного з них.
+    assert metrics.requests[OK] == metrics.traces, (metrics.requests, metrics.traces)
+
+
+def check_the_service_survives_a_dependency_that_is_gone() -> None:
+    """ВІДМОВА · integration · недоступна залежність дає названу помилку, а не падіння"""
+
+    class Exploding:
+        name = "exploding"
+
+        def context_for(self, *args, **kwargs):
+            raise ConnectionError("сховище недоступне")
+
+        def remember(self, fact):
+            raise ConnectionError("сховище недоступне")
+
+        def all_facts(self):
+            raise ConnectionError("сховище недоступне")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("s06", path=path, stage="s06") as tracer:
+            service = Service(
+                settings=_settings(),
+                counters=InMemory(),
+                store=Exploding(),
+                tracer=tracer,
+                client=FakeLLM(script=_script_for(KNOWLEDGE)),
+            )
+            try:
+                service.ask(KEY, "будь-що", now=NOW)
+            except ConnectionError:
+                raise AssertionError(
+                    "сервіс упав разом із залежністю. Недоступне сховище має давати названу "
+                    "відмову: один запит гірший за всі запити"
+                ) from None
+            except Exception as error:  # noqa: BLE001
+                raise AssertionError(f"несподівана помилка: {type(error).__name__}") from error
+
+
 CHECKS = [
     check_both_counters_answer_the_same_way_within_one_instance,
     check_the_window_forgets_what_fell_out_of_it,
@@ -637,6 +895,15 @@ CHECKS = [
     check_an_unrecognised_answer_falls_back_to_the_safest_branch,
     check_the_mixed_question_limit_is_a_measured_number,
     check_there_is_no_fallback_when_the_budget_is_gone,
+    check_three_requests_take_three_branches,
+    check_the_trace_names_every_step_and_its_reason,
+    check_a_refused_request_leaves_only_its_refusal,
+    check_the_key_never_reaches_the_trace_or_the_answer,
+    check_two_owners_do_not_see_each_others_memory_through_the_service,
+    check_health_names_each_dependency_separately,
+    check_a_healthy_service_reports_healthy,
+    check_metrics_tell_the_failure_kinds_apart,
+    check_the_service_survives_a_dependency_that_is_gone,
 ]
 
 
