@@ -16,6 +16,15 @@ from shared.config import LOCAL, Settings
 from shared.counters import DAY, MINUTE, InMemory, Shared, get_counters
 from shared.factstore import DatabaseStore, FileStore
 from stages.s05_memory.facts import Fact
+from stages.s06_platform.guards import (
+    BUDGET_EXHAUSTED,
+    OK,
+    RATE_LIMITED,
+    UNAUTHENTICATED,
+    admit,
+    charge,
+    owner_of,
+)
 from stages.s06_platform.fake_store import FakeStore
 
 # Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
@@ -348,6 +357,144 @@ def check_stage_five_is_untouched_by_the_move() -> None:
     )
 
 
+# --- три воротарі -----------------------------------------------------------------------
+
+KEY = "test-key-0001"
+OTHER_KEY = "test-key-0002"
+
+
+def _settings(**kwargs) -> Settings:
+    base = {"api_keys": [KEY, OTHER_KEY], "rate_limit_per_minute": 3, "budget_usd_per_day": 1.0}
+    return Settings(**{**base, **kwargs})
+
+
+def check_an_unknown_key_is_refused_before_anything_else() -> None:
+    """ВІДМОВА · воротар: невпізнаний ключ відхиляється й не доходить до лічильників"""
+    counters = InMemory()
+    verdict = admit("не той ключ", counters, _settings(), now=NOW)
+
+    assert not verdict.allowed and verdict.kind == UNAUTHENTICATED, verdict
+    assert not verdict.owner, "невпізнаному ключу приписано власника"
+    assert counters.total(f"rate:{owner_of('не той ключ')}", now=NOW, window=MINUTE) == 0.0, (
+        "відхилений запит витратив квоту. Тоді анонім вичерпує ліміт того, ким він не є"
+    )
+
+
+def check_a_known_key_gets_through_and_carries_its_owner() -> None:
+    """ВІДМОВА · дзеркальна: впізнаний ключ ДОХОДИТЬ — воротар не глухий"""
+    verdict = admit(KEY, InMemory(), _settings(), now=NOW)
+
+    assert verdict.allowed and verdict.kind == OK, verdict
+    assert verdict.owner == owner_of(KEY), verdict
+    # Без цього твердження воротар, що не пускає нікого, задовольняє перевірку вище
+    # повністю — і при цьому зламаний. Курс ловив цю форму на етапах 1, 2, 3 і 5.
+
+
+def check_the_key_never_appears_in_what_is_written_down() -> None:
+    """ВІДМОВА · воротар: ключ не трапляється ні у вердикті, ні в ідентифікаторі власника"""
+    verdict = admit(KEY, InMemory(), _settings(), now=NOW)
+    written = f"{verdict.owner} {verdict.reason} {verdict.kind}"
+
+    assert KEY not in written, f"ключ у тому, що записують: {written!r}"
+    assert verdict.owner != KEY and len(verdict.owner) == 16, verdict.owner
+
+    # Похідний ідентифікатор має бути стабільним і різним для різних ключів — інакше він
+    # або не годиться як ключ лічильника, або зливає двох власників в одного.
+    assert owner_of(KEY) == owner_of(KEY)
+    assert owner_of(KEY) != owner_of(OTHER_KEY)
+
+
+def check_the_refusal_does_not_say_whether_the_key_exists() -> None:
+    """ВІДМОВА · воротар: відмова однакова для невідомого й для відкликаного ключа"""
+    empty = admit(KEY, InMemory(), _settings(api_keys=[]), now=NOW)
+    unknown = admit("зовсім інший", InMemory(), _settings(), now=NOW)
+
+    assert empty.kind == unknown.kind and empty.reason == unknown.reason, (
+        f"відмови різні: {empty.reason!r} проти {unknown.reason!r}. Різниця у відповіді — "
+        "це оракул: перебирай, доки текст не зміниться"
+    )
+
+
+def check_the_rate_limit_refuses_before_the_model() -> None:
+    """ВІДМОВА · воротар: понад ліміт — відмова з часом повтору, і вона не про автентифікацію"""
+    counters = InMemory()
+    settings = _settings()
+    for _ in range(settings.rate_limit_per_minute):
+        assert admit(KEY, counters, settings, now=NOW).allowed
+
+    verdict = admit(KEY, counters, settings, now=NOW)
+    assert not verdict.allowed and verdict.kind == RATE_LIMITED, verdict
+    assert verdict.retry_after == MINUTE, verdict
+    assert verdict.kind != UNAUTHENTICATED, "ліміт і автентифікація злилися в одну відмову"
+
+    # Вікно минуло — той самий клієнт знову проходить. Ліміт, що не відпускає, це бан.
+    assert admit(KEY, counters, settings, now=NOW + MINUTE + 1).allowed
+
+
+def check_one_clients_limit_does_not_stop_another() -> None:
+    """ВІДМОВА · воротар: лічильник на власника, а не на сервіс"""
+    counters = InMemory()
+    settings = _settings()
+    for _ in range(settings.rate_limit_per_minute + 1):
+        admit(KEY, counters, settings, now=NOW)
+
+    assert admit(OTHER_KEY, counters, settings, now=NOW).allowed, (
+        "другий клієнт відхилений через першого. Спільний лічильник задовольняє «понад "
+        "ліміт відхилено» дослівно й робить одного клієнта здатним зупинити всіх"
+    )
+
+
+def check_an_exhausted_budget_stops_the_call_and_says_so() -> None:
+    """ВІДМОВА · воротар: вичерпаний бюджет — окрема відмова, не ліміт і не автентифікація"""
+    counters = InMemory()
+    settings = _settings()
+    charge(owner_of(KEY), counters, settings.budget_usd_per_day, now=NOW)
+
+    verdict = admit(KEY, counters, settings, now=NOW)
+    assert not verdict.allowed and verdict.kind == BUDGET_EXHAUSTED, verdict
+    assert verdict.kind not in (RATE_LIMITED, UNAUTHENTICATED), verdict
+    assert "$" in verdict.reason, verdict.reason
+    assert verdict.retry_after is None, (
+        "бюджет назвав час повтору. Вичерпані гроші не зʼявляються самі за хвилину, і "
+        "порада «спробуй пізніше» тут неправдива"
+    )
+
+
+def check_spending_is_counted_or_the_guard_never_fires() -> None:
+    """ВІДМОВА · дзеркальна: витрати зростають — запобіжник, що не рахує, не спрацює"""
+    counters = InMemory()
+    owner = owner_of(KEY)
+
+    assert charge(owner, counters, 0.10, now=NOW) == 0.10
+    assert charge(owner, counters, 0.15, now=NOW + 1) == 0.25
+    assert counters.total(f"spend:{owner}", now=NOW + 2, window=DAY) == 0.25
+
+    # І межа справді спрацьовує на накопиченому, а не на одному виклику.
+    settings = _settings(budget_usd_per_day=0.20)
+    assert not admit(KEY, counters, settings, now=NOW + 2).allowed
+
+
+def check_the_guards_run_in_the_declared_order() -> None:
+    """ВІДМОВА · воротар: порядок «хто -> скільки -> за чий рахунок» і є механізмом"""
+    counters = InMemory()
+    settings = _settings()
+    # Вичерпані і ліміт, і бюджет — але ключ невідомий. Має перемогти автентифікація.
+    charge(owner_of("чужий"), counters, 99.0, now=NOW)
+    assert admit("чужий", counters, settings, now=NOW).kind == UNAUTHENTICATED
+
+    # Вичерпані ліміт і бюджет одночасно в законного власника — має перемогти ліміт:
+    # він дешевший і стоїть раніше.
+    owner = owner_of(KEY)
+    charge(owner, counters, 99.0, now=NOW)
+    for _ in range(settings.rate_limit_per_minute):
+        counters.add(f"rate:{owner}", 1, now=NOW, window=MINUTE)
+
+    assert admit(KEY, counters, settings, now=NOW).kind == RATE_LIMITED, (
+        "бюджет спрацював раніше за ліміт — тоді сервіс рахує витрати тих, кого однаково "
+        "відхилить, і порядок воротарів перестає бути рішенням"
+    )
+
+
 CHECKS = [
     check_both_counters_answer_the_same_way_within_one_instance,
     check_the_window_forgets_what_fell_out_of_it,
@@ -362,6 +509,15 @@ CHECKS = [
     check_the_database_refuses_two_active_facts_on_one_topic,
     check_the_database_refuses_a_replaced_fact_without_a_time,
     check_stage_five_is_untouched_by_the_move,
+    check_an_unknown_key_is_refused_before_anything_else,
+    check_a_known_key_gets_through_and_carries_its_owner,
+    check_the_key_never_appears_in_what_is_written_down,
+    check_the_refusal_does_not_say_whether_the_key_exists,
+    check_the_rate_limit_refuses_before_the_model,
+    check_one_clients_limit_does_not_stop_another,
+    check_an_exhausted_budget_stops_the_call_and_says_so,
+    check_spending_is_counted_or_the_guard_never_fires,
+    check_the_guards_run_in_the_declared_order,
 ]
 
 
