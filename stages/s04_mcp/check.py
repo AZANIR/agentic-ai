@@ -122,10 +122,17 @@ def _require_mcp() -> None:
         raise NotVerified('MCP не встановлено — pip install -e ".[s04]"')
 
 
-def check_list_tools_returns_every_tool_with_a_usable_schema() -> None:
-    """integration · list_tools дає всі інструменти зі схемами, придатними для моделі"""
+def check_list_tools_gives_usable_schemas_with_no_field_lost() -> None:
+    """ВІДМОВА · list_tools: схеми придатні моделі, і жодне поле не загубилось у дорозі
+
+    Два твердження про ОДНУ відповідь, тому одне підняття процесу. C-5 вимагає ізоляції
+    між сценаріями — щоб падіння одного тесту не пояснювалось станом іншого; два ассерти
+    про той самий `list_tools` сценарієм не є, і другий процес тут купував би нічого за
+    майже секунду.
+    """
     _require_mcp()
     tools = {t.name: t for t in list_tools()}
+
     assert set(tools) == {"get_order_status", "initiate_return", "search_knowledge_base"}, sorted(
         tools
     )
@@ -136,11 +143,6 @@ def check_list_tools_returns_every_tool_with_a_usable_schema() -> None:
         assert schema.get("properties"), f"{tool.name}: схема без параметрів"
         assert isinstance(schema.get("required"), list), f"{tool.name}: немає required"
 
-
-def check_no_field_is_lost_crossing_the_process_boundary() -> None:
-    """ВІДМОВА · межа процесу не спрощує контракт: параметри доїжджають усі"""
-    _require_mcp()
-    tools = {t.name: t for t in list_tools()}
     expected = {
         "get_order_status": {"order_id"},
         "initiate_return": {"order_id", "reason"},
@@ -206,12 +208,12 @@ def check_a_server_that_never_answers_times_out() -> None:
     _require_mcp()
     started = time.perf_counter()
     result = call_tool(
-        "get_order_status", {"order_id": "ord_4471"}, module="stages.s04_mcp.mute", timeout=3.0
+        "get_order_status", {"order_id": "ord_4471"}, module="stages.s04_mcp.mute", timeout=1.5
     )
     took = time.perf_counter() - started
 
     assert not result.ok, "мовчазний сервер відповів"
-    assert took < 25, f"чекали {took:.1f} с — тайм-аут не спрацював"
+    assert took < 10, f"чекали {took:.1f} с — тайм-аут не спрацював"
     assert result.failure["phase"] in {"call", "startup"}, result.failure
 
 
@@ -261,8 +263,7 @@ def _executable_lines(name: str) -> int:
 
 
 CHECKS = [
-    check_list_tools_returns_every_tool_with_a_usable_schema,
-    check_no_field_is_lost_crossing_the_process_boundary,
+    check_list_tools_gives_usable_schemas_with_no_field_lost,
     check_calling_a_tool_returns_the_same_shape_as_the_local_function,
     check_the_search_response_carries_prose_around_the_data,
     check_access_level_travels_in_the_payload,
