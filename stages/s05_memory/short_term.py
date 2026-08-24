@@ -54,8 +54,18 @@ class Window:
     def add(self, message: dict[str, str]) -> None:
         self.messages.append(message)
 
+    def __post_init__(self) -> None:
+        if self.size < 1:
+            raise ValueError(f"розмір вікна {self.size} — вікно має вміщати хоча б одну репліку")
+
     def recent(self) -> list[dict[str, str]]:
-        """Останні `size` повідомлень — те, що модель побачить дослівно."""
+        """Останні `size` повідомлень — те, що модель побачить дослівно.
+
+        `size` перевіряється у `__post_init__`, і це не педантизм: `messages[-0:]` у
+        Python — це `messages[0:]`, тобто **всі** повідомлення. Вікно нульового розміру
+        мовчки вимикало стиснення, контекст ріс необмежено, і жодної помилки при цьому
+        не було. Пастка `-0` коштує рівно два рядки перевірки.
+        """
         return self.messages[-self.size :]
 
     def overflow(self) -> list[dict[str, str]]:

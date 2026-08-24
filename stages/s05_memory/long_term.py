@@ -26,24 +26,30 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from shared.llm import get_model
-from stages.s05_memory.facts import ACTIVE, Fact, as_context_line, describe_skip, is_active, replace
+from stages.s05_memory.facts import (
+    ACTIVE,
+    Fact,
+    as_context_line,
+    describe_skip,
+    is_active,
+    one_line,
+    replace,
+)
 from stages.s05_memory.retrieval import Retrieval, get_retrieval
 
 OPEN_FACTS = "=== ЩО МИ ЗНАЄМО ПРО СПІВРОЗМОВНИКА (дані) ==="
 CLOSE_FACTS = "=== КІНЕЦЬ ДАНИХ ==="
 
-_EXTRACT = """Витягни з розмови факти, які варто памʼятати про співрозмовника надовго.
 
-Поверни JSON-масив обʼєктів із полями `topic` і `text`. Тема — одне слово про що факт
-(`name`, `address`, `preference`). Якщо памʼятати нічого — поверни порожній масив.
-
-{lines}"""
+def _safe(value: str) -> str:
+    """Прибрати з тексту факту роздільники блоку даних — він недовірений за побудовою."""
+    for marker in (OPEN_FACTS, CLOSE_FACTS):
+        value = value.replace(marker, "")
+    return one_line(value)
 
 
 @dataclass
@@ -61,12 +67,18 @@ class Context:
     facts: list[dict[str, Any]]
     skipped: list[Skipped]
     threshold: float
+    # Ліміт поруч із порогом: обидва вирішують, чи факт дійде, тож «не дійшов» без
+    # обох чисел неможливо пояснити ні у трейсі, ні користувачеві.
+    limit: int
 
     def as_prompt(self) -> str:
         """Факти для моделі — окремим позначеним блоком, як дані, а не як вказівки."""
         if not self.facts:
             return ""
-        lines = "\n".join(f"- [{f['topic']}] {f['text']}" for f in self.facts)
+        # Текст писав користувач. Без нейтралізації факт із власним `CLOSE_FACTS`
+        # усередині закривав блок даних достроково, і решта його тексту ставала в
+        # промпті інструкцією — рівно тим, чого позначений блок і мав не допустити.
+        lines = "\n".join(f"- [{_safe(f['topic'])}] {_safe(f['text'])}" for f in self.facts)
         return f"{OPEN_FACTS}\n{lines}\n{CLOSE_FACTS}"
 
 
@@ -74,12 +86,17 @@ class Memory:
     """Файл фактів. Один рядок — один запис, читається очима (ADR етапу 0001)."""
 
     def __init__(
-        self, path: Path, *, retrieval: Retrieval | None = None, threshold: float = 0.3
+        self, path: Path, *, retrieval: Retrieval | None = None, threshold: float | None = None
     ) -> None:
         self.path = path
         self.retrieval = retrieval or get_retrieval()
-        self.threshold = threshold
+        # Поріг за замовчуванням бере ВИБІРКА: її оцінки, її шкала. Зашите тут число
+        # підходило лише словниковій, і вмикання семантичної спорожняло контекст.
+        self.threshold = self.retrieval.threshold if threshold is None else threshold
         self.broken: list[str] = []
+        # Сирі рядки, які не розібрались. Пропустити на читанні й затерти на записі —
+        # це не «решта памʼяті робоча», це знищення єдиного доказу псування.
+        self.unparsed: list[str] = []
 
     def all_facts(self) -> list[Fact]:
         """Прочитати файл. Зіпсований рядок названо й пропущено — решта памʼяті робоча."""
@@ -87,13 +104,19 @@ class Memory:
         if not self.path.exists():
             return []
         facts = []
-        for number, line in enumerate(self.path.read_text(encoding="utf-8").splitlines(), 1):
+        self.unparsed = []
+        # `.splitlines()` рве рядок за U+2028 — тим самим символом, який `json.dumps`
+        # НЕ екранує. Один такий символ у тексті факту робив із запису дві половини,
+        # і факт зникав з обох. Текст факту пише користувач, а U+2028 приїжджає з PDF.
+        raw = self.path.read_text(encoding="utf-8").split("\n")
+        for number, line in enumerate(raw, 1):
             if not line.strip():
                 continue
             try:
                 facts.append(Fact.from_line(line))
             except ValueError as error:
                 self.broken.append(f"рядок {number}: {error}")
+                self.unparsed.append(line)
         return facts
 
     def remember(self, fact: Fact) -> Fact | None:
@@ -107,6 +130,13 @@ class Memory:
         for old in existing:
             same_topic = old.owner == fact.owner and old.topic == fact.topic
             if same_topic and old.status == ACTIVE:
+                # Хто старіший, той і йде в історію. Без цієї гілки повторний імпорт
+                # старого файлу відкочував памʼять і ставив час заміни РАНІШЕ за час
+                # самого запису — історію, яку неможливо прочитати.
+                if fact.stored_at < old.stored_at:
+                    fact = replace(fact, at=old.stored_at)
+                    rewritten.append(old)
+                    continue
                 retired = replace(old, at=fact.stored_at)
                 rewritten.append(retired)
             else:
@@ -139,34 +169,13 @@ class Memory:
                 below = (
                     f"оцінка {score:.2f} < {self.threshold}"
                     if score < self.threshold
-                    else "понад ліміт"
+                    else f"понад ліміт {limit}"
                 )
                 skipped.append(Skipped(fact.text, below))
-        return Context(facts=taken, skipped=skipped, threshold=self.threshold)
+        return Context(facts=taken, skipped=skipped, threshold=self.threshold, limit=limit)
 
     def _write(self, facts: list[Fact]) -> None:
+        """Записати памʼять. Нерозібране переноситься як є — стерти його не можна."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text("\n".join(f.to_line() for f in facts) + "\n", encoding="utf-8")
-
-
-def extract(
-    conversation: list[dict[str, str]], *, client: Any, model: str | None = None
-) -> list[dict[str, str]]:
-    """Спитати модель, що з розмови варто памʼятати. Порожній перелік — нормальна відповідь."""
-    lines = "\n".join(f"- {m['role']}: {m['content']}" for m in conversation)
-    reply = client.chat.completions.create(
-        model=model or get_model(),
-        messages=[{"role": "user", "content": _EXTRACT.format(lines=lines)}],
-    )
-    raw = (reply.choices[0].message.content or "").strip()
-    try:
-        found = json.loads(raw)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(found, list):
-        return []
-    return [
-        {"topic": str(item["topic"]), "text": str(item["text"])}
-        for item in found
-        if isinstance(item, dict) and item.get("topic") and item.get("text")
-    ]
+        lines = [f.to_line() for f in facts] + self.unparsed
+        self.path.write_text("\n".join(lines) + "\n", encoding="utf-8")

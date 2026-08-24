@@ -26,11 +26,12 @@ import tempfile
 from pathlib import Path
 
 from shared.fake_llm import FakeLLM, text
-from shared.llm import banner, get_client
+from shared.llm import banner
 from shared.trace import trace_run
 from stages.s05_memory.decision import RULES, Situation, decide
+from stages.s05_memory.extraction import extract
 from stages.s05_memory.facts import Fact
-from stages.s05_memory.long_term import Memory, extract
+from stages.s05_memory.long_term import Memory
 from stages.s05_memory.short_term import Window
 
 DAY = 86_400.0
@@ -138,13 +139,18 @@ def scene_contradiction_and_ttl(tracer, path: Path) -> None:
     )
     context = memory.context_for("olena", QUESTION, now=NOW + DAY)
 
-    print(f"  замінено:   {retired.text!r} → статус {retired.status}")
+    # `remember` вертає `None`, коли замінювати нічого. Демо, що падає тут
+    # AttributeError, пояснює читачеві менше, ніж речення про те, що заміни не було.
+    if retired is None:
+        print("  замінено:   нічого — активного факту тієї ж теми не було")
+    else:
+        print(f"  замінено:   {retired.text!r} → статус {retired.status}")
     print(f"  у файлі:    {len(memory.all_facts())} записів — історія заміни лишилась")
     print(f"  у контекст: {_texts(context)}")
     for skipped in context.skipped:
         if "протух" in skipped.reason or "замінено" in skipped.reason:
             print(f"  відкинуто:  {skipped.text!r} — {skipped.reason}")
-    tracer.step("memory", scene="contradiction", retired=retired.topic)
+    tracer.step("memory", scene="contradiction", retired=retired.topic if retired else None)
     print()
     print("  Обидва записи лишились у файлі; у вибірку йде один. Видалення при записі було")
     print("  б дешевшим — і втратило б відповідь на питання «а що було раніше».")
@@ -192,8 +198,11 @@ def scene_checklist(tracer) -> None:
 
 
 def main(*, show_prompt: bool = False, trace_path: Path | None = None) -> int:
-    client = get_client(demo_script=[text("")])
-    print(banner(client))
+    # Сцени навмисно беруть власний `FakeLLM` зі своїм сценарієм: кожна показує, ЩО
+    # САМЕ має вирішити модель, і це читається як специфікація її поведінки. Банер
+    # береться з того самого підробленого клієнта, щоб не обіцяти справжніх викликів,
+    # яких у демо немає навіть із заповненими LLM_*.
+    print(banner(_client("")))
     print(f"правил у чеклісті: {len(RULES)}")
     print()
 

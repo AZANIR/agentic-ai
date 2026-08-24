@@ -22,21 +22,22 @@ Two mechanisms people keep conflating:
 ```bash
 python -m stages.s05_memory.run           # six scenes; watch scene 3
 python -m stages.s05_memory.run --prompt  # how facts enter the prompt
-python -m stages.s05_memory.check         # 32 checks, 18 of them on failure modes
+python -m stages.s05_memory.check         # 42 checks, 27 of them on failure modes
 python scripts/mutate.py s05 --expect     # break it on purpose, nine exercises
 ```
 
 Works offline with no API key: extraction and summarising run against a scripted fake.
 
-## The five modules, in reading order
+## The six modules, in reading order
 
 | File | What it holds | Lines |
 |---|---|---|
-| `facts.py` | the record, and the four conditions that make it eligible | 47 |
-| `short_term.py` | the window; the summary accumulates instead of being rewritten | 34 / 50 |
-| `retrieval.py` | two implementations behind one interface — word overlap and cosine | 29 |
-| `long_term.py` | extract, store, retrieve; contradictions; the owner filter | 76 / 90 |
-| `decision.py` | the what-to-remember checklist; the order is the content | 23 |
+| `facts.py` | the record, and the four conditions that make it eligible | 56 |
+| `short_term.py` | the window; the summary accumulates instead of being rewritten | 37 / 50 |
+| `retrieval.py` | two implementations behind one interface; each declares its own threshold | 35 |
+| `long_term.py` | store, retrieve, contradictions, the owner filter | 79 / 90 |
+| `extraction.py` | the only place that calls a model; an empty list is a normal answer | 11 |
+| `decision.py` | the what-to-remember checklist; the order is the content | 22 |
 
 ## One sentence
 
@@ -77,6 +78,14 @@ running where a review found a check with the right verdict and too weak a claim
 - **Owner is a field, not authentication.** Who `olena` is, the caller decides.
 - **Retrieval is linear.** Every fact is read on every question. Fine for hundreds, wrong for
   millions; optimisation lives in stage 8.
+- **The default embedder is not semantic.** `hash-words` is word-based too, so on the
+  synonym question it scores 0.00 exactly like word overlap. What the second implementation
+  does demonstrate is that **the scales differ** — 0.50 against 0.52 on the same fact — which
+  is why the threshold belongs to the retrieval and not to the store. Real synonym matching
+  needs `EMBEDDINGS_PROVIDER=fastembed` or `openai`.
+- **A fact can still reach the context by restating the question.** Union normalisation stops
+  it from outranking a genuine answer (0.43 against 0.50), not from passing the threshold.
+  Pretending otherwise would be a claim about relevance the mechanism cannot make.
 
 ## Where to break it
 

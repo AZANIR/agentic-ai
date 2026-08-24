@@ -23,9 +23,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-# Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
-BUDGET_SECONDS = 30
-
 
 @dataclass(frozen=True)
 class Situation:
