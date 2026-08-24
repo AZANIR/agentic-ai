@@ -55,6 +55,9 @@ jobs:
 
       # test_cmd з docs/architecture-map.md — офлайн, без ключів
       - name: Checks
+        env:
+          DATABASE_URL: postgresql://agentic:agentic@127.0.0.1:5432/agentic
+          REDIS_URL: redis://127.0.0.1:6379/0
         run: python scripts/check_all.py
 
   # Друга робота існує через одну властивість: етапи мають проходитись БЕЗ необовʼязкових
@@ -63,6 +66,29 @@ jobs:
   # б зеленим. Тут вони виконуються.
   optional-extras:
     runs-on: ubuntu-latest
+
+    # Сервіси, а не пакети. Етап 6 має перевірки, яким потрібні саме вони: контракт
+    # сховища на базі, спільний лічильник, дві умови міграції. Без них вони чесно кажуть
+    # `НЕ ПЕРЕВІРЕНО` — але ця робота існує рівно для того, щоб неперевіреного тут не
+    # лишилось, тож сервіси мають бути підняті.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: agentic
+          POSTGRES_PASSWORD: agentic
+          POSTGRES_DB: agentic
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U agentic -d agentic"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+
     steps:
       # fetch-depth: 0 — перевірки «нижній етап не змінено» звіряються з теґом
       # попереднього етапу, а неглибокий клон теґів не тягне (ADR-0007).
@@ -77,7 +103,12 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Install with per-stage extras
-        run: pip install -e ".[dev,s03,s04]"
+        run: pip install -e ".[dev,s03,s04,s06]"
+
+      - name: Migrate
+        env:
+          DATABASE_URL: postgresql://agentic:agentic@127.0.0.1:5432/agentic
+        run: python scripts/migrate.py up
 
       # Той самий набір, але тепер порівняння двох реалізацій графа справді відбувається.
       - name: Checks

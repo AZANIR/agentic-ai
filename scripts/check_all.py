@@ -35,6 +35,8 @@ GREEN, RED, YELLOW = _C["GREEN"], _C["RED"], _C["YELLOW"]
 BOLD, DIM, OFF = _C["BOLD"], _C["DIM"], _C["OFF"]
 
 _MISSING = re.compile(r"""ModuleNotFoundError: No module named ['"]([\w.]+)['"]""")
+NEWLINE = chr(10)
+
 _DEP_NAME = re.compile(r"""['"]([A-Za-z][\w.-]*)(?:\[[^\]]*\])?\s*[><=!~]""")
 
 
@@ -124,12 +126,50 @@ def _echo_unverified(output: str) -> None:
             print(f"{YELLOW}{line.rstrip()}{OFF}")
 
 
+def lint() -> tuple[bool, str]:
+    """Лінт і формат — тими самими командами, що у CI.
+
+    Раніше `check_all` їх не запускав, і локальна команда відрізнялась від CI на два
+    кроки. Наслідок передбачуваний: перевірки зелені, пуш, CI червоний на довгому рядку
+    — і виправлення коштує повного циклу замість двох секунд.
+
+    Гейт, який відрізняється від того, що вирішує, — це не гейт, а репетиція.
+    """
+    import shutil
+
+    # Поруч із поточним Python, потім у PATH. Голе `ruff` знаходиться у CI й не
+    # знаходиться у venv на Windows — а гейт, що падає від власного запуску, вимикають.
+    ruff = shutil.which("ruff", path=str(Path(sys.executable).parent)) or shutil.which("ruff")
+    if ruff is None:
+        return True, ""
+
+    problems = []
+    for command in ([ruff, "check", "."], [ruff, "format", "--check", "."]):
+        result = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if result.returncode != 0:
+            problems.append(" ".join(command) + ":" + NEWLINE + (result.stdout or result.stderr))
+    return not problems, NEWLINE.join(problems)
+
+
 def main(argv: list[str]) -> int:
     modules = discover(argv)
     if not modules:
         print(f"{YELLOW}перевірок не знайдено{OFF}")
         print("очікувались shared/check.py і stages/s*_*/check.py")
         return 1
+
+    clean, complaint = lint()
+    if not clean:
+        print(f"{RED}лінт{OFF}")
+        print(complaint.rstrip())
+        print()
 
     print(f"{BOLD}check_all · {len(modules)} модул(ів){OFF}")
 
@@ -165,7 +205,7 @@ BUDGET_SECONDS свідомо — і онови число в NFR тим сам�
             unverified.append(output)
 
     print()
-    if failed:
+    if failed or not clean:
         for module, output in failed:
             print(f"{RED}{'=' * 70}{OFF}")
             print(f"{RED}{module}{OFF}")
