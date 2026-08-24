@@ -20,16 +20,22 @@ python scripts/mutate.py s06 --expect
 
 ---
 
+
 ## Вправа 1 · Лічильник у спільному сховищі стає процесо-локальним
 
 `shared/counters.py`:
 
 ```python
-if client is not None:   # було
-if client is not None:   # стало
+# було
+    if client is not None:
+        return Shared(client)
+
+# стало
+    if client is not None:
+        return InMemory()
 ```
 
-**Червоних: 1.**
+**Червоних: 2.**
 
 Найважливіша з шістнадцяти. Лічильник стає процесо-локальним — і **все далі працює**:
 запити проходять, відмови приходять, метрики рахуються. Просто межа означає інше.
@@ -44,11 +50,14 @@ if client is not None:   # стало
 `shared/counters.py`:
 
 ```python
-member = f"{now:.6f}:{uuid4().hex[:8]}:{amount}"   # було
-member = f"{now:.6f}:0:{amount}"   # стало
+# було
+        member = f"{now:.6f}:{uuid4().hex[:8]}:{amount}"
+
+# стало
+        member = f"{now:.6f}:0:{amount}"
 ```
 
-**Червоних: 2.**
+**Червоних: 3.**
 
 Член множини знову складається з часу й суми. Дві події тієї самої миті з тією самою
 вартістю стають одним членом, бо множина не тримає дублікатів.
@@ -64,11 +73,14 @@ member = f"{now:.6f}:0:{amount}"   # стало
 `shared/counters.py`:
 
 ```python
-return sum(value for at, value in self._events.get(key, []) if now - at < window)   # було
-return sum(value for _, value in self._prune(key, now=now, window=window))   # стало
+# було
+        return sum(value for at, value in self._events.get(key, []) if now - at < window)
+
+# стало
+        return sum(value for _, value in self._prune(key, now=now, window=window))
 ```
 
-**Червоних: 1.**
+**Червоних: 2.**
 
 Читання лічильника знову чистить сховище. Питання про вікно, що вже минуло, стирає подію
 назавжди — наступний запит у межах вікна бачить нуль.
@@ -82,11 +94,14 @@ return sum(value for _, value in self._prune(key, now=now, window=window))   # �
 `stages/s06_platform/guards.py`:
 
 ```python
-known = any(hmac.compare_digest(given, candidate.encode()) for candidate in settings.api_keys)   # було
-known = any(key == candidate for candidate in settings.api_keys)   # стало
+# було
+    known = any(hmac.compare_digest(given, candidate.encode()) for candidate in settings.api_keys)
+
+# стало
+    known = any(key == candidate for candidate in settings.api_keys)
 ```
 
-**Червоних: 1.**
+**Червоних: 2.**
 
 Стале порівняння стає звичайним `==`. Функціонально **нічого не змінюється**: ключі
 звіряються, чужі відхиляються, свої проходять.
@@ -104,8 +119,11 @@ known = any(key == candidate for candidate in settings.api_keys)   # стало
 `stages/s06_platform/guards.py`:
 
 ```python
-seen = counters.total(f"rate:{owner}", now=now, window=MINUTE)   # було
-seen = counters.total("rate:everyone", now=now, window=MINUTE)   # стало
+# було
+    seen = counters.add(f"rate:{owner}", 1, now=now, window=MINUTE)
+
+# стало
+    seen = counters.add("rate:everyone", 1, now=now, window=MINUTE)
 ```
 
 **Червоних: 4.**
@@ -122,11 +140,14 @@ seen = counters.total("rate:everyone", now=now, window=MINUTE)   # стало
 `stages/s06_platform/guards.py`:
 
 ```python
-for gate in (within_rate, within_budget):   # було
-for gate in (within_budget, within_rate):   # стало
+# було
+    for gate in (within_rate, within_budget):
+
+# стало
+    for gate in (within_budget, within_rate):
 ```
 
-**Червоних: 1.**
+**Червоних: 2.**
 
 Бюджет перевіряється раніше за ліміт. Сервіс починає рахувати витрати тих, кого однаково
 відхилить, і порядок воротарів перестає бути рішенням.
@@ -138,11 +159,14 @@ for gate in (within_budget, within_rate):   # стало
 `stages/s06_platform/guards.py`:
 
 ```python
-return hashlib.sha256(key.encode()).hexdigest()[:16]   # було
-return key   # стало
+# було
+    return hashlib.sha256(f"{salt}:{key}".encode()).hexdigest()[:16]
+
+# стало
+    return key
 ```
 
-**Червоних: 3.**
+**Червоних: 5.**
 
 У трейс іде сам ключ замість похідного ідентифікатора. Ключ у трейсі — це ключ у файлі,
 який читає той, хто налагоджує; і в базі, і в метриках, і в логах збірки.
@@ -154,11 +178,14 @@ return key   # стало
 `stages/s06_platform/guards.py`:
 
 ```python
-return counters.add(f"spend:{owner}", amount, now=now, window=DAY)   # було
-return counters.total(f"spend:{owner}", now=now, window=DAY)   # стало
+# було
+    return counters.add(f"spend:{owner}", amount, now=now, window=DAY)
+
+# стало
+    return counters.total(f"spend:{owner}", now=now, window=DAY)
 ```
 
-**Червоних: 3.**
+**Червоних: 4.**
 
 Витрати не записуються. Запобіжник лишається на місці й **не спрацьовує ніколи**: він
 щоразу питає про нуль.
@@ -173,11 +200,16 @@ return counters.total(f"spend:{owner}", now=now, window=DAY)   # стало
 `shared/factstore.py`:
 
 ```python
-" WHERE owner = %s ORDER BY stored_at",   # було
-" ORDER BY stored_at",   # стало
+# було
+            " WHERE owner = %s ORDER BY stored_at",
+            (owner,),
+
+# стало
+            " ORDER BY stored_at",
+            (),
 ```
 
-**Червоних: 1.**
+**Червоних: 2.**
 
 Фільтр власника зникає із запиту до бази. Чужі рядки повертаються зі сховища — і саме
 тому ізоляція перевіряється **на обох** реалізаціях, а не лише на файловій.
@@ -189,11 +221,19 @@ return counters.total(f"spend:{owner}", now=now, window=DAY)   # стало
 `shared/factstore.py`:
 
 ```python
-self._connection.rollback()   # було
-raise   # стало
+# було
+            self._connection.rollback()
+            raise
+
+    def _execute
+
+# стало
+            raise
+
+    def _execute
 ```
 
-**Червоних: 1.**
+**Червоних: 2.**
 
 Невдалий запит більше не відкочує транзакцію. Наступні падають **навіть коли причина
 зникла** — сервіс лишається мертвим після виправлення.
@@ -207,11 +247,14 @@ raise   # стало
 `stages/s06_platform/observe.py`:
 
 ```python
-"status": UP if all(d["status"] == UP for d in seen.values()) else DOWN,   # було
-"status": UP,   # стало
+# було
+            "status": UP if all(d["status"] == UP for d in seen.values()) else DOWN,
+
+# стало
+            "status": UP,
 ```
 
-**Червоних: 1.**
+**Червоних: 2.**
 
 Стан рапортує «живий» незалежно від залежностей. Монітор мовчить, поки не поскаржиться
 користувач.
@@ -223,11 +266,14 @@ raise   # стало
 `stages/s06_platform/observe.py`:
 
 ```python
-return DOWN, type(error).__name__   # було
-return DOWN, str(error)   # стало
+# було
+            return DOWN, type(error).__name__
+
+# стало
+            return DOWN, str(error)
 ```
 
-**Червоних: 2.**
+**Червоних: 3.**
 
 Причина у стані стає текстом помилки замість типу. Текст драйвера бази несе адресу,
 користувача й порт — а стан читає той, у кого ключа немає.
@@ -239,11 +285,14 @@ return DOWN, str(error)   # стало
 `stages/s06_platform/observe.py`:
 
 ```python
-self.requests[kind] += 1   # було
-self.requests["all"] += 1   # стало
+# було
+        self.requests[kind] += 1
+
+# стало
+        self.requests["all"] += 1
 ```
 
-**Червоних: 1.**
+**Червоних: 2.**
 
 Метрики перестають розрізняти роди відмов. «3 % відхилено» однаково описує зламану
 автентифікацію, зловживання й вичерпаний бюджет — три різні дії оператора.
@@ -255,11 +304,14 @@ self.requests["all"] += 1   # стало
 `stages/s06_platform/jobs.py`:
 
 ```python
-if self.mode != INSIDE or now < due_at:   # було
-if now < due_at:   # стало
+# було
+        if self.mode != INSIDE or now < due_at:
+
+# стало
+        if now < due_at:
 ```
 
-**Червоних: 2.**
+**Червоних: 3.**
 
 Планувальник повертається всередину застосунку. Задача виконується двічі за інтервал.
 
@@ -272,11 +324,14 @@ if now < due_at:   # стало
 `stages/s06_platform/app.py`:
 
 ```python
-except Exception as error:  # noqa: BLE001 — межа сервісу: далі летіти нікуди   # було
-except KeyboardInterrupt as error:   # стало
+# було
+        except Exception as error:  # noqa: BLE001 — межа сервісу: далі летіти нікуди
+
+# стало
+        except KeyboardInterrupt as error:
 ```
 
-**Червоних: 1.**
+**Червоних: 2.**
 
 Сервіс перестає ловити помилки залежностей. Недоступне сховище забирає із собою процес:
 один запит гірший за всі запити.
@@ -288,24 +343,73 @@ except KeyboardInterrupt as error:   # стало
 `shared/config.py`:
 
 ```python
-if not self.has_real_llm and not self.allow_fake_llm:   # було
-if False:   # стало
+# було
+        if not self.has_real_llm and not self.allow_fake_llm:
+
+# стало
+        if False:
 ```
 
-**Червоних: 1.**
+**Червоних: 2.**
 
 Профіль `prod` стартує з підробкою без жодного дозволу. Сервіс обслуговує справжніх
 користувачів вигадками, і ніщо про це не каже.
 
 ---
 
+## Вправа 17 · Сервіс перевіряє одне правило чекліста замість шести
+
+`stages/s06_platform/app.py`:
+
+```python
+# було
+        decision = decide(_looks_like(question))
+
+# стало
+        decision = decide(Situation(text=question, asked=True))
+```
+
+**Червоних: 2.**
+
+Сервіс перевіряє **одне** правило чекліста замість шести — те, з якого починалась перша
+редакція. Пароль зберігається в памʼяті й потрапляє у трейс разом із причиною відкидання.
+
+Етап 5 навмисно поставив секрет **перед** проханням, бо «запамʼятай мій пароль»
+задовольняє обидва правила. Пропустити перші три означає навчити читача чеклісту й самому
+ним не скористатись.
+
+---
+
+## Вправа 18 · Похідний власник знову несолений
+
+`stages/s06_platform/guards.py`:
+
+```python
+# було
+    return hashlib.sha256(f"{salt}:{key}".encode()).hexdigest()[:16]
+
+# стало
+    return hashlib.sha256(key.encode()).hexdigest()[:16]
+```
+
+**Червоних: 2.**
+
+Похідний ідентифікатор власника знову несолений. Обіцянка «ключ із нього не
+відновлюється» перестає бути правдою: ключі короткі, `sha256` детермінований між усіма
+розгортаннями, і словник відновлює `change-me-too` за кілька спроб.
+
+Той, хто дістав трейс — а урок наполягає, що трейси читають при налагодженні, — дістав
+і ключ.
+
+---
+
 ## Що робити далі
 
 Спробуй **свою** мутацію: зламай щось і подивись, чи хтось помітить. Якщо набір лишився
-зеленим — ти знайшов дірку в перевірках, і це цінніше за будь-яку з шістнадцяти вище.
+зеленим — ти знайшов дірку в перевірках, і це цінніше за будь-яку з вісімнадцяти вище.
 
-Так знайшлась вправа 4: вона давала нуль червоних, і властивість безпеки виявилась
-нічим не триманою. Питання, яке це знаходить: **що саме має зламатись, щоб ця перевірка
+Так знайшлися вправи 4, 17 і 18: перша давала нуль червоних, а дві останні зʼявились після
+того, як незалежне рев'ю спитало про кожну перевірку — **що саме має зламатись, щоб вона
 почервоніла?**
 
 І окремо — зламай **розгортання**:

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from threading import Lock
 from typing import Any
 
 UP = "up"
@@ -88,12 +89,28 @@ class Metrics:
 
     requests: Counter = field(default_factory=Counter)
     traces: int = 0
+    spent_usd: float = 0.0
+    # `+=` на елементі Counter — це читання-додавання-запис, тобто не атомарна
+    # операція. Один воркер уже багатопотоковий: синхронний ендпоінт FastAPI
+    # виконується в пулі. Тобто «числа майже сходяться» відтворюється й на одному
+    # процесі, і пояснення «це через кілька воркерів» повело б читача не туди.
+    _lock: Lock = field(default_factory=Lock, repr=False)
 
     def request(self, kind: str) -> None:
-        self.requests[kind] += 1
+        with self._lock:
+            self.requests[kind] += 1
+
+    def spend(self, amount: float) -> None:
+        """Витрата у метриках. Запобіжник, чиїх витрат не видно, не має чим керувати:
+
+        оператор бачить «бюджет вичерпано» і не бачить, як швидко він вичерпувався.
+        """
+        with self._lock:
+            self.spent_usd += amount
 
     def trace_written(self) -> None:
-        self.traces += 1
+        with self._lock:
+            self.traces += 1
 
     def render(self) -> str:
         """Стандартний текстовий формат витягування: рядок на зразок, коментар на метрику."""
@@ -107,5 +124,8 @@ class Metrics:
             "# HELP s06_traces_total Записані трейси.",
             "# TYPE s06_traces_total counter",
             f"s06_traces_total {self.traces}",
+            "# HELP s06_spend_usd_total Оцінка витрат на виклики моделі.",
+            "# TYPE s06_spend_usd_total counter",
+            f"s06_spend_usd_total {self.spent_usd:.4f}",
         ]
         return "\n".join(lines) + "\n"

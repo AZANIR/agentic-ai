@@ -17,10 +17,12 @@
 
 - [ ] `python -m stages.s06_platform.run` — сім сцен; шосту прочитав уважно.
 - [ ] `python -m stages.s06_platform.run --trace` — побачив порядок кроків у трейсі.
-- [ ] `python -m stages.s06_platform.check` — усі зелені; перевірок: 59, з них на режими відмови: 45.
+- [ ] `python -m stages.s06_platform.check` — усі зелені; перевірок: 69, з них на режими відмови: 57.
 - [ ] `docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build`
       — п'ять контейнерів, і планувальник серед них.
-- [ ] `./deploy/smoke.sh https://localhost` — 10 пройдено, 0 збоїв, 1 **не перевірено**.
+- [ ] `API_KEY=<ключ> ./deploy/smoke.sh https://localhost` — 10 пройдено, 0 збоїв,
+      1 **не перевірено**. Без `API_KEY=` буде 8 пройдено й 3 не перевірено — і це
+      теж правильна відповідь: скрипт не вдає, що перевірив те, чого не міг.
 - [ ] `python scripts/mutate.py s06 --expect` — числа у вправах збігаються з прогоном.
 - [ ] Зупинив `postgres` і подивився на `/healthz`: `down`, і названо саме `store`.
 - [ ] Зробив вправу 1 і побачив, що ліміт лишився «правильним» на одному екземплярі.

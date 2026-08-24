@@ -1,6 +1,6 @@
 {
   "stage": "s06-platform",
-  "executed_floor": 40,
+  "executed_floor": 50,
   "note": "Мутації етапу ламають властивості, а не синтаксис. Найважливіші три — фільтр власника у сховищі, спільність лічильника й порядок воротарів: усі три дають код, який ПРАЦЮЄ і при цьому неправильний. Числа заміряні З ПІДНЯТОЮ базою: без неї шість перевірок стають НЕ ПЕРЕВІРЕНО, а не червоними, і кількість червоних падає. Це не поблажка — третій стан не дорівнює зеленому, і `check_all` друкує його окремо.",
   "mutations": [
     {
@@ -8,34 +8,34 @@
       "file": "shared/counters.py",
       "old": "    if client is not None:\n        return Shared(client)",
       "new": "    if client is not None:\n        return InMemory()",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 2 · член множини знову складається з часу й суми",
       "file": "shared/counters.py",
       "old": "        member = f\"{now:.6f}:{uuid4().hex[:8]}:{amount}\"",
       "new": "        member = f\"{now:.6f}:0:{amount}\"",
-      "expect_failed": 2
+      "expect_failed": 3
     },
     {
       "name": "вправа 3 · читання лічильника знову чистить сховище",
       "file": "shared/counters.py",
       "old": "        return sum(value for at, value in self._events.get(key, []) if now - at < window)",
       "new": "        return sum(value for _, value in self._prune(key, now=now, window=window))",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 4 · порівняння ключа стає звичайним рівнянням",
       "file": "stages/s06_platform/guards.py",
       "old": "    known = any(hmac.compare_digest(given, candidate.encode()) for candidate in settings.api_keys)",
       "new": "    known = any(key == candidate for candidate in settings.api_keys)",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 5 · ліміт рахується на сервіс, а не на власника",
       "file": "stages/s06_platform/guards.py",
-      "old": "    seen = counters.total(f\"rate:{owner}\", now=now, window=MINUTE)",
-      "new": "    seen = counters.total(\"rate:everyone\", now=now, window=MINUTE)",
+      "old": "    seen = counters.add(f\"rate:{owner}\", 1, now=now, window=MINUTE)",
+      "new": "    seen = counters.add(\"rate:everyone\", 1, now=now, window=MINUTE)",
       "expect_failed": 4
     },
     {
@@ -43,77 +43,91 @@
       "file": "stages/s06_platform/guards.py",
       "old": "    for gate in (within_rate, within_budget):",
       "new": "    for gate in (within_budget, within_rate):",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 7 · ключ іде у трейс замість похідного власника",
       "file": "stages/s06_platform/guards.py",
-      "old": "    return hashlib.sha256(key.encode()).hexdigest()[:16]",
+      "old": "    return hashlib.sha256(f\"{salt}:{key}\".encode()).hexdigest()[:16]",
       "new": "    return key",
-      "expect_failed": 3
+      "expect_failed": 5
     },
     {
       "name": "вправа 8 · витрати не записуються",
       "file": "stages/s06_platform/guards.py",
       "old": "    return counters.add(f\"spend:{owner}\", amount, now=now, window=DAY)",
       "new": "    return counters.total(f\"spend:{owner}\", now=now, window=DAY)",
-      "expect_failed": 3
+      "expect_failed": 4
     },
     {
       "name": "вправа 9 · фільтр власника прибрано зі сховища на базі",
       "file": "shared/factstore.py",
       "old": "            \" WHERE owner = %s ORDER BY stored_at\",\n            (owner,),",
       "new": "            \" ORDER BY stored_at\",\n            (),",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 10 · невдалий запит більше не відкочує транзакцію",
       "file": "shared/factstore.py",
       "old": "            self._connection.rollback()\n            raise\n\n    def _execute",
       "new": "            raise\n\n    def _execute",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 11 · стан рапортує «живий» незалежно від залежностей",
       "file": "stages/s06_platform/observe.py",
       "old": "            \"status\": UP if all(d[\"status\"] == UP for d in seen.values()) else DOWN,",
       "new": "            \"status\": UP,",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 12 · причина у стані стає текстом помилки, а не типом",
       "file": "stages/s06_platform/observe.py",
       "old": "            return DOWN, type(error).__name__",
       "new": "            return DOWN, str(error)",
-      "expect_failed": 2
+      "expect_failed": 3
     },
     {
       "name": "вправа 13 · метрики перестають розрізняти роди відмов",
       "file": "stages/s06_platform/observe.py",
       "old": "        self.requests[kind] += 1",
       "new": "        self.requests[\"all\"] += 1",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 14 · планувальник повертається всередину застосунку",
       "file": "stages/s06_platform/jobs.py",
       "old": "        if self.mode != INSIDE or now < due_at:",
       "new": "        if now < due_at:",
-      "expect_failed": 2
+      "expect_failed": 3
     },
     {
       "name": "вправа 15 · сервіс падає разом із недоступною залежністю",
       "file": "stages/s06_platform/app.py",
       "old": "        except Exception as error:  # noqa: BLE001 — межа сервісу: далі летіти нікуди",
       "new": "        except KeyboardInterrupt as error:",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 16 · профіль prod стартує з підробкою без жодного дозволу",
       "file": "shared/config.py",
       "old": "        if not self.has_real_llm and not self.allow_fake_llm:",
       "new": "        if False:",
-      "expect_failed": 1
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 17 · сервіс перевіряє одне правило чекліста замість шести",
+      "file": "stages/s06_platform/app.py",
+      "old": "        decision = decide(_looks_like(question))",
+      "new": "        decision = decide(Situation(text=question, asked=True))",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 18 · похідний власник знову несолений",
+      "file": "stages/s06_platform/guards.py",
+      "old": "    return hashlib.sha256(f\"{salt}:{key}\".encode()).hexdigest()[:16]",
+      "new": "    return hashlib.sha256(key.encode()).hexdigest()[:16]",
+      "expect_failed": 2
     }
   ]
 }

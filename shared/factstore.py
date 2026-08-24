@@ -38,6 +38,8 @@ class FactStore(Protocol):
 
     def all_facts(self) -> list[Fact]: ...
 
+    def ping(self) -> None: ...
+
     def remember(self, fact: Fact) -> Fact | None: ...
 
     def context_for(self, owner: str, question: str, *, now: float, limit: int = 3) -> Context: ...
@@ -57,6 +59,10 @@ class FileStore:
 
     def all_facts(self) -> list[Fact]:
         return self._memory.all_facts()
+
+    def ping(self) -> None:
+        """Чи доступне сховище. **Не читає даних** — див. `DatabaseStore.ping`."""
+        self._memory.path.parent.mkdir(parents=True, exist_ok=True)
 
     def remember(self, fact: Fact) -> Fact | None:
         return self._memory.remember(fact)
@@ -80,7 +86,8 @@ class DatabaseStore:
         self, connection: Any, *, retrieval: Any = None, threshold: float | None = None
     ) -> None:
         self._connection = connection
-        self._ranker = _DatabaseMemory(self._facts_of, retrieval=retrieval, threshold=threshold)
+        self._retrieval = retrieval
+        self._threshold = threshold
 
     def all_facts(self) -> list[Fact]:
         rows = self._query(
@@ -130,7 +137,28 @@ class DatabaseStore:
         return retired
 
     def context_for(self, owner: str, question: str, *, now: float, limit: int = 3) -> Context:
-        return self._ranker.context_for(owner, question, now=now, limit=limit)
+        # Ранжувальник створюється **на запит**, а не тримається полем. Спільний
+        # екземпляр тримав би власника у `self`, і два одночасні запити читали б
+        # памʼять одне одного: між `self._owner = owner` і читанням є вікно, а
+        # синхронний ендпоінт FastAPI виконується в пулі потоків.
+        #
+        # Витоку це не давало — фільтр етапу 5 рятував, — але **своя відповідь
+        # зникала**. Тобто рівно та вада, яку курс називає гіршою за витік, і яку
+        # перевірка на витік не бачить.
+        ranker = _DatabaseMemory(
+            self._facts_of, owner, retrieval=self._retrieval, threshold=self._threshold
+        )
+        return ranker.context_for(owner, question, now=now, limit=limit)
+
+    def ping(self) -> None:
+        """Чи доступна база. Один тривіальний запит, без жодного рядка даних.
+
+        Перша редакція проби читала `all_facts()` — тобто **повний скан таблиці без
+        межі**. Ендпоінт стану відкритий навмисно (його читає монітор без ключа), і
+        воротарі до нього не доходять: будь-хто замовляв повний скан стільки разів на
+        секунду, скільки витримає мережа. Дешева проба — не оптимізація, а межа.
+        """
+        self._query("SELECT 1")
 
     def _query(self, sql: str, params: tuple[Any, ...] = ()) -> list[tuple[Any, ...]]:
         try:
@@ -167,19 +195,15 @@ class _DatabaseMemory(Memory):
     База замінює лише читання, і це та межа, яку етап 5 назвав вузькою.
     """
 
-    def __init__(self, fetch: Any, **kwargs: Any) -> None:
-        # Шлях не використовується: `all_facts` перевизначено. Ім'я каже це вголос,
+    def __init__(self, fetch: Any, owner: str, **kwargs: Any) -> None:
+        # Шлях не використовується: `all_facts` перевизначено. Імʼя каже це вголос,
         # щоб ніхто не шукав файл, якого немає.
         super().__init__(Path("unused-the-store-is-a-database"), **kwargs)
         self._fetch = fetch
-        self._owner = ""
+        self._owner = owner
 
     def all_facts(self) -> list[Fact]:
         return self._fetch(self._owner)
-
-    def context_for(self, owner: str, question: str, *, now: float, limit: int = 3) -> Context:
-        self._owner = owner
-        return super().context_for(owner, question, now=now, limit=limit)
 
 
 def _from_row(row: tuple[Any, ...]) -> Fact:

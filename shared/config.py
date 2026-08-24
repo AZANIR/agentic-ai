@@ -83,6 +83,8 @@ class Settings:
     # продакшн-збірку локально й перевірити СПРАВЖНІ адаптери — Postgres замість
     # файлу, Redis замість памʼяті процесу — не маючи платного ключа (ADR-0009).
     allow_fake_llm: bool = False
+    # Сіль для похідного ідентифікатора власника (`guards.owner_of`). У prod обовʼязкова.
+    owner_salt: str = ""
     max_message_chars: int = 4000
     max_audio_seconds: int = 30
 
@@ -119,6 +121,7 @@ class Settings:
             embeddings_provider=_env(source, "EMBEDDINGS_PROVIDER", "hash").lower(),
             embeddings_model=_env(source, "EMBEDDINGS_MODEL"),
             allow_fake_llm=_env(source, "ALLOW_FAKE_LLM") == "1",
+            owner_salt=_env(source, "OWNER_SALT"),
             trace_sink=_env(source, "TRACE_SINK", "jsonl").lower(),
             trace_dir=trace_dir,
             langfuse_host=_env(source, "LANGFUSE_HOST"),
@@ -144,6 +147,22 @@ class Settings:
         платного LLM, — відкритий гаманець. Профіль ``local`` навмисне м'який,
         профіль ``prod`` — ні.
         """
+        # Межі перевіряються в ОБОХ профілях: нуль — найприродніший спосіб написати
+        # «без ліміту», а дає повну відмову в обслуговуванні при зеленому стані.
+        # Відʼємне значення так само приймалось мовчки.
+        bounds = []
+        if self.rate_limit_per_minute < 1:
+            bounds.append(
+                f"RATE_LIMIT_PER_MINUTE={self.rate_limit_per_minute} — це відмова "
+                "всім, а не «без ліміту». Постав велике число, якщо межа не потрібна"
+            )
+        if self.budget_usd_per_day <= 0:
+            bounds.append(f"BUDGET_USD_PER_DAY={self.budget_usd_per_day} — жоден запит не пройде")
+        if bounds:
+            raise ConfigError(
+                "межі налаштовано так, що сервіс нічого не обслужить:\n  - " + "\n  - ".join(bounds)
+            )
+
         if not self.is_prod:
             return
         problems = []
@@ -153,6 +172,11 @@ class Settings:
             problems.append("DATABASE_URL порожній")
         if not self.redis_url:
             problems.append("REDIS_URL порожній — ліміти й бюджет не працюватимуть")
+        if not self.owner_salt:
+            problems.append(
+                "OWNER_SALT порожній — похідний ідентифікатор власника стає "
+                "несоленим хешем, і слабкий ключ відновлюється з трейсу словником"
+            )
         if not self.has_real_llm and not self.allow_fake_llm:
             problems.append(
                 "LLM_BASE_URL/LLM_API_KEY порожні — у prod FakeLLM не має сенсу. "

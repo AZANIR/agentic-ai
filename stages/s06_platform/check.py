@@ -44,7 +44,7 @@ from stages.s06_platform.jobs import (
     Ledger,
     Scheduler,
     Worker,
-    cleanup,
+    count_expired,
     run_interval,
 )
 from stages.s06_platform.observe import DOWN, UP, Dependency, Health, Metrics
@@ -741,11 +741,14 @@ def check_the_trace_names_every_step_and_its_reason() -> None:
     mine = [step for step in recorded if step.get("trace_ref") == answer.trace_id]
     order = [step["kind"] for step in mine]
 
-    assert order[:3] == ["guard", "intent", "memory"], (
-        f"порядок кроків {order}. Гілка після відповіді нічого не пояснює — вона переказує "
-        "те, що вже сталося"
+    assert order[:4] == ["received", "guard", "intent", "memory"], (
+        f"порядок кроків {order}. Трейс має починатися з ПРИЙОМУ запиту, а не з рішення "
+        "про нього: інакше зникає те, про що рішення ухвалене"
     )
     assert "done" in order, order
+
+    received = next(step for step in mine if step["kind"] == "received")
+    assert received["chars"] > 0, received
 
     guard = next(step for step in mine if step["kind"] == "guard")
     assert guard["verdict"] == OK and guard["owner"] == owner_of(KEY), (
@@ -772,9 +775,10 @@ def check_a_refused_request_leaves_only_its_refusal() -> None:
 
     assert not answer.ok and answer.kind == UNAUTHENTICATED, answer
     mine = [step for step in recorded if step.get("trace_ref") == answer.trace_id]
-    assert [step["kind"] for step in mine] == ["guard"], (
-        f"у трейсі відхиленого запиту є зайве: {[s['kind'] for s in mine]}. Порожній "
-        "сценарій моделі означає, що жодного виклику не сталося — інакше FakeLLM упав би"
+    assert [step["kind"] for step in mine] == ["received", "guard"], (
+        f"у трейсі відхиленого запиту є зайве: {[s['kind'] for s in mine]}. Прийом і "
+        "відмова — і нічого більше. Порожній сценарій моделі означає, що жодного виклику "
+        "не сталося: інакше FakeLLM упав би"
     )
 
 
@@ -1015,30 +1019,62 @@ def check_the_shared_store_fixes_the_half_nobody_sees() -> None:
     )
 
 
-def check_the_cleanup_job_is_idempotent_but_that_is_not_the_point() -> None:
-    """jobs: прибирання нешкідливе двічі — і це властивість задачі, а не механізму"""
+def check_the_scheduled_job_reports_what_actually_expired() -> None:
+    """ВІДМОВА · задача: число у звіті змінюється разом із протуханням, а не константа"""
     with tempfile.TemporaryDirectory() as tmp:
         store = FileStore(Path(tmp) / "m.jsonl")
-        store.remember(_fact("olena", "promo", "Діє знижка", ttl=1.0))
+        store.remember(_fact("olena", "promo", "Діє знижка", ttl=DAY))
         store.remember(_fact("olena", "name", "Звати Олена"))
 
-        first = cleanup(store, now=NOW + 10)
-        second = cleanup(store, now=NOW + 10)
+        # Попередня редакція стверджувала лише `first == second` — тобто ідемпотентність
+        # читання, яка є властивістю за побудовою й не могла стати хибною. Тепер
+        # твердження про ЗВʼЯЗОК числа з часом: інакше задача могла б повертати сталу.
+        before = count_expired(store, now=NOW)
+        after = count_expired(store, now=NOW + DAY + 1)
+        again = count_expired(store, now=NOW + DAY + 1)
 
-    assert first == second == 1, (first, second)
-    # Твердження не про безпеку подвоєння, а про його МЕЖУ: наступна задача в тому самому
-    # планувальнику надішле лист або спише гроші, і там ідемпотентності не буде.
-    assert (
-        code_mentions(
-            (Path(__file__).parent / "jobs.py").read_text(encoding="utf-8"), {"send", "charge"}
-        )
-        == []
-    ), "у планувальнику зʼявилась незворотна дія — тоді подвоєння перестає бути вправою"
+    assert before == 0, f"до терміну протухлих {before}"
+    assert after == 1, f"після терміну протухлих {after}, а не один"
+    assert after == again, "два читання підряд дали різне — задача не ідемпотентна"
+
+
+def check_the_scheduled_job_deletes_nothing() -> None:
+    """ВІДМОВА · задача читає, а не видаляє — інакше вона суперечить ADR-0003 етапу 5"""
+    with tempfile.TemporaryDirectory() as tmp:
+        store = FileStore(Path(tmp) / "m.jsonl")
+        store.remember(_fact("olena", "promo", "Діє знижка", ttl=DAY))
+        count_expired(store, now=NOW + DAY + 1)
+        left = store.all_facts()
+
+    assert len(left) == 1, (
+        "задача видалила протухлий факт. Етап 5 вирішив, що протухле перевіряється при "
+        "вибірці, а не видаленням при записі — видалення тут забрало б історію, заради "
+        "якої те рішення й ухвалювалось (ADR-0003 етапу 5)"
+    )
+
+    # І дзеркально: планувальник не має незворотних дій. Подвоєння лишається вправою,
+    # доки задача нічого не змінює.
+    source = (Path(__file__).parent / "jobs.py").read_text(encoding="utf-8")
+    assert not code_mentions(source, {"send", "delete", "charge", "remove"}), (
+        "у планувальнику зʼявилась дія, що щось міняє — тоді подвоєння перестає "
+        "бути безпечним, і вправа перетворюється на пастку для читача"
+    )
 
 
 # --- знайдене розгортанням ----------------------------------------------------------------
 
 DEPLOY = Path(__file__).resolve().parent.parent.parent / "deploy"
+
+
+def _compose() -> dict:
+    """Розібрана продакшн-збірка. Без PyYAML — `НЕ ПЕРЕВІРЕНО`, а не пошук підрядків."""
+    try:
+        import yaml
+    except ImportError as error:
+        raise NotVerified(f"PyYAML не встановлено: {error}") from error
+
+    raw = (DEPLOY / "docker-compose.prod.yml").read_text(encoding="utf-8")
+    return yaml.safe_load(raw)
 
 
 def check_a_failed_query_does_not_poison_the_connection() -> None:
@@ -1065,6 +1101,7 @@ def check_the_prod_profile_refuses_a_fake_provider_by_default() -> None:
         "API_KEYS": "k",
         "DATABASE_URL": "postgresql://x",
         "REDIS_URL": "redis://x",
+        "OWNER_SALT": "s",
     }
     try:
         Settings.load(source=base)
@@ -1089,6 +1126,7 @@ def check_the_explicit_flag_lets_it_start_and_shows_up_in_health() -> None:
             "DATABASE_URL": "postgresql://x",
             "REDIS_URL": "redis://x",
             "ALLOW_FAKE_LLM": "1",
+            "OWNER_SALT": "s",
         }
     )
     assert settings.allow_fake_llm and not settings.has_real_llm, settings
@@ -1130,11 +1168,36 @@ def check_the_fake_answers_a_prompt_nobody_scripted() -> None:
 
 
 def check_the_deployment_files_exist_and_say_what_they_do() -> None:
-    """розгортання: усі файли на місці, і смоук виконуваний"""
-    for name in ("Dockerfile", "Caddyfile", "docker-compose.prod.yml", "smoke.sh", "RUNBOOK.md"):
+    """ВІДМОВА · розгортання: усі файли на місці, і смоук СПРАВДІ виконуваний"""
+    for name in (
+        "Dockerfile",
+        "Caddyfile",
+        "docker-compose.prod.yml",
+        "smoke.sh",
+        "RUNBOOK.md",
+        ".env.prod.example",
+    ):
         path = DEPLOY / name
         assert path.exists(), f"немає {name}"
         assert path.read_text(encoding="utf-8").strip(), f"{name} порожній"
+
+    # Біт виконання — у git, а не на диску: у клона права беруться звідти. Docstring
+    # обіцяв «виконуваний» і не перевіряв нічого, а файл лежав із 100644 — читач на
+    # Linux виконував документовану команду й отримував Permission denied.
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "ls-files", "-s", "deploy/smoke.sh"],
+        cwd=DEPLOY.parent,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise NotVerified(f"git недоступний: {result.stderr.strip()}")
+    assert result.stdout.startswith("100755"), (
+        f"smoke.sh у git має права {result.stdout.split()[0]}, а не 100755. Читач "
+        "після клону виконує документовану команду й отримує Permission denied"
+    )
 
 
 def check_the_smoke_script_runs_one_list_against_both_targets() -> None:
@@ -1143,6 +1206,21 @@ def check_the_smoke_script_runs_one_list_against_both_targets() -> None:
 
     # Дві гілки з різними переліками означали б, що локальний прогін доводить не те, що
     # прогін на домені. Різниця дозволена рівно одна — довіра до сертифіката.
+    # Твердження про **структуру**, а не про наявність слів. Попередня редакція
+    # рахувала входження `$BASE` і шукала три слова — тож гілка «локально перевіряємо
+    # менше» проходила всі чотири assert і робила рівно те, що заборонено.
+    #
+    # Єдина дозволена різниця — довіра до сертифіката. Її ім'я названо тут, і будь-яка
+    # інша умова на `$INSECURE` робить перевірку червоною.
+    guarded = [
+        line.strip()
+        for line in source.splitlines()
+        if "$INSECURE" in line and line.strip().startswith(("if", "elif"))
+    ]
+    assert len(guarded) == 1, (
+        f"гілок за $INSECURE {len(guarded)}: {guarded}. Дві означають, що локальний прогін "
+        f"перевіряє не те, що доменний — і «здається, працює» повертається під іншою назвою"
+    )
     assert source.count("$BASE") >= 5, "адреса не наскрізна — перелік залежить від цілі"
     assert "--insecure" in source and "INSECURE=1" in source, (
         "локальний самопідписаний сертифікат не оброблено явно"
@@ -1156,20 +1234,52 @@ def check_the_smoke_script_runs_one_list_against_both_targets() -> None:
 
 def check_the_migration_runs_once_not_per_worker() -> None:
     """ВІДМОВА · розгортання: міграції — окремий контейнер, а не крок у старті сервісу"""
-    compose = (DEPLOY / "docker-compose.prod.yml").read_text(encoding="utf-8")
+    # Розбір структури, а не пошук підрядків. Попередня редакція стверджувала
+    # `"migrate:" in compose` і `"service_completed_successfully" in compose` — тож
+    # перенесення залежності з `api` у `caddy` давало рівно ту поломку, яку вона
+    # називає, і лишалось зеленим: обидва підрядки на місці.
+    compose = _compose()
+    services = compose["services"]
 
-    assert "migrate:" in compose, (
+    assert "migrate" in services, (
         "у збірці немає застосування міграцій. Розгортання без них дає сервіс, у якого "
         "перший же запит падає, а зʼєднання лишається аварійним"
     )
-    assert "service_completed_successfully" in compose, (
-        "сервіс не чекає на завершення міграцій — старт стає перегонами"
-    )
+    # Кожен, хто торкається бази, має чекати на завершення міграцій — не «хтось».
+    for name in ("api", "scheduler"):
+        waits = services[name].get("depends_on", {})
+        assert waits.get("migrate", {}).get("condition") == "service_completed_successfully", (
+            f"{name} не чекає на завершення міграцій: {waits}. Старт стає перегонами, і перший "
+            f"запит іде в неіснуючу таблицю"
+        )
     # Всередині старту вони виконувались би стільки разів, скільки воркерів: та сама пастка,
     # що з планувальником, у місці, де ціна вища.
     serve = (Path(__file__).parent / "serve.py").read_text(encoding="utf-8")
     assert not code_mentions(serve, {"migrate", "migration"}), (
         "точка входу застосовує міграції — тоді два воркери змінюють схему одночасно"
+    )
+
+
+def check_the_service_waits_until_it_can_answer() -> None:
+    """ВІДМОВА · розгортання: проксі чекає на готовність сервісу, а не на «running»"""
+    api = _compose()["services"]["api"]
+    assert "healthcheck" in api, (
+        "у `api` немає healthcheck. Тоді `caddy` стартує, щойно контейнер «running» — тобто до "
+        "того, як uvicorn привʼязав порт, і перший смоук віддає 502 на справному сервісі"
+    )
+    assert "/healthz" in str(api["healthcheck"]), api["healthcheck"]
+
+
+def check_the_domain_is_required_not_defaulted() -> None:
+    """ВІДМОВА · розгортання: домен обовʼязковий — дефолт мовчки ламає сертифікат"""
+    raw = (DEPLOY / "docker-compose.prod.yml").read_text(encoding="utf-8")
+    assert "SITE_ADDRESS: ${SITE_ADDRESS:?}" in raw, (
+        "SITE_ADDRESS має дефолт. Забутий у .env.prod, він видає внутрішній сертифікат на "
+        "справжньому домені: клієнти отримують помилку довіри, а смоук каже лише «curl не пройшов»"
+    )
+    assert "OWNER_SALT: ${OWNER_SALT:?}" in raw, (
+        "OWNER_SALT має дефолт — тоді похідний власник несолений, і слабкий ключ "
+        "відновлюється з трейсу словником"
     )
 
 
@@ -1235,6 +1345,155 @@ def check_the_demo_needs_no_key_no_network_and_no_container() -> None:
     assert "FakeLLM" in source, "демо не називає підробки явно"
 
 
+# --- знахідки другого рев'ю --------------------------------------------------------------
+
+
+def check_a_secret_is_neither_stored_nor_traced() -> None:
+    """ВІДМОВА · сервіс проходить чекліст етапу 5 цілком, а не одне правило з шести"""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        store_path = Path(tmp) / "m.jsonl"
+        with trace_run("s06", path=path, stage="s06") as tracer:
+            service = Service(
+                settings=_settings(),
+                counters=InMemory(),
+                store=FileStore(store_path),
+                tracer=tracer,
+                client=FakeLLM(auto_reply=True),
+            )
+            service.ask(KEY, "запамʼятай мій пароль — hunter2", now=NOW)
+            service.ask(KEY, "запамʼятай: доставляти на Хрещатик 22", now=NOW)
+            service.ask(KEY, QUESTION, now=NOW)
+
+        written = path.read_text(encoding="utf-8")
+        stored = store_path.read_text(encoding="utf-8")
+
+    assert "hunter2" not in stored, (
+        "пароль у памʼяті. Етап 5 навмисно ставить секрет ПЕРЕД проханням, бо «запамʼятай "
+        "мій пароль» задовольняє обидва правила — сервіс має проходити чекліст, а не один if"
+    )
+    assert "hunter2" not in written, (
+        "пароль у трейсі. Етап, чия теза «ключ у трейсі — це ключ у файлі», не має права "
+        "писати туди секрет користувача"
+    )
+    # Дзеркальна половина: те, що зберігати МОЖНА, зберігається.
+    assert "Хрещатик" in stored, "прохання запамʼятати адресу проігноровано"
+
+
+def check_the_apostrophe_does_not_decide_what_is_remembered() -> None:
+    """ВІДМОВА · три форми апострофа розпізнаються однаково"""
+    seen = []
+    for word in ("запамʼятай", "запам'ятай", "запам’ятай"):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = FileStore(Path(tmp) / "m.jsonl")
+            with trace_run("s06", path=Path(tmp) / "t.jsonl", stage="s06") as tracer:
+                service = Service(
+                    settings=_settings(),
+                    counters=InMemory(),
+                    store=store,
+                    tracer=tracer,
+                    client=FakeLLM(auto_reply=True),
+                )
+                service.ask(KEY, f"{word}: доставляти на Хрещатик 22", now=NOW)
+            seen.append(len(store.all_facts()))
+
+    assert seen == [1, 1, 1], (
+        f"збережено {seen} для трьох форм апострофа. U+2019 ставлять телефон і Word, і "
+        "факт мовчки не зберігався: ані відмови, ані сліду"
+    )
+
+
+def check_the_rate_limit_is_one_atomic_call() -> None:
+    """ВІДМОВА · ліміт рахується одним викликом, а не парою читання-запис"""
+    import ast
+    import inspect
+
+    from stages.s06_platform import guards
+
+    tree = ast.parse(inspect.getsource(guards.within_rate))
+    called = [
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    ]
+    assert called.count("total") == 0 and called.count("add") == 1, (
+        f"воротар кличе {called}. Пара `total` + `add` відкриває вікно між читанням і "
+        "записом: тридцять один одночасний запит читає «двадцять девʼять», і всі проходять. "
+        "Саме ці перегони закриває транзакція всередині `add`"
+    )
+
+
+def check_the_health_probe_reads_no_data() -> None:
+    """ВІДМОВА · проба стану не читає таблиці — ендпоінт відкритий без ключа"""
+    import ast
+
+    # Джерело читається файлом, а не імпортом: `serve.py` тягне веб-фреймворк, тож
+    # імпорт робив би цю перевірку **червоною** на базовій установці замість
+    # `НЕ ПЕРЕВІРЕНО`. Твердження структурне — джерела для нього досить.
+    source = (Path(__file__).parent / "serve.py").read_text(encoding="utf-8")
+    tree = next(
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == "build"
+    )
+    called = {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    assert "all_facts" not in called, (
+        "проба стану читає всі факти. Ендпоінт відкритий навмисно й воротарі до нього не "
+        "доходять — тобто будь-хто без ключа замовляє повний скан стільки разів на секунду, "
+        "скільки витримає мережа"
+    )
+    assert "ping" in called or any("ping" in str(node) for node in ast.walk(tree)), called
+
+
+def check_traces_are_a_named_dependency() -> None:
+    """ВІДМОВА · стан знає про трейси — інакше їхня відмова валить кожен запит мовчки"""
+    # Той самий привід читати файлом, а не імпортом: інакше базова установка дає
+    # червоне там, де має бути «не перевірено».
+    source = (Path(__file__).parent / "serve.py").read_text(encoding="utf-8")
+    assert '"traces"' in source or "'traces'" in source, (
+        "трейси не названі залежністю. Том повний або права зникли — і КОЖЕН запит падає "
+        "пʼятисоткою, поки стан рапортує up"
+    )
+
+
+def check_the_owner_id_is_salted() -> None:
+    """ВІДМОВА · похідний власник солиться — слабкий ключ не відновлюється з трейсу"""
+    plain = owner_of("change-me-too", salt="")
+    salted = owner_of("change-me-too", salt="deployment-salt")
+
+    assert plain != salted, "сіль ні на що не впливає"
+    assert owner_of("k", salt="a") != owner_of("k", salt="b"), "різні солі дають те саме"
+
+    # І дзеркально: у межах одного розгортання ідентифікатор стабільний, інакше лічильники
+    # й трейси перестають звʼязуватись між собою.
+    assert owner_of("k", salt="a") == owner_of("k", salt="a")
+
+
+def check_a_zero_limit_is_refused_at_startup() -> None:
+    """ВІДМОВА · нуль і відʼємне в межах — помилка старту, а не «без ліміту»"""
+    for key, value in (
+        ("RATE_LIMIT_PER_MINUTE", "0"),
+        ("RATE_LIMIT_PER_MINUTE", "-1"),
+        ("BUDGET_USD_PER_DAY", "0"),
+    ):
+        try:
+            Settings.load(source={key: value})
+        except ConfigError as error:
+            assert key in str(error), error
+        else:
+            raise AssertionError(
+                f"{key}={value} прийнято мовчки. Нуль — найприродніший спосіб написати «без "
+                "ліміту», а дає повну відмову в обслуговуванні при зеленому стані"
+            )
+
+    # Дзеркальна половина: розумні значення проходять.
+    assert Settings.load(source={"RATE_LIMIT_PER_MINUTE": "30"}).rate_limit_per_minute == 30
+
+
 # --- урок і матеріали читача ---------------------------------------------------------------
 
 
@@ -1298,6 +1557,16 @@ def check_the_exercises_are_generated_from_the_pinned_mutations() -> None:
             f"вправа {number}: у прозі не {mutation['expect_failed']} червоних — проза "
             "розійшлася з тим, що закріплено"
         )
+        # І сам диф. Попередня редакція звіряла лише заголовок і число, тож вправа 1
+        # друкувала читачеві `if client is not None:` як «було» і як «стало» — рядок,
+        # що не змінюється. Виконати її за інструкцією було неможливо, і найважливіша
+        # з шістнадцяти лишалась непрохідною.
+        for side in ("old", "new"):
+            for line in mutation[side].split(NEWLINE):
+                assert line.strip() in text_of, (
+                    f"вправа {number}: рядка {line.strip()!r} немає в прозі — читач не побачить, "
+                    f"ЩО саме міняти"
+                )
 
     assert text_of.count("## Вправа") == len(pinned), (
         f"вправ у прозі {text_of.count(chr(35) * 2 + ' Вправа')}, мутацій {len(pinned)}"
@@ -1382,7 +1651,8 @@ CHECKS = [
     check_the_job_does_not_run_before_its_time,
     check_the_doubled_rate_limit_is_the_half_nobody_sees,
     check_the_shared_store_fixes_the_half_nobody_sees,
-    check_the_cleanup_job_is_idempotent_but_that_is_not_the_point,
+    check_the_scheduled_job_reports_what_actually_expired,
+    check_the_scheduled_job_deletes_nothing,
     check_a_failed_query_does_not_poison_the_connection,
     check_the_prod_profile_refuses_a_fake_provider_by_default,
     check_the_explicit_flag_lets_it_start_and_shows_up_in_health,
@@ -1390,6 +1660,8 @@ CHECKS = [
     check_the_deployment_files_exist_and_say_what_they_do,
     check_the_smoke_script_runs_one_list_against_both_targets,
     check_the_migration_runs_once_not_per_worker,
+    check_the_service_waits_until_it_can_answer,
+    check_the_domain_is_required_not_defaulted,
     check_the_demo_shows_seven_scenes_and_leaves_a_trace,
     check_the_demo_needs_no_key_no_network_and_no_container,
     check_the_failure_modes_are_at_least_a_third,
@@ -1398,6 +1670,13 @@ CHECKS = [
     check_the_lesson_line_counts_match_the_modules,
     check_the_exercises_are_generated_from_the_pinned_mutations,
     check_every_reader_file_exists,
+    check_a_secret_is_neither_stored_nor_traced,
+    check_the_apostrophe_does_not_decide_what_is_remembered,
+    check_the_rate_limit_is_one_atomic_call,
+    check_the_health_probe_reads_no_data,
+    check_traces_are_a_named_dependency,
+    check_the_owner_id_is_salted,
+    check_a_zero_limit_is_refused_at_startup,
 ]
 
 

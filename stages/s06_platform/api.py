@@ -16,9 +16,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, Request, Response
+from fastapi import Depends, FastAPI, Header, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from stages.s06_platform.guards import (
     BUDGET_EXHAUSTED,
@@ -30,18 +30,32 @@ from stages.s06_platform.observe import UP
 
 # Рід відмови -> код відповіді. Таблиця тут, а не в коді: домен про коди не знає, і додати
 # новий рід має бути одним рядком, а не пошуком по гілках.
+# Пʼятий рід результату: запит, який сервіс відхиляє за формою. Він має власне імʼя
+# рівно тому, що решта чотири мають: «трафіку немає» й «клієнт шле сміття» — це різні
+# дії оператора.
+TOO_LONG = "malformed_request"
+
 STATUS_OF = {
     UNAUTHENTICATED: 401,
     RATE_LIMITED: 429,
     BUDGET_EXHAUSTED: 402,
+    TOO_LONG: 400,
     "dependency_down": 503,
 }
 
 
 class Ask(BaseModel):
-    """Запит. Довжина обмежена: недовірений вхід не має права бути будь-яким."""
+    """Запит. Довжина перевіряється в обробнику, а не схемою.
 
-    question: str = Field(min_length=1, max_length=4000)
+    Схема з `max_length` давала 422 повз усе: без роду відмови, без кроку у трейсі,
+    без метрики — і з **повним текстом запиту у відповіді про помилку**. Оператор
+    бачив «трафіку немає», клієнт бачив постійні збої.
+
+    Плюс межа була зашита числом, тоді як `MAX_MESSAGE_CHARS` існував у конфігурації
+    й нічого не робив — операторська ручка, яка нічого не крутить.
+    """
+
+    question: str
 
 
 def create_app(service: Any, health: Any) -> FastAPI:
@@ -53,6 +67,17 @@ def create_app(service: Any, health: Any) -> FastAPI:
 
     @api.post("/ask")
     def ask(body: Ask, key: str = Depends(key_of)) -> JSONResponse:
+        limit = service.settings.max_message_chars
+        if not body.question.strip() or len(body.question) > limit:
+            service.metrics.request(TOO_LONG)
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "kind": TOO_LONG,
+                    "text": f"запит має бути від 1 до {limit} символів",
+                },
+                status_code=STATUS_OF[TOO_LONG],
+            )
         answer = service.ask(key, body.question)
         payload: dict[str, Any] = {
             "ok": answer.ok,
@@ -76,9 +101,17 @@ def create_app(service: Any, health: Any) -> FastAPI:
         return JSONResponse(report, status_code=200 if report["status"] == UP else 503)
 
     @api.get("/metrics")
-    def metrics(request: Request, key: str = Depends(key_of)) -> Response:
-        """З ключем навмисно: агрегати теж розкривають."""
-        if not authenticate(key, service.settings).allowed:
+    def metrics(key: str = Depends(key_of)) -> Response:
+        """З ключем навмисно: агрегати теж розкривають.
+
+        Невдала спроба **рахується**. Донедавна вона проходила повз усе: не
+        інкрементувала ліміт, не потрапляла в метрики, не лишала кроку у трейсі —
+        тобто перебір ключа по цьому ендпоінту був невидимий для всіх трьох
+        механізмів спостережуваності етапу.
+        """
+        verdict = authenticate(key, service.settings)
+        if not verdict.allowed:
+            service.metrics.request(verdict.kind)
             return PlainTextResponse("", status_code=401)
         return PlainTextResponse(service.metrics.render(), media_type="text/plain")
 

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 from dataclasses import dataclass
 
 from shared.config import Settings
@@ -33,6 +34,10 @@ OK = "ok"
 UNAUTHENTICATED = "unauthenticated"
 RATE_LIMITED = "rate_limited"
 BUDGET_EXHAUSTED = "budget_exhausted"
+
+# Сіль для похідного ідентифікатора власника. Читається один раз: змінювати її на
+# живому сервісі означає розірвати звʼязок між уже записаними трейсами й лічильниками.
+_SALT = os.environ.get("OWNER_SALT", "")
 
 
 @dataclass(frozen=True)
@@ -46,13 +51,23 @@ class Verdict:
     retry_after: float | None = None
 
 
-def owner_of(key: str) -> str:
-    """Похідний ідентифікатор власника. Ключ із нього не відновлюється.
+def owner_of(key: str, *, salt: str = _SALT) -> str:
+    """Похідний ідентифікатор власника. Ключ із нього не відновлюється — **із сіллю**.
 
-    Він потрапляє у трейс, у метрики й у ключі лічильників — тобто у все, що хтось колись
-    прочитає. Сам ключ не потрапляє нікуди (AC-12).
+    Він потрапляє у трейс, у метрики й у ключі лічильників — тобто у все, що хтось
+    колись прочитає. Сам ключ не потрапляє нікуди (AC-12).
+
+    **Несолений хеш цієї обіцянки не виконує.** Ключі короткі й часто слабкі —
+    `.env.prod.example` донедавна пропонував `change-me-too`, — а `sha256` без солі
+    детермінований між усіма розгортаннями. Той, хто дістав трейс (а урок наполягає,
+    що трейси читають при налагодженні), відновлював ключ словником за чотири спроби,
+    і райдужна таблиця будувалась один раз на всіх читачів курсу.
+
+    Сіль береться з оточення. Її відсутність — не помилка: тоді ідентифікатори
+    стабільні між перезапусками, що зручно локально. У `prod` сіль обовʼязкова, і за
+    цим стежить `Settings.validate`.
     """
-    return hashlib.sha256(key.encode()).hexdigest()[:16]
+    return hashlib.sha256(f"{salt}:{key}".encode()).hexdigest()[:16]
 
 
 def authenticate(key: str, settings: Settings) -> Verdict:
@@ -80,8 +95,16 @@ def within_rate(owner: str, counters: Counters, settings: Settings, *, now: floa
     Лічильник **на власника**, не на сервіс. Спільний лічильник задовольняє «понад ліміт
     відхилено» дослівно й робить одного клієнта здатним зупинити всіх.
     """
-    seen = counters.total(f"rate:{owner}", now=now, window=MINUTE)
-    if seen >= settings.rate_limit_per_minute:
+    # ОДИН виклик, а не `total` плюс `add`. Пара відкривала вікно між читанням і
+    # записом: тридцять один одночасний запит читав «двадцять девʼять», і всі
+    # проходили. Саме ці перегони закриває транзакція всередині `add` — і саме їх
+    # повертав виклик, що нею не користувався.
+    #
+    # Ціна: відхилений запит теж потрапляє у вікно, тож клієнт, що бʼється в стелю,
+    # подовжує собі паузу. Це навмисно — інакше ліміт не стримує того, хто ігнорує
+    # `Retry-After`.
+    seen = counters.add(f"rate:{owner}", 1, now=now, window=MINUTE)
+    if seen > settings.rate_limit_per_minute:
         return Verdict(
             allowed=False,
             kind=RATE_LIMITED,
@@ -89,15 +112,20 @@ def within_rate(owner: str, counters: Counters, settings: Settings, *, now: floa
             reason=f"{int(seen)} запитів за хвилину при межі {settings.rate_limit_per_minute}",
             retry_after=MINUTE,
         )
-    counters.add(f"rate:{owner}", 1, now=now, window=MINUTE)
     return Verdict(allowed=True, kind=OK, owner=owner)
 
 
 def within_budget(owner: str, counters: Counters, settings: Settings, *, now: float) -> Verdict:
     """Третій воротар: чи лишилися гроші.
 
-    Дві межі: на власника за добу й на сервіс за добу. Друга потрібна, бо перша не рятує від
-    десяти власників одночасно — а рахунок приходить один.
+    Межа **одна** — на власника за добу. Межі на сервіс тут свідомо немає, і це названо,
+    щоб не читалось як захист, якого немає: десять власників, кожен у своїй межі, дадуть
+    удесятеро більший рахунок, і жоден воротар цього не спинить.
+
+    Чому не додано: сервісна межа перетворює вичерпання бюджету одним клієнтом на
+    відмову для решти — тобто на спосіб зупинити сервіс за десять доларів. Правильна
+    відповідь тут не воротар, а сповіщення операторові, і воно приходить із
+    моніторингом на етапі 10.
     """
     spent = counters.total(f"spend:{owner}", now=now, window=DAY)
     if spent >= settings.budget_usd_per_day:

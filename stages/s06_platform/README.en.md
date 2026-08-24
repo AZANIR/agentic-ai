@@ -16,7 +16,7 @@ shows that going to production is not "the same thing, on a server".
 ```bash
 python -m stages.s06_platform.run           # seven scenes, no key, no containers
 python -m stages.s06_platform.run --trace   # plus one request's trace
-python -m stages.s06_platform.check         # 59 checks, 45 of them on failure modes
+python -m stages.s06_platform.check         # 69 checks, 57 of them on failure modes
 python scripts/mutate.py s06 --expect       # break it on purpose, sixteen exercises
 
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
@@ -30,7 +30,7 @@ API_KEY=<key> ./deploy/smoke.sh https://localhost
 | `guards.py` | three gates — who, how often, at whose expense | 40 / 100 |
 | `intent.py` | one branch per model call; the limit is a measured number | 18 |
 | `observe.py` | health per dependency, metrics per failure kind | 29 |
-| `app.py` | the stitching, and one trace per request | 56 / 120 |
+| `app.py` | the stitching, and one trace per request | 66 / 120 |
 | `jobs.py` | the two-worker trap, behind a flag | 34 |
 | `api.py` | three routes and no decisions | 26 |
 | `shared/counters.py` | in-memory or shared, one contract | 53 |

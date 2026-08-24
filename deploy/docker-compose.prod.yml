@@ -29,6 +29,8 @@ x-service: &service
     # Прапорець існує рівно для локальної перевірки prod-адаптерів (ADR-0009), і стан
     # називає провайдера, тож у проді це видно ззовні.
     ALLOW_FAKE_LLM: ${ALLOW_FAKE_LLM:-}
+    OWNER_SALT: ${OWNER_SALT:?}
+    MAX_MESSAGE_CHARS: ${MAX_MESSAGE_CHARS:-4000}
     RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-30}
     BUDGET_USD_PER_DAY: ${BUDGET_USD_PER_DAY:-5.00}
     TRACE_DIR: /data/traces
@@ -59,8 +61,11 @@ services:
   caddy:
     image: caddy:2-alpine
     environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
-      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+      # Обовʼязкові, як і решта критичного. Дефолт `localhost` мовчки видавав
+      # внутрішній сертифікат на справжньому домені, і клієнти отримували
+      # ERR_CERT_COMMON_NAME_INVALID, а смоук казав лише «curl не пройшов».
+      SITE_ADDRESS: ${SITE_ADDRESS:?}
+      ACME_EMAIL: ${ACME_EMAIL:?}
     ports:
       - "80:80"
       - "443:443"
@@ -85,11 +90,26 @@ services:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       migrate: {condition: service_completed_successfully}
+    # Без цього `caddy` стартує, щойно контейнер «running», — тобто до того, як
+    # uvicorn привʼязав порт. Перший смоук після `up -d` віддавав 502 і виходив
+    # ненульовим кодом на справному сервісі.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')\""]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
 
   scheduler:
     <<: *service
     # Рівно один екземпляр. `deploy.replicas` тут був би помилкою, яку помітять нескоро.
     command: ["python", "-m", "stages.s06_platform.schedule"]
+    # Планувальник успадковував depends_on з якоря — тобто НЕ чекав міграцій, на
+    # відміну від api. З коротким інтервалом перший tick ішов у неіснуючу таблицю.
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
 
   postgres:
     image: pgvector/pgvector:pg16

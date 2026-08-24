@@ -23,11 +23,18 @@ from shared.llm import get_client
 from shared.trace import trace_run
 from stages.s06_platform.api import create_app
 from stages.s06_platform.app import Service
-from stages.s06_platform.jobs import INSIDE, SEPARATE
+from stages.s06_platform.jobs import count_expired
 from stages.s06_platform.observe import Dependency, Health
 
-SCHEDULER_MODE = INSIDE if os.environ.get("SCHEDULER_INSIDE") == "1" else SEPARATE
+SCHEDULER_INSIDE = os.environ.get("SCHEDULER_INSIDE") == "1"
 TRACE_PATH = Path(os.environ.get("TRACE_DIR", "traces")) / "service.jsonl"
+
+
+def _probe_traces(path: Path) -> None:
+    """Чи можна писати трейси. Створює каталог і торкається файлу — і нічого більше."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8"):
+        pass
 
 
 def build():
@@ -52,14 +59,53 @@ def build():
         dependencies=[
             # Проба має бути дешевою й справжньою. `all_facts` читає сховище насправді —
             # перевірка «обʼєкт існує» рапортувала б «живий» на недоступній базі.
-            Dependency(name="store", probe=lambda: store.all_facts()),
+            # Проба має бути дешевою й справжньою: `ping` торкається сховища й не
+            # читає даних. Читання `all_facts()` тут було повним сканом на кожен опит
+            # монітора — і на кожен запит будь-кого, бо стан відкритий.
+            Dependency(name="store", probe=store.ping),
             Dependency(
                 name="counters", probe=lambda: counters.total("health", now=0.0, window=1.0)
             ),
+            # Трейс — теж залежність, і донедавна єдина, про яку стан мовчав. Її
+            # відмова (том повний, права, ФС лише для читання) валила КОЖЕН запит
+            # п'ятисоткою, а стан лишався `up`. Проба пише в той самий каталог.
+            Dependency(name="traces", probe=lambda: _probe_traces(TRACE_PATH)),
         ],
     )
     return service, health, tracer
 
 
+def _start_the_trap(store) -> None:
+    """Увімкнути пастку: планувальник **усередині** кожного воркера.
+
+    Це і є вправа ADR-0003, і вона має бути відтворювана на живому сервісі, а не лише
+    в моделі `jobs.py`. Кожен воркер — окремий процес, тож два воркери дають два
+    планувальники, і рядок у логу зʼявляється двічі за інтервал:
+
+        SCHEDULER_INSIDE=1 uvicorn stages.s06_platform.serve:app --workers 2
+
+    Прапорець прибирає рівно одне — винесення в окремий процес. Усе інше лишається
+    тим самим, і саме тому різницю видно числом, а не поясненням.
+    """
+    import logging
+    import time
+
+    from apscheduler.schedulers.background import BackgroundScheduler
+
+    log = logging.getLogger("s06.trap")
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        lambda: log.warning(
+            "ПАСТКА · pid %s · протухлих %s", os.getpid(), count_expired(store, now=time.time())
+        ),
+        "interval",
+        seconds=float(os.environ.get("CLEANUP_INTERVAL_SECONDS", "60")),
+        id="trap",
+    )
+    scheduler.start()
+
+
 service, health, _tracer = build()
+if SCHEDULER_INSIDE:
+    _start_the_trap(service.store)
 app = create_app(service, health)

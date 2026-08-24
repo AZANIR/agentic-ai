@@ -20,7 +20,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 
 from shared.config import settings
 from shared.factstore import get_fact_store
-from stages.s06_platform.jobs import cleanup
+from stages.s06_platform.jobs import count_expired
 
 INTERVAL_HOURS = float(os.environ.get("CLEANUP_INTERVAL_HOURS", "24"))
 
@@ -32,10 +32,10 @@ def tick() -> None:
     import time
 
     store = get_fact_store(settings, path=Path(os.environ.get("MEMORY_PATH", "memory.jsonl")))
-    expired = cleanup(store, now=time.time())
+    expired = count_expired(store, now=time.time())
     # Число в логу — те саме, що читач рахує у вправі. Формулювання «прибрано» без числа
     # зробило б подвоєння невидимим саме там, де його показують.
-    log.info("прибирання: протухлих %s", expired)
+    log.info("звіт: протухлих %s", expired)
 
 
 def main() -> int:
