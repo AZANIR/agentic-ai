@@ -1436,17 +1436,21 @@ def check_the_health_probe_reads_no_data() -> None:
         for node in ast.parse(source).body
         if isinstance(node, ast.FunctionDef) and node.name == "build"
     )
-    called = {
-        node.func.attr
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-    }
-    assert "all_facts" not in called, (
+    # Збираються **всі** імена атрибутів, а не лише ті, що стоять у виклику: проба
+    # передається як `store.ping` — тобто посилання на метод, яке ніхто тут не кличе.
+    #
+    # Перша редакція мала запасну умову `"ping" in str(node)`. Вона проходила локально
+    # й падала на CI: у Python 3.13 представлення вузлів AST показує вміст, а раніше —
+    # адресу обʼєкта. Перевірка спиралась на деталь реалізації інтерпретатора.
+    seen = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+    assert "all_facts" not in seen, (
         "проба стану читає всі факти. Ендпоінт відкритий навмисно й воротарі до нього не "
         "доходять — тобто будь-хто без ключа замовляє повний скан стільки разів на секунду, "
         "скільки витримає мережа"
     )
-    assert "ping" in called or any("ping" in str(node) for node in ast.walk(tree)), called
+    assert "ping" in seen, (
+        f"проба стану не кличе `ping`: {sorted(seen)}. Дзеркальна половина: мало не читати таблицю — треба ще й справді торкнутися сховища"
+    )
 
 
 def check_traces_are_a_named_dependency() -> None:
