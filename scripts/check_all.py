@@ -66,6 +66,25 @@ def run_one(module: str) -> tuple[bool, float, str]:
     return result.returncode == 0, took, output
 
 
+_BUDGET = re.compile(r"^BUDGET_SECONDS\s*=\s*([0-9.]+)", re.MULTILINE)
+
+
+def budget_for(module: str) -> float | None:
+    """Стеля часу, яку модуль оголосив собі сам. Не оголосив — межі немає.
+
+    Читається текстом, без імпорту: імпорт `check.py` виконав би його імпорти заради
+    одного числа. Той самий підхід, що в `optional_packages()`.
+
+    Це **стеля проти розростання**, а не ціль швидкодії. Бюджет ловить одне: перевірку,
+    яка непомітно подорожчала вдесятеро. Число в прозі про час має властивість тихо
+    розходитися з кодом — на етапі 4 воно розійшлось із 15.9 с до 32 с, і помітили це
+    випадково.
+    """
+    path = REPO_ROOT / (module.replace(".", "/") + ".py")
+    found = _BUDGET.search(path.read_text(encoding="utf-8"))
+    return float(found.group(1)) if found else None
+
+
 def optional_packages() -> set[str]:
     """Пакети з `[project.optional-dependencies]` — тобто ті, яких може не бути.
 
@@ -127,6 +146,16 @@ def main(argv: list[str]) -> int:
             skipped.append((module, missing))
             print(f"  {YELLOW}—{OFF}     {module} {DIM}(немає {missing}){OFF}")
             continue
+
+        limit = budget_for(module)
+        if ok and limit is not None and took > limit:
+            ok = False
+            output += f"""
+
+БЮДЖЕТ ЧАСУ: {took:.1f} с при стелі {limit} с.
+Перевірки пройшли, але подорожчали. Або зменш вартість, або підніми
+BUDGET_SECONDS свідомо — і онови число в NFR тим самим рухом.
+"""
 
         mark = f"{GREEN}PASS{OFF}" if ok else f"{RED}FAIL{OFF}"
         print(f"  {mark}  {module} {DIM}({took:.2f} s){OFF}")

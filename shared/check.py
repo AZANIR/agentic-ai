@@ -20,6 +20,10 @@ from shared.fake_llm import FakeLLM, FakeLLMError, text, tool_call
 from shared.llm import banner, get_client, is_fake
 from shared.trace import group_by_trace, trace_run
 
+# Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
+# Заміряно 0.6 с. Піднімати можна свідомо, разом із числом у NFR.
+BUDGET_SECONDS = 30
+
 # --- config ------------------------------------------------------------------
 
 

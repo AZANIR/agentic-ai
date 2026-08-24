@@ -26,6 +26,10 @@ from stages.s01_agent_loop.run import main as demo_main
 from stages.s01_agent_loop.tools import REGISTRY, Tool, tool_schemas
 from stages.s01_agent_loop.validate import validate_arguments
 
+# Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
+# Заміряно 4.8 с. Піднімати можна свідомо, разом із числом у NFR.
+BUDGET_SECONDS = 30
+
 # --- T1 · реєстр інструментів -------------------------------------------------
 
 

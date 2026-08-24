@@ -42,6 +42,10 @@ from stages.s04_mcp.parse import NoPayload, describe_failure, extract_payload
 from stages.s04_mcp.run import main as demo_main
 from stages.s04_mcp.wiring import tools_from_mcp
 
+# Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
+# Заміряно 32 с. Піднімати можна свідомо, разом із числом у NFR.
+BUDGET_SECONDS = 90
+
 # Реальна форма відповіді MCP-сервера, який любить поговорити. Проза до, проза після.
 CHATTY = """Ось що я знайшов у системі замовлень. Зверніть увагу, що дані актуальні
 на момент запиту й можуть змінитися.

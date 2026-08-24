@@ -19,6 +19,10 @@ from stages.s05_memory.long_term import OPEN_FACTS, Memory
 from stages.s05_memory.retrieval import get_retrieval
 from stages.s05_memory.short_term import SUMMARY_LABEL, Window
 
+# Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
+# Заміряно 0.8 с. Піднімати можна свідомо, разом із числом у NFR.
+BUDGET_SECONDS = 30
+
 DAY = 86_400.0
 NOW = 1_700_000_000.0  # фіксована точка: усі «зараз» у перевірках рахуються від неї
 

@@ -35,6 +35,10 @@ from stages.s02_rag.tools import (
     tool_for,
 )
 
+# Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
+# Заміряно 0.8 с. Піднімати можна свідомо, разом із числом у NFR.
+BUDGET_SECONDS = 30
+
 SMALL = 40
 LARGE = 120
 

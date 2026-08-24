@@ -46,6 +46,10 @@ from stages.s03_router.run import main as demo_main
 from stages.s03_router.specialists import SPECIALISTS, Specialist, safely
 from stages.s03_router.state import DECLARED, FROZEN, State, StateFieldError
 
+# Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
+# Заміряно 2.5 с. Піднімати можна свідомо, разом із числом у NFR.
+BUDGET_SECONDS = 30
+
 INTERNAL_BAIT = "яка сума автоматичного повернення"
 
 # --- T1 · схема стану ---------------------------------------------------------
