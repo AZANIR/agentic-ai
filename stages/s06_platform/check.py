@@ -11,11 +11,13 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from shared.check_runner import NotVerified, run_checks
+from shared.check_runner import NotVerified, code_mentions, run_checks
 from shared.config import LOCAL, Settings
 from shared.counters import DAY, MINUTE, InMemory, Shared, get_counters
 from shared.factstore import DatabaseStore, FileStore
+from shared.fake_llm import FakeLLM, text
 from stages.s05_memory.facts import Fact
+from stages.s06_platform.fake_store import FakeStore
 from stages.s06_platform.guards import (
     BUDGET_EXHAUSTED,
     OK,
@@ -25,7 +27,7 @@ from stages.s06_platform.guards import (
     charge,
     owner_of,
 )
-from stages.s06_platform.fake_store import FakeStore
+from stages.s06_platform.intent import KNOWLEDGE, MATH, ORDERS, classify
 
 # Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
 BUDGET_SECONDS = 60
@@ -495,6 +497,117 @@ def check_the_guards_run_in_the_declared_order() -> None:
     )
 
 
+# --- класифікатор наміру ------------------------------------------------------------------
+
+# Складені запити: кожен стосується ДВОХ гілок одночасно. Класифікатор обере одну, і друга
+# половина питання лишиться без відповіді. Набір існує, щоб межу можна було назвати числом.
+MIXED = (
+    ("поверніть гроші за ord_4471 — і скільки днів це триває", {ORDERS, KNOWLEDGE}),
+    ("статус ord_9001 і скільки я загалом витратив", {ORDERS, MATH}),
+    ("скільки коштує доставка й чи входить вона в суму знижки", {KNOWLEDGE, MATH}),
+)
+
+SINGLE = (
+    ("який статус замовлення ord_4471", ORDERS),
+    ("скільки днів на повернення товару", KNOWLEDGE),
+    ("скільки буде 1200 плюс 340", MATH),
+)
+
+
+def check_three_questions_take_three_branches() -> None:
+    """intent: три різні запити дають три різні гілки"""
+    seen = []
+    for question, expected in SINGLE:
+        client = FakeLLM(script=[text(expected)])
+        intent = classify(question, client=client)
+        assert intent.branch == expected, f"{question!r} -> {intent.branch}"
+        assert intent.certain, intent
+        seen.append(intent.branch)
+
+    assert len(set(seen)) == 3, f"гілок вийшло {len(set(seen))}, а не три: {seen}"
+
+
+def check_the_branch_reaches_the_trace_before_any_work() -> None:
+    """intent: гілка потрапляє у крок трейсу разом із тим, що сказала модель"""
+    intent = classify("який статус ord_4471", client=FakeLLM(script=[text("orders")]))
+    step = intent.as_step()
+
+    assert step["branch"] == ORDERS, step
+    assert step["certain"] is True, step
+    assert step["model_said"] == "orders", (
+        "у трейсі немає того, ЩО сказала модель. Без цього неможливо відрізнити «модель "
+        "обрала orders» від «ми не впізнали відповідь і взяли запасну гілку»"
+    )
+
+
+def check_a_wordy_answer_still_classifies() -> None:
+    """intent: багатослівна відповідь моделі не стає відмовою"""
+    for said in ("orders.", '"orders"', "Категорія: orders", "ORDERS"):
+        intent = classify("статус ord_1", client=FakeLLM(script=[text(said)]))
+        assert intent.branch == ORDERS and intent.certain, (said, intent)
+
+
+def check_an_unrecognised_answer_falls_back_to_the_safest_branch() -> None:
+    """ВІДМОВА · intent: невпізнана відповідь — запасна гілка, а не виняток"""
+    intent = classify("щось геть інше", client=FakeLLM(script=[text("гадки не маю")]))
+
+    assert intent.branch == KNOWLEDGE, intent
+    assert not intent.certain, (
+        "невпізнану відповідь позначено як певну. Тоді трейс каже, що модель обрала "
+        "knowledge, хоча вона не обирала нічого"
+    )
+    assert intent.said == "гадки не маю", intent
+
+
+def check_the_mixed_question_limit_is_a_measured_number() -> None:
+    """ВІДМОВА · intent: межа класифікатора названа числом, а не словами"""
+    # Модель відповідає першою з двох доречних гілок — саме так поводиться справжня:
+    # вона обирає одну, бо її про одну й питали.
+    missed = 0
+    for question, applicable in MIXED:
+        first = sorted(applicable)[0]
+        intent = classify(question, client=FakeLLM(script=[text(first)]))
+        assert intent.branch in applicable, (question, intent.branch)
+        # Друга доречна гілка лишилась без відповіді — це і є ціна класифікатора.
+        missed += len(applicable) - 1
+
+    assert missed == len(MIXED), (
+        f"складених запитів {len(MIXED)}, недоотриманих гілок {missed} — числа розійшлись"
+    )
+    assert len(MIXED) == 3, (
+        "набір складених запитів змінився. Урок називає його розмір числом, тож набір і "
+        "проза мають мінятись разом"
+    )
+
+
+def check_there_is_no_fallback_when_the_budget_is_gone() -> None:
+    """ВІДМОВА · intent: вичерпаний бюджет не вмикає класифікації без моделі"""
+    import inspect
+
+    from stages.s06_platform import intent as module
+
+    # `code_mentions`, а не пошук у тексті: модуль **пише** про бюджет у docstring, бо
+    # саме там пояснює, чому запасного шляху немає. Перевірка про код дивиться на код.
+    found = code_mentions(inspect.getsource(module), {"budget", "бюджет", "spend"})
+    assert not found, (
+        f"класифікатор знає про бюджет: {found}. ADR-0001 відхилив запасний шлях: "
+        "запобіжник, який у цьому стані відповідає, робить відмову мʼякою рівно там, "
+        "де вона має бути жорсткою"
+    )
+
+    # І дзеркально: класифікація СПРАВДІ потребує моделі, тобто без неї вона не мовчазна.
+    exhausted = FakeLLM(script=[])
+    try:
+        classify("будь-що", client=exhausted)
+    except Exception as error:  # noqa: BLE001 — саме на це й розраховано
+        assert "сценарій" in str(error).lower() or "script" in str(error).lower(), error
+    else:
+        raise AssertionError(
+            "класифікація відбулась без виклику моделі — тоді гілка обирається чимось, "
+            "чого немає в коді"
+        )
+
+
 CHECKS = [
     check_both_counters_answer_the_same_way_within_one_instance,
     check_the_window_forgets_what_fell_out_of_it,
@@ -518,6 +631,12 @@ CHECKS = [
     check_an_exhausted_budget_stops_the_call_and_says_so,
     check_spending_is_counted_or_the_guard_never_fires,
     check_the_guards_run_in_the_declared_order,
+    check_three_questions_take_three_branches,
+    check_the_branch_reaches_the_trace_before_any_work,
+    check_a_wordy_answer_still_classifies,
+    check_an_unrecognised_answer_falls_back_to_the_safest_branch,
+    check_the_mixed_question_limit_is_a_measured_number,
+    check_there_is_no_fallback_when_the_budget_is_gone,
 ]
 
 

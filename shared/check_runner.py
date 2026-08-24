@@ -90,6 +90,55 @@ def run_checks(checks: list[Callable[[], None]], *, title: str) -> int:
     return 0
 
 
+def code_mentions(source: str, words: set[str]) -> list[str]:
+    """Чи згадує **код** ці слова. Проза модуля не рахується.
+
+    Перевірка виду «модуль X не має знати про Y» природно пишеться як пошук у тексті —
+    і природно червоніє на власному docstring, де про Y саме й застерігають. У цьому
+    курсі так сталося **чотири рази**: годинник на етапі 5, профіль і бюджет на етапі 6,
+    маркери даних на етапі 2.
+
+    Тому помічник спільний: розбір AST бачить імена, атрибути й рядкові літерали, що
+    беруть участь в обчисленні, і не бачить ані docstring, ані коментарів.
+
+    :returns: перелік згадок виду ``рядок N: імʼя``; порожній перелік означає «чисто».
+    """
+    import ast
+
+    tree = ast.parse(source)
+    docstrings = {
+        id(node.body[0].value)
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.body
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+        and isinstance(node.body[0].value.value, str)
+    }
+
+    found = []
+    for node in ast.walk(tree):
+        seen = None
+        if isinstance(node, ast.Name):
+            seen = node.id
+        elif isinstance(node, ast.Attribute):
+            seen = node.attr
+        elif isinstance(node, ast.arg):
+            seen = node.arg
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if id(node) in docstrings:
+                continue
+            seen = node.value
+        if seen is None:
+            continue
+        lowered = seen.lower()
+        for word in words:
+            if word in lowered:
+                found.append(f"рядок {node.lineno}: {seen!r}")
+                break
+    return found
+
+
 def require_intact_source(name: str) -> None:
     """Відмовитись міряти файл, який зараз навмисно зламано мутаційним прогоном.
 
