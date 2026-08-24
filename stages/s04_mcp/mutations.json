@@ -1,0 +1,70 @@
+{
+  "stage": "s04-mcp",
+  "executed_floor": 18,
+  "note": "Числа заміряні З УСТАНОВЛЕНИМ MCP. Без нього перевірки з підпроцесом позначаються НЕ ПЕРЕВІРЕНО, а не проходять. Мутація тайм-ауту множить його, а не ставить велику константу: перша редакція ставила 900 с, і мовчазний сервер тримав увесь прогін ці 900 с. Мутація має ламати властивість, а не робити прогін неможливим.",
+  "mutations": [
+    {
+      "name": "вправа 1 · json.loads на всій відповіді",
+      "file": "stages/s04_mcp/parse.py",
+      "old": "    for block in _FENCED.findall(response):",
+      "new": "    for block in [response]:",
+      "expect_failed": 6
+    },
+    {
+      "name": "вправа 2 · відсутність даних стає порожнім словником",
+      "file": "stages/s04_mcp/parse.py",
+      "old": "    raise NoPayload(_first_lines(stripped))",
+      "new": "    return {}",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 3 · невідомий інструмент перестає бути незворотним",
+      "file": "stages/s04_mcp/bridge.py",
+      "old": "    return name in IRREVERSIBLE or name not in ALLOWED",
+      "new": "    return name in IRREVERSIBLE and name in ALLOWED",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 4 · беремо все, що пропонує сервер",
+      "file": "stages/s04_mcp/bridge.py",
+      "old": "    known = [info for info in declared if info.name in ALLOWED]",
+      "new": "    known = list(declared)",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 5 · рівень доступу лишається у схемі для моделі",
+      "file": "stages/s04_mcp/bridge.py",
+      "old": "    schema = _without(info.schema, fixed)",
+      "new": "    schema = info.schema",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 6 · тайм-аут удесятеро довший за заявлений",
+      "file": "stages/s04_mcp/client.py",
+      "old": "            asyncio.wait_for(_call(_params(module, broken=broken), name, arguments), timeout)",
+      "new": "            asyncio.wait_for(_call(_params(module, broken=broken), name, arguments), timeout * 10)",
+      "expect_failed": 1
+    },
+    {
+      "name": "фаза відмови злита в одну",
+      "file": "stages/s04_mcp/client.py",
+      "old": "            CallResult(failure=describe_failure(error, phase=\"call\")), name, arguments, tracer",
+      "new": "            CallResult(failure=describe_failure(error, phase=\"startup\")), name, arguments, tracer",
+      "expect_failed": 1
+    },
+    {
+      "name": "виклик не лишає сліду",
+      "file": "stages/s04_mcp/client.py",
+      "old": "    if tracer is not None:",
+      "new": "    if False:",
+      "expect_failed": 1
+    },
+    {
+      "name": "незворотність береться з опису сервера",
+      "file": "stages/s04_mcp/bridge.py",
+      "old": "        irreversible=is_irreversible(info.name),",
+      "new": "        irreversible=\"irreversible=false\" not in info.description,",
+      "expect_failed": 1
+    }
+  ]
+}

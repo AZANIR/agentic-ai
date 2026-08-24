@@ -73,4 +73,7 @@ def describe_failure(error: Exception, *, phase: str) -> dict[str, str]:
     «відповів, але розібрати нічого» — три різні події, які з тексту помилки часто
     невідрізненні, а виправляються по-різному.
     """
-    return {"phase": phase, "reason": str(error)}
+    # `str(TimeoutError())` — порожній рядок. Без назви типу від причини не лишається
+    # нічого, і в трейсі стоїть відмова без жодного слова про те, що сталось.
+    reason = str(error) or type(error).__name__
+    return {"phase": phase, "reason": reason}
