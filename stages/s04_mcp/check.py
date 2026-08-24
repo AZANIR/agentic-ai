@@ -20,9 +20,12 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from shared.check_runner import NotVerified, require_tag, run_checks
+from shared.fake_llm import FakeLLM, text, tool_call
 from shared.trace import iter_steps, trace_run
+from stages.s01_agent_loop import loop as stage_one_loop
 from stages.s01_agent_loop.tools import REGISTRY, Tool
 from stages.s02_rag.documents import INTERNAL, PUBLIC
+from stages.s03_router.graph import SUPERVISOR, run_graph
 from stages.s04_mcp import run as demo_module
 from stages.s04_mcp.bridge import is_irreversible, registry, rejected, to_tool
 from stages.s04_mcp.client import ToolInfo, call_tool, list_tools
@@ -37,6 +40,7 @@ from stages.s04_mcp.decision import (
 )
 from stages.s04_mcp.parse import NoPayload, describe_failure, extract_payload
 from stages.s04_mcp.run import main as demo_main
+from stages.s04_mcp.wiring import tools_from_mcp
 
 # Реальна форма відповіді MCP-сервера, який любить поговорити. Проза до, проза після.
 CHATTY = """Ось що я знайшов у системі замовлень. Зверніть увагу, що дані актуальні
@@ -498,7 +502,62 @@ def check_demo_without_mcp_says_what_it_did_not_show() -> None:
     assert '".[s04]"' in source, "не сказано, як саме встановити"
 
 
+# --- AC-05 · граф етапу 3 на MCP -------------------------------------------------
+
+SIX = [
+    ("який статус замовлення ord_4471", "orders"),
+    ("хочу оформити повернення ord_9001", "orders"),
+    ("скільки днів на повернення товару", "knowledge"),
+    ("з чого пошита вишита сорочка", "knowledge"),
+    ("скільки буде 1200 + 340", "math"),
+    ("порахуй 450 200 90", "math"),
+]
+ORDERS_STEPS = [tool_call("get_order_status", {"order_id": "ord_4471"}), text("У дорозі.")]
+
+
+def check_stage_three_routes_are_identical_over_mcp() -> None:
+    """e2e · ті самі шість маршрутів, коли інструменти живуть в іншому процесі (AC-05)"""
+    _require_mcp()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with (
+            trace_run("check", path=path, stage="s04") as tr,
+            tools_from_mcp(access=PUBLIC, tracer=tr) as built,
+        ):
+            assert set(built) == {"get_order_status", "initiate_return", "search_knowledge_base"}, (
+                f"реєстр із MCP неповний: {sorted(built)}"
+            )
+            for query, expected in SIX:
+                middle = ORDERS_STEPS if expected == "orders" else []
+                client = FakeLLM(script=[text(expected), *middle, text("ok")])
+                state = run_graph(query, access=PUBLIC, client=client, tracer=tr)
+                assert state.path == [SUPERVISOR, expected], f"{query!r} -> {state.path}"
+                assert state.finish_reason == "answered", (query, state.finish_reason)
+        steps = [s for s in iter_steps(path) if s["kind"] == "mcp_call"]
+
+    assert steps, (
+        "жодного виклику через MCP — граф пройшов на локальних інструментах, і перевірка "
+        "доводила б лише те, що етап 3 усе ще працює"
+    )
+    assert all(s["tool"] == "get_order_status" for s in steps), [s["tool"] for s in steps]
+
+
+def check_the_mcp_registry_really_replaces_the_local_one() -> None:
+    """ВІДМОВА · підміна реєстру справді відбувається, а не лише обіцяється"""
+    _require_mcp()
+    before = dict(stage_one_loop.REGISTRY)
+    with tools_from_mcp(access=PUBLIC) as built:
+        inside = stage_one_loop.REGISTRY
+        assert inside is not before, "реєстр не підмінено — контекст нічого не робить"
+        assert inside["get_order_status"] is built["get_order_status"], (
+            "у реєстрі лишився локальний інструмент, а не той, що з MCP"
+        )
+    assert stage_one_loop.REGISTRY == before, "реєстр не повернуто після виходу з контексту"
+
+
 CHECKS = [
+    check_stage_three_routes_are_identical_over_mcp,
+    check_the_mcp_registry_really_replaces_the_local_one,
     check_demo_shows_six_scenes_and_writes_a_trace,
     check_demo_without_mcp_says_what_it_did_not_show,
     check_the_checklist_answers_every_situation,

@@ -36,6 +36,19 @@ SERVER_MODULE = "stages.s04_mcp.server"
 TIMEOUT = 20.0
 
 
+class ServerUnreachable(Exception):
+    """Сервер не піднявся. Причина вже розгорнута з групи винятків і має слова."""
+
+
+class ServerRefused(Exception):
+    """Сервер живий і відповів — відмовою. Це не «не піднявся».
+
+    Без окремого типу цей випадок ловився широким `except` і ставав фазою `startup`:
+    справний сервер, який просто не знає такого інструмента, діагностувався як зламане
+    оточення. Рівно та підміна, проти якої написаний увесь модуль.
+    """
+
+
 @dataclass
 class ToolInfo:
     """Інструмент так, як його оголосив сервер. Схема — те, що піде моделі."""
@@ -99,14 +112,32 @@ async def _call(params: Any, errlog: Any, name: str, arguments: dict[str, Any]) 
     async with _session(params, errlog) as session:
         result = await session.call_tool(name, arguments)
         if result.is_error:
-            raise RuntimeError(f"сервер відхилив виклик {name!r}")
-        return chr(10).join(getattr(item, "text", "") for item in result.content)
+            raise ServerRefused(f"сервер відхилив виклик {name!r}")
+        return "\n".join(getattr(item, "text", "") for item in result.content)
 
 
-def list_tools(*, module: str = SERVER_MODULE, broken: bool = False) -> list[ToolInfo]:
-    """Спитати сервер, що він уміє. Саме цей виклик робить інтеграцію дискаверабельною."""
+def list_tools(
+    *, module: str = SERVER_MODULE, broken: bool = False, tracer: Any = None
+) -> list[ToolInfo]:
+    """Спитати сервер, що він уміє. Саме цей виклик робить інтеграцію дискаверабельною.
+
+    Відмови обробляються так само, як у `call_tool`. Перша редакція лишала їх голими, і
+    `list_tools(broken=True)` кидав `ExceptionGroup: unhandled errors in a TaskGroup` —
+    дослівно той рядок, який урок цього ж етапу наводить як приклад повідомлення, що
+    виглядає поясненням і ним не є.
+    """
     with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as errlog:
-        return asyncio.run(asyncio.wait_for(_list(_params(module, broken=broken), errlog), TIMEOUT))
+        try:
+            tools = asyncio.run(
+                asyncio.wait_for(_list(_params(module, broken=broken), errlog), TIMEOUT)
+            )
+        except Exception as error:  # noqa: BLE001 — причин десятки, наслідок один
+            failure = describe_failure(error, phase="startup")
+            failure["reason"] = _with_stderr(failure["reason"], errlog)
+            _step(tracer, "mcp_list", ok=False, phase=failure["phase"], count=0)
+            raise ServerUnreachable(failure["reason"]) from error
+    _step(tracer, "mcp_list", ok=True, phase=None, count=len(tools))
+    return tools
 
 
 def call_tool(
@@ -126,13 +157,10 @@ def call_tool(
                     _call(_params(module, broken=broken), errlog, name, arguments), timeout
                 )
             )
-        except TimeoutError as error:
-            return _traced(
-                CallResult(failure=describe_failure(error, phase="call")), name, arguments, tracer
-            )
-        except Exception as error:  # noqa: BLE001 — процес не піднявся; причин десятки, наслідок один
-            failure = describe_failure(error, phase="startup")
-            failure["reason"] = _with_stderr(failure["reason"], errlog)
+        except Exception as error:  # noqa: BLE001 — причин десятки, фаз три
+            failure = describe_failure(error, phase=_phase_of(error))
+            if failure["phase"] == "startup":
+                failure["reason"] = _with_stderr(failure["reason"], errlog)
             return _traced(CallResult(failure=failure), name, arguments, tracer)
 
     try:
@@ -147,6 +175,25 @@ def call_tool(
     return _traced(CallResult(payload=payload, raw=raw), name, arguments, tracer)
 
 
+def _phase_of(error: BaseException) -> str:
+    """Фаза за РОЗГОРНУТОЮ причиною, а не за типом того, що прилетіло назовні.
+
+    Тайм-аут і відмова сервера означають одне: процес живий, відповіді по суті немає.
+    Але `anyio` загортає виняток із задачі у `BaseExceptionGroup`, тож `except
+    ServerRefused` його не бачить — і жива, справна відмова діагностувалась як «процес
+    не піднявся». Та сама група, що ховала й текст причини.
+    """
+    while isinstance(error, BaseExceptionGroup) and error.exceptions:
+        error = error.exceptions[0]
+    return "call" if isinstance(error, TimeoutError | ServerRefused) else "startup"
+
+
+def _step(tracer: Any, kind: str, **fields: Any) -> None:
+    """Крок у трейс, якщо трейсер є. Один спосіб — щоб жоден виклик не лишився без сліду."""
+    if tracer is not None:
+        tracer.step(kind, server=SERVER_MODULE, **fields)
+
+
 def _with_stderr(reason: str, errlog: Any) -> str:
     """Додати останній рядок stderr сервера — часто це єдине пояснення."""
     errlog.seek(0)
@@ -156,13 +203,16 @@ def _with_stderr(reason: str, errlog: Any) -> str:
 
 def _traced(result: CallResult, name: str, arguments: dict[str, Any], tracer: Any) -> CallResult:
     """Виклик без сліду не існує як стан (AC-08b)."""
-    if tracer is not None:
-        tracer.step(
-            "mcp_call",
-            server=SERVER_MODULE,
-            tool=name,
-            arguments=arguments,
-            ok=result.ok,
-            phase=(result.failure or {}).get("phase"),
-        )
+    # AC-02 вимагає у трейсі ОБИДВІ сторони: що надіслали й що отримали. Перша редакція
+    # писала лише відправлення й булеве `ok` — за таким записом неможливо сказати, чим
+    # виклик завершився насправді.
+    _step(
+        tracer,
+        "mcp_call",
+        tool=name,
+        arguments=arguments,
+        ok=result.ok,
+        phase=(result.failure or {}).get("phase"),
+        result=str(result.payload)[:200] if result.ok else (result.failure or {}).get("reason"),
+    )
     return result
