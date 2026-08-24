@@ -91,7 +91,7 @@ C4Container
 | `stages.s03_router` | `stages/s03_router/` | lesson | `run.py`, `check.py` | **Готово.** Supervisor, схема стану як контракт, цикл ревізій; 38 перевірок |
 | `stages.s04_mcp` | `stages/s04_mcp/` | lesson + server | `server.py`, `run.py` | **Готово.** MCP-сервер, stdio-клієнт, три фази відмови; 36 перевірок |
 | `stages.s05_memory` | `stages/s05_memory/` | lesson | `run.py`, `check.py` | **Готово.** Вікно + підсумок, факти, чотири умови вибірки; 42 перевірки |
-| `stages.s06_platform` | `stages/s06_platform/` | **service** | `serve.py` (ASGI) | **Готово.** Три воротарі, класифікатор, стан і метрики, пастка двох воркерів; 59 перевірок. Розгорнуто за HTTPS |
+| `stages.s06_platform` | `stages/s06_platform/` | **service** | `serve.py` (ASGI) | **Готово.** Три воротарі, класифікатор, стан і метрики, пастка двох воркерів; 69 перевірок. Розгорнуто локально за HTTPS; довіра до сертифіката від публічного центру — НЕ ПЕРЕВІРЕНО |
 | `stages.s07_voice` | `stages/s07_voice/` | lesson + service | `pipeline.py`, `ws.py` | Батч vs стрім, barge-in, WebSocket-голос |
 | `stages.s08_eval` | `stages/s08_eval/` | lesson | `harness.py`, `run.py` | 3-рівнева оцінка поверх трейсів |
 | `stages.s09_frameworks` | `stages/s09_frameworks/` | lesson ×3 | `lg.py`, `crew.py`, `adk.py` | Один таск трьома фреймворками |
