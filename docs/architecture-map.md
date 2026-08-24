@@ -1,21 +1,22 @@
 ---
 status: current
-mode: greenfield-bootstrap
-updated_at: "2026-08-22"
-reflects_commit: "9ee4e25"
+mode: brownfield
+updated_at: "2026-08-24"
+reflects_commit: "668f090"
 language: "python >=3.11"
 build_cmd: 'pip install -e ".[dev]"'
 test_cmd: "python scripts/check_all.py"
 lint_cmd: "ruff check ."
 migration_tool: "custom: scripts/migrate.py + numbered .sql in migrations/"
-frontend: "vanilla html + js (planned, stages 6-7; no framework, no build step)"
+frontend: ""  # UI не зʼявився: етап 6 — backend-service + cli. Голос етапу 7 матиме сторінку, і тоді це поле заповниться
 ---
 
 # Architecture map — Agentic AI (навчально-продакшн курс)
 
-> **Цільовий** фундамент (`mode: greenfield-bootstrap`), а не скан наявного коду — репозиторій
-> порожній, окрім `docs/` (статті-джерела) і `planning/`. C4 та інвентар модулів описують те,
-> що `scaffold` зараз матеріалізує. Конвенції — правила, яких дотримується кожен подальший етап.
+> **Скан наявного коду** (`mode: brownfield`). До етапу 6 ця карта описувала цільовий фундамент —
+> рішення, ухвалені до першого рядка коду. Тепер вона описує систему, яка працює й розгортається
+> за HTTPS. Розділ «Стан системи після етапу 6» називає, що з ухваленого наперед виявилось
+> правдою, а що — ні.
 >
 > **Стан:** скелет матеріалізовано 2026-08-22, **етап 1 завершено 2026-08-23**. Машинні ключі
 > нижче — команди, які реально спрацювали, а не заплановані.
@@ -84,19 +85,51 @@ C4Container
 
 | Module | Path | Layers | Wired at | Responsibility |
 |---|---|---|---|---|
-| `shared` | `shared/` | адаптери (ports+infra) | імпорт із `stages/*` | Профіле-залежні реалізації: LLM, embeddings, trace, stores, config |
-| `stages.s01_agent_loop` | `stages/s01_agent_loop/` | lesson | `run.py`, `check.py` | **Готово.** `tools` · `validate` · `loop` · `run` · `check`; 21 перевірка |
-| `stages.s02_rag` | `stages/s02_rag/` | lesson | `run.py`, `check.py` | embed → cosine → top-k → generate, цитування |
-| `stages.s03_router` | `stages/s03_router/` | lesson | `run.py`, `check.py` | Свій міні-граф, потім LangGraph; supervisor |
-| `stages.s04_mcp` | `stages/s04_mcp/` | lesson + server | `server.py`, `run.py` | MCP-сервер + stdio-клієнт |
-| `stages.s05_memory` | `stages/s05_memory/` | lesson | `run.py`, `check.py` | short/long-term, extract→store→retrieve |
-| `stages.s06_platform` | `stages/s06_platform/` | **service** | `app.py` (ASGI) | Перший деплойний сервіс: зшиває s01–s05 |
+| `shared` | `shared/` | адаптери (ports+infra) | імпорт із `stages/*` | Профіле-залежні реалізації: `llm`, `embeddings`, `trace`, `config`, `counters` (памʼять/Redis), `factstore` (файл/Postgres), `check_runner` |
+| `stages.s01_agent_loop` | `stages/s01_agent_loop/` | lesson | `run.py`, `check.py` | **Готово.** Цикл, валідація аргументів, гейт підтвердження; 30 перевірок |
+| `stages.s02_rag` | `stages/s02_rag/` | lesson | `run.py`, `check.py` | **Готово.** embed → cosine → top-k, фільтр доступу ДО відбору; 49 перевірок |
+| `stages.s03_router` | `stages/s03_router/` | lesson | `run.py`, `check.py` | **Готово.** Supervisor, схема стану як контракт, цикл ревізій; 38 перевірок |
+| `stages.s04_mcp` | `stages/s04_mcp/` | lesson + server | `server.py`, `run.py` | **Готово.** MCP-сервер, stdio-клієнт, три фази відмови; 36 перевірок |
+| `stages.s05_memory` | `stages/s05_memory/` | lesson | `run.py`, `check.py` | **Готово.** Вікно + підсумок, факти, чотири умови вибірки; 42 перевірки |
+| `stages.s06_platform` | `stages/s06_platform/` | **service** | `serve.py` (ASGI) | **Готово.** Три воротарі, класифікатор, стан і метрики, пастка двох воркерів; 59 перевірок. Розгорнуто за HTTPS |
 | `stages.s07_voice` | `stages/s07_voice/` | lesson + service | `pipeline.py`, `ws.py` | Батч vs стрім, barge-in, WebSocket-голос |
 | `stages.s08_eval` | `stages/s08_eval/` | lesson | `harness.py`, `run.py` | 3-рівнева оцінка поверх трейсів |
 | `stages.s09_frameworks` | `stages/s09_frameworks/` | lesson ×3 | `lg.py`, `crew.py`, `adk.py` | Один таск трьома фреймворками |
 | `stages.s10_capstone` | `stages/s10_capstone/` | **service** | `app.py` (ASGI) | Фінальний сервіс; імпортує s01–s09 |
-| `scripts` | `scripts/` | tooling | CLI | `check_all.py`, `migrate.py` |
-| `deploy` | `deploy/` | infra | — | `docker-compose.yml` (Postgres+pgvector, Redis) готовий; Dockerfile, Caddy, systemd, RUNBOOK — етап 6 |
+| `scripts` | `scripts/` | tooling | CLI | `check_all.py`, `migrate.py`, `mutate.py`, `clean_install.py`, `docs_check.py` і три валідатори документів |
+| `deploy` | `deploy/` | infra | — | **Готово.** `docker-compose.yml` (розробка) і `docker-compose.prod.yml` (пʼять контейнерів), `Dockerfile`, `Caddyfile`, `smoke.sh`, `RUNBOOK.md` |
+
+## Стан системи після етапу 6
+
+До цього етапу карта описувала **рішення**, ухвалені до першого рядка коду (`mode:
+greenfield-bootstrap`). Тепер вона описує те, що працює.
+
+```
+HTTPS → Caddy → uvicorn (N воркерів) → guards → intent → memory → s01/s03 → відповідь
+                                         │        │        │
+                                       Redis   FakeLLM  Postgres
+                                                        (том)
+         planner (окремий процес) ──────────────────────┘
+```
+
+**Що з ухваленого наперед виявилось правдою:**
+
+- Два профілі на одну кодову базу — витримали шість етапів без жодного `if profile ==`
+  у коді етапів.
+- `shared/` як єдине місце розгалуження — витримало; на етапі 6 туди додались два
+  адаптери (`counters`, `factstore`), і жоден етап 1–5 не змінився.
+- Підробка провайдера за замовчуванням — витримала аж до розгортання, де довелось
+  додати `auto_reply` (сервіс не має сценарію) і `ALLOW_FAKE_LLM` (ADR-0009 етапу 6).
+
+**Що виявилось неточним:**
+
+- «Інтерфейс етапу 5 вузький, сховище підміниться» — правда лише наполовину: набір
+  методів справді вузький, але `Memory` приймає шлях, а не сховище. Фабрика стоїть
+  зовні (ADR-0004 етапу 6).
+- `frontend` у цій карті обіцяв vanilla-сторінку на етапах 6–7. Етап 6 виявився
+  `backend-service` без UI; поле спорожнене до етапу 7.
+- Стік трейсів у Langfuse обіцявся «на етапі 6». Переїхав на етап 8 із причиною
+  (ADR-0008 етапу 6): вимогу до сховища трейсів формулює той, хто їх читає.
 
 ## Conventions (правила, яких дотримується кожен новий етап)
 
