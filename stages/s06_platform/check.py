@@ -8,9 +8,14 @@
 
 from __future__ import annotations
 
-from shared.check_runner import run_checks
+import tempfile
+from pathlib import Path
+
+from shared.check_runner import NotVerified, run_checks
 from shared.config import LOCAL, Settings
 from shared.counters import DAY, MINUTE, InMemory, Shared, get_counters
+from shared.factstore import DatabaseStore, FileStore
+from stages.s05_memory.facts import Fact
 from stages.s06_platform.fake_store import FakeStore
 
 # Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
@@ -18,6 +23,11 @@ BUDGET_SECONDS = 60
 
 NEWLINE = chr(10)
 NOW = 1_700_000_000.0
+QUESTION = "куди доставляти замовлення"
+
+
+def _fact(owner: str, topic: str, text: str, **kwargs) -> Fact:
+    return Fact(owner=owner, topic=topic, text=text, stored_at=NOW, **kwargs)
 
 
 def _shared_pair() -> tuple[Shared, Shared]:
@@ -171,6 +181,173 @@ def check_the_shared_counter_needs_no_container_to_be_checked() -> None:
     assert store.expirations, "термін життя ключа не встановлено — сховище ростиме вічно"
 
 
+# --- сховище фактів: один контракт, дві реалізації -------------------------------------
+
+
+def _database():
+    """Зʼєднання з базою або `NotVerified`, якщо її немає.
+
+    Третій стан замість падіння. Перевірка, що потребує контейнера, має сказати про це
+    словами — інакше читач без Docker бачить червоне й не розуміє, чи він щось зламав.
+    """
+    settings = Settings.load()
+    url = settings.database_url or "postgresql://agentic:agentic@127.0.0.1:5432/agentic"
+    try:
+        import psycopg
+    except ImportError as error:
+        raise NotVerified(f"psycopg не встановлено: {error}") from error
+    try:
+        return psycopg.connect(url, connect_timeout=2)
+    except Exception as error:  # noqa: BLE001 — будь-яка відмова означає «бази немає»
+        raise NotVerified(
+            f"база недоступна ({type(error).__name__}). Підніми: "
+            "docker compose -f deploy/docker-compose.yml up -d --wait"
+        ) from error
+
+
+def _fresh(connection) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute("TRUNCATE facts")
+    connection.commit()
+
+
+def _both_stores(connection, tmp: str) -> list:
+    return [FileStore(Path(tmp) / "m.jsonl"), DatabaseStore(connection)]
+
+
+def check_both_fact_stores_answer_the_same_way() -> None:
+    """ВІДМОВА · сховище: файл і база дають однакову відповідь на однакових даних"""
+    with _database() as connection, tempfile.TemporaryDirectory() as tmp:
+        _fresh(connection)
+        for store in _both_stores(connection, tmp):
+            store.remember(_fact("olena", "address", "Доставляти замовлення на Хрещатик 22"))
+            store.remember(_fact("olena", "weather", "Учора був дощ"))
+
+            context = store.context_for("olena", QUESTION, now=NOW)
+            texts = [fact["text"] for fact in context.facts]
+
+            assert texts == ["Доставляти замовлення на Хрещатик 22"], f"{store.name}: {texts}"
+            reasons = [skip.reason for skip in context.skipped]
+            assert any("оцінка" in reason for reason in reasons), f"{store.name}: {reasons}"
+
+
+def check_the_owner_filter_is_a_query_condition_in_the_database() -> None:
+    """ВІДМОВА · сховище: чужий рядок не залишає бази — фільтр у запиті, не в памʼяті"""
+    with _database() as connection:
+        _fresh(connection)
+        store = DatabaseStore(connection)
+        store.remember(_fact("olena", "address", "Доставляти замовлення на Хрещатик 22"))
+        store.remember(_fact("petro", "address", "Куди доставляти замовлення — на Банкову 11"))
+
+        mine = store._facts_of("olena")
+        everyone = store.all_facts()
+
+    assert len(everyone) == 2, everyone
+    assert [f.owner for f in mine] == ["olena"], mine
+    assert not any("Банков" in f.text for f in mine), (
+        "чужий факт приїхав із бази. Файлова реалізація читає всі записи й фільтрує в "
+        "памʼяті — це борг, названий в ADR-0004 етапу 5. База має закрити його умовою "
+        "запиту, інакше переїзд не дав нічого, крім іншого файлу"
+    )
+
+
+def check_neither_store_leaks_and_both_still_answer() -> None:
+    """ВІДМОВА · дзеркальна: чуже не дійшло І своє дійшло — на ОБОХ реалізаціях"""
+    with _database() as connection, tempfile.TemporaryDirectory() as tmp:
+        _fresh(connection)
+        for store in _both_stores(connection, tmp):
+            store.remember(_fact("olena", "address", "Доставляти замовлення на Хрещатик 22"))
+            for i in range(3):
+                store.remember(
+                    _fact("petro", f"addr{i}", "Куди доставляти замовлення — на Банкову 11")
+                )
+
+            hers = [f["text"] for f in store.context_for("olena", QUESTION, now=NOW).facts]
+            his = [f["text"] for f in store.context_for("petro", QUESTION, now=NOW).facts]
+
+            assert not any("Банков" in text for text in hers), f"{store.name}: витік — {hers}"
+            assert any("Хрещатик" in text for text in hers), (
+                f"{store.name}: власний факт зник. Витоку немає; відповіді теж немає — "
+                "це та сама вада, що на етапі 5, і вона не ловиться перевіркою на витік"
+            )
+            assert any("Банков" in text for text in his), f"{store.name}: {his}"
+
+
+def check_the_database_refuses_two_active_facts_on_one_topic() -> None:
+    """ВІДМОВА · міграція: правило «один активний факт на тему» тримає сховище, не код"""
+    with _database() as connection:
+        _fresh(connection)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO facts (owner, topic, text, stored_at, status)"
+                " VALUES (%s, %s, %s, %s, 'active')",
+                ("olena", "address", "перший", NOW),
+            )
+        connection.commit()
+
+        # Обхід сховища навмисно: перевіряється саме база, а не код, що її береже.
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO facts (owner, topic, text, stored_at, status)"
+                    " VALUES (%s, %s, %s, %s, 'active')",
+                    ("olena", "address", "другий", NOW + 1),
+                )
+            connection.commit()
+        except Exception:  # noqa: BLE001 — саме на це й розраховано
+            connection.rollback()
+        else:
+            raise AssertionError(
+                "дві активні адреси одного власника лягли в базу. У файлі це тримався код; "
+                "тут має тримати сховище — інакше правило переживе рівно до наступного "
+                "автора запису"
+            )
+
+
+def check_the_database_refuses_a_replaced_fact_without_a_time() -> None:
+    """ВІДМОВА · міграція: статус `replaced` без часу заміни відхиляється сховищем"""
+    with _database() as connection:
+        _fresh(connection)
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO facts (owner, topic, text, stored_at, status)"
+                    " VALUES (%s, %s, %s, %s, 'replaced')",
+                    ("olena", "address", "без часу", NOW),
+                )
+            connection.commit()
+        except Exception:  # noqa: BLE001
+            connection.rollback()
+        else:
+            raise AssertionError(
+                "запис `replaced` без `replaced_at` прийнято. На етапі 5 такий рядок валив "
+                "`describe_skip` виключенням TypeError повз ValueError — тобто вимикав усю "
+                "памʼять власника"
+            )
+
+
+def check_stage_five_is_untouched_by_the_move() -> None:
+    """ВІДМОВА · переїзд не змінив жодного рядка етапу 5"""
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "diff", "--name-only", "stage-05", "--", "stages/s05_memory"],
+        cwd=Path(__file__).resolve().parent.parent.parent,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if result.returncode != 0:
+        raise NotVerified(f"теґ stage-05 недоступний: {result.stderr.strip()}")
+
+    changed = [line for line in result.stdout.splitlines() if line.strip()]
+    assert not changed, (
+        f"етап 5 змінено: {changed}. C-1 забороняє правки без ADR, а ADR-0004 обіцяв, що "
+        "переїзд обійдеться без них. Якщо правка справді потрібна — це не деталь переїзду, "
+        "а спростування тези етапу 5, і воно потребує запису"
+    )
+
+
 CHECKS = [
     check_both_counters_answer_the_same_way_within_one_instance,
     check_the_window_forgets_what_fell_out_of_it,
@@ -179,6 +356,12 @@ CHECKS = [
     check_time_is_passed_in_never_read_from_the_clock,
     check_the_factory_branches_on_profile_and_nothing_else,
     check_the_shared_counter_needs_no_container_to_be_checked,
+    check_both_fact_stores_answer_the_same_way,
+    check_the_owner_filter_is_a_query_condition_in_the_database,
+    check_neither_store_leaks_and_both_still_answer,
+    check_the_database_refuses_two_active_facts_on_one_topic,
+    check_the_database_refuses_a_replaced_fact_without_a_time,
+    check_stage_five_is_untouched_by_the_move,
 ]
 
 
