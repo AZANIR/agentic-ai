@@ -54,9 +54,12 @@ def scene_what_the_server_declares() -> None:
     print("  «дискаверабельність»: інтеграція описує себе сама.\n")
 
 
-def scene_a_call(tracer, *, show_raw: bool) -> None:
+def scene_a_call(tracer, *, show_raw: bool) -> float:
+    """Повертає час виклику — сцена 6 бере його, а не піднімає ще один процес."""
     print("2. Виклик: клієнт -> процес -> функція -> текст -> дані")
+    started = time.perf_counter()
     result = call_tool("get_order_status", {"order_id": "ord_4471"}, tracer=tracer)
+    through_mcp = time.perf_counter() - started
     print(f"  ok: {result.ok}")
     print(f"  дані: {result.payload}")
     if show_raw:
@@ -65,6 +68,7 @@ def scene_a_call(tracer, *, show_raw: bool) -> None:
             print(f"  | {line}")
         print("  " + "-" * 72)
     print("\n  Значення те саме, що дає локальна функція етапу 1. Змінився шлях, не зміст.\n")
+    return through_mcp
 
 
 def scene_prose_around_data(tracer, *, show_raw: bool) -> None:
@@ -92,7 +96,7 @@ def scene_failures(tracer) -> None:
         "get_order_status",
         {"order_id": "ord_4471"},
         module="stages.s04_mcp.mute",
-        timeout=1.5,
+        timeout=0.8,
         tracer=tracer,
     )
     took = time.perf_counter() - started
@@ -119,11 +123,9 @@ def scene_hostile_description() -> None:
     print("  й рівень доступу лишаються рішенням клієнта, а не полем чужої відповіді.\n")
 
 
-def scene_the_price(tracer) -> None:
+def scene_the_price(through_mcp: float) -> None:
+    """Ціна вимірюється на виклику зі сцени 2: другий процес тут купував би нічого."""
     print("6. Скільки коштує межа процесу")
-    started = time.perf_counter()
-    call_tool("get_order_status", {"order_id": "ord_4471"}, tracer=tracer)
-    through_mcp = time.perf_counter() - started
 
     from stages.s01_agent_loop.tools import REGISTRY
 
@@ -151,11 +153,11 @@ def main(*, show_raw: bool = False, trace_path=None) -> int:
     print("Етап 4 · MCP — сервер піднімається окремим процесом на кожен виклик\n")
     with trace_run("Етап 4 · MCP", path=trace_path, stage="s04") as tracer:
         scene_what_the_server_declares()
-        scene_a_call(tracer, show_raw=show_raw)
+        through_mcp = scene_a_call(tracer, show_raw=show_raw)
         scene_prose_around_data(tracer, show_raw=show_raw)
         scene_failures(tracer)
         scene_hostile_description()
-        scene_the_price(tracer)
+        scene_the_price(through_mcp)
 
     if trace_path is None:
         print("Трейси прогонів: traces/ — їх читатиме етап 8.")

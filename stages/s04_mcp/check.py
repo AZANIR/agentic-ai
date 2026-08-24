@@ -217,27 +217,47 @@ def check_a_server_that_fails_to_start_is_named() -> None:
     assert result.failure["reason"], "причина порожня — діагностувати нічим"
 
 
-def check_a_server_that_never_answers_times_out() -> None:
-    """ВІДМОВА · сервер замовк — тайм-аут за скінченний час, фаза інша ніж startup"""
+def check_the_two_failure_phases_differ_and_both_have_words() -> None:
+    """ВІДМОВА · дві фази відмови різні, і жодна причина не порожня
+
+    Один сценарій, два сервери: мертвий і мовчазний. Окрема перевірка «причина не порожня»
+    піднімала б ті самі два процеси вдруге й купувала б нічого — а це три секунди з набору.
+    Ізоляція потрібна між сценаріями; два твердження про одну пару відмов сценарієм не є.
+    """
     _require_mcp()
+    asked = 0.6
     started = time.perf_counter()
-    result = call_tool(
-        "get_order_status", {"order_id": "ord_4471"}, module="stages.s04_mcp.mute", timeout=1.5
+    mute = call_tool(
+        "get_order_status", {"order_id": "ord_4471"}, module="stages.s04_mcp.mute", timeout=asked
     )
     took = time.perf_counter() - started
+    dead = call_tool("get_order_status", {"order_id": "ord_4471"}, broken=True)
 
-    assert not result.ok, "мовчазний сервер відповів"
-    assert took < 10, f"чекали {took:.1f} с — тайм-аут не спрацював"
+    assert not mute.ok and not dead.ok, "відмова не сталась там, де мала"
 
-    # Саме "call", а не «одна з двох». Перша редакція писала `in {"call", "startup"}` —
-    # і мутація, що зливає обидві фази в одну, проходила її наскрізь. AC-04b вимагає, щоб
-    # «замовк посеред виклику» відрізнявся від «не піднявся»: причини різні й лікуються
-    # по-різному, а в трейсбеку виглядають однаково.
-    assert result.failure["phase"] == "call", result.failure
-    dead = call_tool("get_order_status", {"order_id": "x"}, broken=True)
+    # Межа ПОХІДНА від запитаного тайм-ауту, а не константа. Перша редакція писала
+    # `took < 10` — і поки тайм-аут був 1.5 с, це працювало. Коли його зменшили до 0.6 с
+    # заради швидкості набору, мутація «тайм-аут удесятеро довший» почала давати 6 с і
+    # проходити. Скорочення часу мовчки послабило перевірку, яка цей час і охороняє.
+    ceiling = 1.5 + asked * 3
+    assert took < ceiling, (
+        f"чекали {took:.1f} с при запитаних {asked} — тайм-аут довший за заявлений"
+    )
+
+    # Саме "call" проти "startup", а не «одна з двох». Перша редакція писала
+    # `in {"call", "startup"}` — і мутація, що зливає обидві фази в одну, проходила її
+    # наскрізь. AC-04b вимагає, щоб «замовк посеред виклику» відрізнявся від «не піднявся»:
+    # причини різні й лікуються по-різному, а в трейсбеку виглядають однаково.
+    assert mute.failure["phase"] == "call", mute.failure
     assert dead.failure["phase"] == "startup", dead.failure
-    assert dead.failure["phase"] != result.failure["phase"], "дві різні події злились в одну"
-    assert result.failure["reason"], "причина порожня — у трейсі відмова без жодного слова"
+
+    for result in (mute, dead):
+        reason = result.failure["reason"]
+        assert reason.strip(), f"порожня причина для фази {result.failure['phase']}"
+        assert "TaskGroup" not in reason, (
+            f"причина не розгорнута з групи винятків: {reason!r} — так виглядає "
+            "повідомлення, яке здається поясненням і ним не є"
+        )
 
 
 def check_every_call_leaves_a_trace_record() -> None:
@@ -469,22 +489,6 @@ def check_demo_shows_six_scenes_and_writes_a_trace() -> None:
     assert {s["ok"] for s in steps} == {True, False}, "у трейсі немає обох результатів"
 
 
-def check_no_failure_reason_is_empty() -> None:
-    """ВІДМОВА · жодна причина відмови не порожня — інакше у трейсі відмова без слів"""
-    _require_mcp()
-    dead = call_tool("get_order_status", {"order_id": "x"}, broken=True)
-    mute = call_tool(
-        "get_order_status", {"order_id": "x"}, module="stages.s04_mcp.mute", timeout=1.5
-    )
-    for result in (dead, mute):
-        reason = result.failure["reason"]
-        assert reason.strip(), f"порожня причина для фази {result.failure['phase']}"
-        assert "TaskGroup" not in reason, (
-            f"причина не розгорнута з групи винятків: {reason!r} — так виглядає "
-            "повідомлення, яке здається поясненням і ним не є"
-        )
-
-
 def check_demo_without_mcp_says_what_it_did_not_show() -> None:
     """демо: без MCP називає, чого саме не показало, і не вдає, що показало"""
     source = (Path(demo_module.__file__)).read_text(encoding="utf-8")
@@ -496,7 +500,6 @@ def check_demo_without_mcp_says_what_it_did_not_show() -> None:
 
 CHECKS = [
     check_demo_shows_six_scenes_and_writes_a_trace,
-    check_no_failure_reason_is_empty,
     check_demo_without_mcp_says_what_it_did_not_show,
     check_the_checklist_answers_every_situation,
     check_every_rule_has_a_situation_that_triggers_it,
@@ -514,7 +517,7 @@ CHECKS = [
     check_the_search_response_carries_prose_around_the_data,
     check_access_level_travels_in_the_payload,
     check_a_server_that_fails_to_start_is_named,
-    check_a_server_that_never_answers_times_out,
+    check_the_two_failure_phases_differ_and_both_have_words,
     check_every_call_leaves_a_trace_record,
     check_server_fits_the_line_budget,
     check_client_fits_the_line_budget,

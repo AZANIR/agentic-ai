@@ -1,14 +1,14 @@
 {
   "stage": "s04-mcp",
   "executed_floor": 18,
-  "note": "Числа заміряні З УСТАНОВЛЕНИМ MCP. Без нього перевірки з підпроцесом позначаються НЕ ПЕРЕВІРЕНО, а не проходять. Мутація тайм-ауту множить його, а не ставить велику константу: перша редакція ставила 900 с, і мовчазний сервер тримав увесь прогін ці 900 с. Мутація має ламати властивість, а не робити прогін неможливим.",
+  "note": "Числа заміряні З УСТАНОВЛЕНИМ MCP. Без нього перевірки з підпроцесом позначаються НЕ ПЕРЕВІРЕНО, а не проходять. Мутація тайм-ауту множить його, а не ставить велику константу: перша редакція ставила 900 с, і мовчазний сервер тримав увесь прогін ці 900 с. Мутація має ламати властивість, а не робити прогін неможливим. Мутація тайм-ауту множить його на десять, а перевірка має межу, ПОХІДНУ від запитаного значення: константна межа проходила б, щойно тайм-аут зменшили заради швидкості набору.",
   "mutations": [
     {
       "name": "вправа 1 · json.loads на всій відповіді",
       "file": "stages/s04_mcp/parse.py",
       "old": "    for block in _FENCED.findall(response):",
       "new": "    for block in [response]:",
-      "expect_failed": 6
+      "expect_failed": 7
     },
     {
       "name": "вправа 2 · відсутність даних стає порожнім словником",
@@ -41,8 +41,8 @@
     {
       "name": "вправа 6 · тайм-аут удесятеро довший за заявлений",
       "file": "stages/s04_mcp/client.py",
-      "old": "            asyncio.wait_for(_call(_params(module, broken=broken), name, arguments), timeout)",
-      "new": "            asyncio.wait_for(_call(_params(module, broken=broken), name, arguments), timeout * 10)",
+      "old": "                    _call(_params(module, broken=broken), errlog, name, arguments), timeout",
+      "new": "                    _call(_params(module, broken=broken), errlog, name, arguments), timeout * 10",
       "expect_failed": 1
     },
     {
@@ -50,14 +50,14 @@
       "file": "stages/s04_mcp/client.py",
       "old": "            CallResult(failure=describe_failure(error, phase=\"call\")), name, arguments, tracer",
       "new": "            CallResult(failure=describe_failure(error, phase=\"startup\")), name, arguments, tracer",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "виклик не лишає сліду",
       "file": "stages/s04_mcp/client.py",
       "old": "    if tracer is not None:",
       "new": "    if False:",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "незворотність береться з опису сервера",
