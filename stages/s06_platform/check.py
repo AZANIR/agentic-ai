@@ -8,7 +8,9 @@
 
 from __future__ import annotations
 
+import io
 import tempfile
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from shared.check_runner import NotVerified, code_mentions, run_checks
@@ -40,6 +42,7 @@ from stages.s06_platform.jobs import (
     run_interval,
 )
 from stages.s06_platform.observe import DOWN, UP, Dependency, Health, Metrics
+from stages.s06_platform.run import main as demo_main
 
 # Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
 BUDGET_SECONDS = 60
@@ -451,6 +454,38 @@ def check_the_refusal_does_not_say_whether_the_key_exists() -> None:
         f"відмови різні: {empty.reason!r} проти {unknown.reason!r}. Різниця у відповіді — "
         "це оракул: перебирай, доки текст не зміниться"
     )
+
+
+def check_the_key_is_compared_in_constant_time() -> None:
+    """ВІДМОВА · воротар: ключ звіряється сталим порівнянням, а не `==`"""
+    import ast
+    import inspect
+
+    from stages.s06_platform import guards
+
+    # Структурне твердження, а не часове. Заміряти час порівняння в перевірці означало б
+    # писати мигтливий тест: різниця в наносекундах, а машина під навантаженням.
+    # Тут стверджується наявність механізму — і цього досить, бо механізм або є, або ні.
+    tree = ast.parse(inspect.getsource(guards.authenticate))
+    called = {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    } | {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert "compare_digest" in called, (
+        f"звірка ключа не використовує сталого порівняння: {sorted(called)}. Звичайне "
+        "`==` завершується на першому розбіжному байті, тобто час відповіді розповідає "
+        "довжину спільного префікса — це підбір ключа по одному символу"
+    )
+
+    # І дзеркально: механізм не лише є, а й працює на не-ASCII ключі. `compare_digest`
+    # на рядках із кирилицею кидає TypeError, тож порівнювати треба байти.
+    verdict = admit("ключ кирилицею", InMemory(), _settings(), now=NOW)
+    assert verdict.kind == UNAUTHENTICATED, verdict
 
 
 def check_the_rate_limit_refuses_before_the_model() -> None:
@@ -1132,6 +1167,68 @@ def check_the_migration_runs_once_not_per_worker() -> None:
     )
 
 
+# --- e2e: демо ------------------------------------------------------------------------------
+
+
+def check_the_demo_shows_seven_scenes_and_leaves_a_trace() -> None:
+    """e2e · демо показує сім сцен, три різні гілки й обидві половини пастки"""
+    buffer = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with redirect_stdout(buffer):
+            code = demo_main(trace_path=path)
+        recorded = list(iter_steps(path))
+    output = buffer.getvalue()
+
+    assert code == 0, code
+    assert output.startswith("[FakeLLM]"), output.splitlines()[0]
+    for number in range(1, 8):
+        assert f"{NEWLINE}{number}. " in output, f"сцена {number} не надрукувалась"
+
+    # Тіла сцен, а не заголовки. Урок етапу 5: заголовок доводить, що надрукувався заголовок.
+    for branch in (ORDERS, KNOWLEDGE, MATH):
+        assert branch in output, f"сцена 1 не показала гілки {branch}"
+    for kind in (UNAUTHENTICATED, RATE_LIMITED, BUDGET_EXHAUSTED):
+        assert kind in output, f"сцена 2 не показала відмови {kind}"
+
+    assert "Хрещатик" in output and "Банков" in output, "сцена 4 не показала двох памʼятей"
+    assert "ConnectionError" in output, "сцена 5 не показала несправної залежності"
+    assert "secret" not in output and "10.0.0.1" not in output, (
+        "у виводі рядок підключення — стан має називати ТИП помилки, не її текст"
+    )
+
+    # Обидві половини пастки — числами, а не словами.
+    assert "виконалась 2 раз" in output, "сцена 6 не показала подвоєної задачі"
+    assert "виконалась 1 раз" in output, "сцена 6 не показала виправлення"
+    assert "пропущено 6 при межі 3" in output, (
+        "сцена 6 не показала подвоєного ліміту — а це половина, важливіша за першу"
+    )
+
+    # Дзеркальна половина сцени 7: ключа немає, але похідний власник Є.
+    assert "ключ у трейсі:     False" in output, "сцена 7 не довела відсутності ключа"
+    assert "власник у трейсі:  '" in output, (
+        "сцена 7 прибрала ключ і не показала, чим його замінено — тоді запит неможливо "
+        "привʼязати ні до кого"
+    )
+
+    scenes = {step["kind"] for step in recorded}
+    assert {"guard", "intent", "memory", "done", "trap"} <= scenes, scenes
+
+
+def check_the_demo_needs_no_key_no_network_and_no_container() -> None:
+    """ВІДМОВА · демо: жодного справжнього провайдера, жодного контейнера"""
+    import inspect
+
+    from stages.s06_platform import run as module
+
+    source = inspect.getsource(module)
+    assert not code_mentions(source, {"psycopg", "redis", "docker", "localhost:5432"}), (
+        "демо тягне контейнер. Правило курсу: усе працює офлайн — і найбільше це важить "
+        "на етапі, де контейнери вперше зʼявляються"
+    )
+    assert "FakeLLM" in source, "демо не називає підробки явно"
+
+
 CHECKS = [
     check_both_counters_answer_the_same_way_within_one_instance,
     check_the_window_forgets_what_fell_out_of_it,
@@ -1150,6 +1247,7 @@ CHECKS = [
     check_a_known_key_gets_through_and_carries_its_owner,
     check_the_key_never_appears_in_what_is_written_down,
     check_the_refusal_does_not_say_whether_the_key_exists,
+    check_the_key_is_compared_in_constant_time,
     check_the_rate_limit_refuses_before_the_model,
     check_one_clients_limit_does_not_stop_another,
     check_an_exhausted_budget_stops_the_call_and_says_so,
@@ -1183,6 +1281,8 @@ CHECKS = [
     check_the_deployment_files_exist_and_say_what_they_do,
     check_the_smoke_script_runs_one_list_against_both_targets,
     check_the_migration_runs_once_not_per_worker,
+    check_the_demo_shows_seven_scenes_and_leaves_a_trace,
+    check_the_demo_needs_no_key_no_network_and_no_container,
 ]
 
 
