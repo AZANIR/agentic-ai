@@ -30,8 +30,14 @@ pip install "crewai>=0.60"
 ERROR: Could not find a version that satisfies the requirement crewai>=0.60
 ```
 
-No released CrewAI — 0.1.0 through 1.15 — declares support for Python 3.14. Every one requires
-`<3.14` or `<=3.13`. This repository runs on 3.14.
+**The precise wording matters here**, because the imprecise one is refuted by a single command:
+`pip download crewai` on Python 3.14 happily returns **0.11.2** — old releases declare
+`>=3.10,<4.0` and install fine. The `<3.14` (or `<=3.13`) bound starts at **0.14.0**.
+
+And 0.14.0 is also where `crewai.BaseLLM` and `crewai.tools.BaseTool` appear — the seams
+through which this stage hands over its own client. So the choice is: **either a release that
+installs and has nothing to plug our client into, or a release with the right API that does not
+install.**
 
 That is not a gap in the stage. It is the sharpest constraint the stage teaches: it settles the
 choice **first**, before elegance is even on the table. No blog comparison shows it, because
@@ -50,14 +56,18 @@ credentials missing          fixed by an account
 ## The table
 
 ```
-| implementation | my lines | invisible | tokens | over request | prose places |
-| no framework   |       37 |         0 |    118 |            0 |            0 |
-| LangGraph      |       49 |      1895 |    118 |            0 |            0 |
-| CrewAI         |  not verified: no support for Python 3.14    |           10 |
-| Google ADK     |  not verified: package not installed         |            1 |
+| implementation | my lines | invisible | calls | tokens | over request | prose |
+| no framework   |       37 |         0 |     2 |    118 |            0 |     0 |
+| LangGraph      |       54 |      1895 |     2 |    118 |            0 |     0 |
+| CrewAI         |       62 |   not verified                     |          10 |
+| Google ADK     |       43 |   not verified                     |           1 |
 ```
 
-**37 against 49.** The framework does not save code here — it *adds* twelve lines. The same
+Note that **my lines and prose places are filled in for the rows that never ran**: both are
+measured from source, and an interpreter constraint does not make code unreadable. A dash there
+would have discarded the only honest numbers CrewAI can offer.
+
+**37 against 54.** The framework does not save code here — it *adds* seventeen lines. The same
 three steps are described twice, once as functions and once as a graph, plus a state type. On a
 two-step task the scaffolding costs more than the building.
 
@@ -68,8 +78,11 @@ somewhere you cannot read during an incident and cannot fix.
 
 **0 and 0 in the overhead column.** This is where the lazy reading of the thesis trips.
 "Frameworks cost tokens" is **not a law**. LangGraph decides *order*, not content: exactly what
-the author composed reaches the model. It charges in lines, not tokens. CrewAI would charge the
-other way — which is precisely why there is no winner, only constraints.
+the author composed reaches the model. It charges in lines, not tokens.
+
+CrewAI would, **we expect**, charge the other way — but that is an expectation, not a
+measurement: its row is empty. A stage whose thesis is "count it, do not assume it" does not get
+an exemption for itself.
 
 ## "Why did this step run" is a measured number
 
@@ -93,12 +106,12 @@ executed: an interpreter constraint does not make code unreadable.
 | File | What it holds | Lines |
 |---|---|---|
 | `contract.py` | five task elements and the function that checks them — the path included | 44 |
-| `counters.py` | tokens at the provider boundary; executed-line tracing | 76 |
-| `compare.py` | the table: builds, renders, and parses back | 72 |
+| `counters.py` | tokens at the provider boundary; executed-line tracing | 77 |
+| `compare.py` | the table: builds, renders, and parses back | 74 |
 | `baseline.py` | no framework: two model calls and a local variable | 37 |
-| `via_langgraph.py` | explicit coordination — the whole order lives in one function | 49 |
-| `via_crewai.py` | implicit coordination — written, never run here | 61 |
-| `via_adk.py` | behind a flag; an enabled flag must not stay silent | 45 |
+| `via_langgraph.py` | explicit coordination — the whole order lives in one function | 54 |
+| `via_crewai.py` | implicit coordination — written, never run here | 62 |
+| `via_adk.py` | behind a flag; an enabled flag must not stay silent | 43 |
 
 Budget: 110 executable lines per implementation module.
 
@@ -119,9 +132,12 @@ violation. Bounding it would declare a framework broken for being a framework.
 
 ## What this stage does not prove
 
-- **Two of four implementations were never run here.** CrewAI does not install on this
-  interpreter; ADK needs someone else's credentials. This is the stage's weakest point, and it
-  is a row in the table rather than a footnote.
+- **Two of four implementations were never run here.** CrewAI with the required API does not
+  install on this interpreter; ADK is off behind its flag. This is the stage's weakest point,
+  and it is a row in the table rather than a footnote.
+- **Everything said about CrewAI's behaviour is an expectation.** Neither its token overhead nor
+  its contract compliance was measured here. The prose uses the conditional; a present tense
+  anywhere is a defect in the prose.
 - **Fake-model numbers do not transfer to a real one.** Ratios are proven; absolute values are
   not.
 - **Invisible lines describe this input.** A different task executes different lines.

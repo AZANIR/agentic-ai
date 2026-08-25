@@ -23,7 +23,7 @@
 
 from __future__ import annotations
 
-import json
+import os
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -52,16 +52,28 @@ class Tally:
 
     @property
     def overhead(self) -> int:
-        """Ціна риштувань. Не може бути відʼємною: контракт не може поїхати двічі меншим."""
-        return max(0, self.sent - self.asked)
+        """Ціна риштувань: усе, що поїхало понад прописане контрактом."""
+        # Інваріант, а не кліп. `max(0, …)` тут був недосяжною гілкою, що вдавала
+        # запобіжник: `asked` росте лише там, де вже виріс `sent`. Кліп, який не може
+        # спрацювати, ховає ту єдину подію, заради якої його ставлять.
+        assert self.sent >= self.asked, (self.sent, self.asked)
+        return self.sent - self.asked
 
     def observe(self, payload: dict[str, Any]) -> None:
         """Порахувати один запит до моделі. Зберігаються **числа**, не текст (spec §6.1)."""
         self.calls += 1
         for part in _texts(payload):
             self.sent += tokens(part)
-            if part in self.owned:
-                self.asked += tokens(part)
+            # Контрактний текст зараховується і як ПІДРЯДОК: фреймворк ролей вкладає
+            # промпт задачі всередину більшого рядка («Current Task: …»), і точний збіг
+            # порахував би весь контракт надбавкою — тобто звинуватив би фреймворк у
+            # тому, що написав автор.
+            #
+            # Береться НАЙДОВШИЙ збіг, а не сума: контрактні тексти вкладені один в
+            # одного (питання живе всередині промпту), і сума порахувала б їх двічі —
+            # `asked` перевищив би `sent`, тобто надбавка стала б відʼємною.
+            matched = [tokens(owned) for owned in self.owned if owned in part]
+            self.asked += min(max(matched, default=0), tokens(part))
 
 
 def _texts(payload: dict[str, Any]) -> list[str]:
@@ -78,7 +90,12 @@ def _texts(payload: dict[str, Any]) -> list[str]:
         elif isinstance(content, list):
             found += [part.get("text", "") for part in content if isinstance(part, dict)]
     for tool in payload.get("tools") or []:
-        function = tool.get("function", {}) if isinstance(tool, dict) else {}
+        # Перевіряється тип ВНУТРІШНЬОГО значення, а не лише зовнішнього. Фреймворк може
+        # надіслати `{"type": "function", "function": "search_notes"}`, і тоді `.get()` на
+        # рядку валить прогін просто на межі провайдера — етап 4 уже платив за цей клас.
+        function = tool.get("function") if isinstance(tool, dict) else None
+        if not isinstance(function, dict):
+            continue
         if description := function.get("description"):
             found.append(description)
     return [part for part in found if part]
@@ -128,9 +145,17 @@ def executed_lines(*packages: str) -> Iterator[set[tuple[str, int]]]:
 
     Пакети шукаються за **шляхом файлу**, а не за іменем модуля: фреймворк виконує код
     своїх залежностей теж, і рядок із `langchain_core` — це так само не мій рядок.
+
+    **Дві названі межі.** Число описує **цей вхід**: інша задача виконає інші рядки.
+    І воно бачить лише **цей потік**: `sys.settrace` не поширюється на інші, тож
+    реалізація, що робить роботу в окремому потоці, дасть нуль — тихо. Обидві межі
+    названі тут, а не з'ясовуються під час читання таблиці.
     """
+    # Роздільник у кінці кореня обовʼязковий: `…/site-packages/langgraph` як префікс
+    # збігається і з `…/langgraph_sdk`, що лежить поруч. Тихий перебір у головній
+    # колонці — дзеркало тієї самої вади з `origin`, якою етап пишається.
     roots = tuple(_root(name) for name in packages)
-    roots = tuple(root for root in roots if root)
+    roots = tuple(root + os.sep for root in roots if root)
     seen: set[tuple[str, int]] = set()
     if not roots:
         yield seen
@@ -170,11 +195,3 @@ def _root(package: str) -> str:
     if locations := list(spec.submodule_search_locations or []):
         return str(Path(locations[0]))
     return str(Path(spec.origin).parent) if spec.origin else ""
-
-
-def as_line(tally: Tally) -> str:
-    """Числа лічильника одним рядком. Для трейсу й демо — без тексту запиту."""
-    return json.dumps(
-        {"calls": tally.calls, "asked": tally.asked, "sent": tally.sent},
-        ensure_ascii=False,
-    )

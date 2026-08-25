@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from shared.llm import get_model
 from shared.trace import trace_run
 from stages.s09_frameworks import contract
 
@@ -37,8 +38,14 @@ COORDINATION = "явна (агент і його інструменти)"
 WHY_SOURCE = "конфігурація агента плюс логи виконавця"
 
 FLAG = "S09_ADK"
-# Змінні, наявність будь-якої з яких означає «креденшели налаштовано». Перевіряється
-# НАЯВНІСТЬ імені, значення не читається й нікуди не потрапляє.
+
+# Креденшели Google цій реалізації **не потрібні**, і це наслідок ADR-0007: `_model()`
+# відводить ADK від Gemini до нашого клієнта крізь `LiteLlm`. Перша редакція вимагала їх
+# усе одно — і карала за послух: читач, який виконав дві команди з докстрінга, отримував
+# сімнадцять червоних і пораду завести обліковий запис, якого його ж коду не треба.
+#
+# Перелік лишається як **опис оточення для читача**, а не як умова: якщо колись ADK
+# піде до Gemini напряму, умова повернеться сюди разом із причиною.
 CREDENTIALS = ("GOOGLE_API_KEY", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_CLOUD_PROJECT")
 
 
@@ -52,13 +59,15 @@ def wanted() -> bool:
 
 
 def unavailable_because() -> str:
-    """Чому реалізацію не можна виконати. Порожньо — можна."""
+    """Чому реалізацію не можна виконати. Порожньо — можна.
+
+    Перевіряється **лише пакет**. Креденшели тут не умова: клієнт подається ззовні
+    (ADR-0007), і вимагати їх означало б вимагати того, чого код не використовує.
+    """
     try:
         import google.adk  # noqa: F401, PLC0415
     except ImportError:
         return 'пакета немає — постав `pip install -e ".[adk]"`'
-    if not any(name in os.environ for name in CREDENTIALS):
-        return f"креденшелів немає — потрібна одна зі змінних: {', '.join(CREDENTIALS)}"
     return ""
 
 
@@ -69,8 +78,12 @@ def available() -> bool:
 def demand() -> None:
     """Гучно впасти, якщо прапорець увімкнено, а виконати неможливо.
 
-    Викликається **до** побудови таблиці. Мовчазний прапорець гірший за його відсутність:
-    читач, який попросив четвертий рядок і отримав три, не дізнається, що нічого не сталося.
+    Викликається з **демо**, а не зі збірки таблиці. Різниця не косметична: `collect()`
+    кличуть і перевірки, і прапорець в оточенні читача валив би весь набір замість того,
+    щоб зашуміти в тому місці, де його попросили.
+
+    Мовчазний прапорець гірший за його відсутність: читач, який попросив четвертий рядок і
+    отримав три, не дізнається, що нічого не сталося.
     """
     if wanted() and (reason := unavailable_because()):
         raise Demanded(
@@ -124,7 +137,7 @@ def _model(client: Any) -> Any:
     """
     from google.adk.models.lite_llm import LiteLlm  # noqa: PLC0415
 
-    return LiteLlm(model="openai/fake", client=client)
+    return LiteLlm(model=f"openai/{get_model()}", client=client)
 
 
 def _ask(agent: Any, question: str) -> str:

@@ -20,8 +20,8 @@
     {
       "name": "вправа 3 · надбавка рахується від того, що просила реалізація",
       "file": "stages/s09_frameworks/counters.py",
-      "old": "            if part in self.owned:\n                self.asked += tokens(part)",
-      "new": "            self.asked += tokens(part)",
+      "old": "            matched = [tokens(owned) for owned in self.owned if owned in part]",
+      "new": "            matched = [tokens(part)]",
       "expect_failed": 1
     },
     {

@@ -32,6 +32,7 @@ COLUMNS = (
     "реалізація",
     "мої рядки",
     "невидимі рядки",
+    "викликів моделі",
     "токени запиту",
     "понад запит",
     "координація",
@@ -56,6 +57,10 @@ class Row:
     module: str
     mine: int = 0
     invisible: int = 0
+    # Кількість викликів моделі — **колонка**, а не обіцянка. Чотири тексти називали її
+    # вимірюваною, а в таблиці її не було: реалізація, що пʼять разів шле той самий
+    # контрактний промпт, мала `надбавка = 0` і була невідрізнима від ощадливої.
+    calls: int = 0
     asked: int = 0
     overhead: int = 0
     coordination: str = ""
@@ -72,23 +77,38 @@ class Row:
     def cells(self) -> list[str]:
         # «Місць прози» вимірюється з ДЖЕРЕЛА, тож стоїть навіть у рядка, який не вдалося
         # прогнати: обмеження інтерпретатора не робить код нечитабельним.
+        # «Мої рядки» й «місць прози» вимірюються з ДЖЕРЕЛА, тож стоять і в рядка, який
+        # не вдалося прогнати: обмеження інтерпретатора не робить код нечитабельним, і
+        # прочерк на їхньому місці викинув би єдині чесні числа непригнаної реалізації.
         if self.unverified:
-            return [self.name, UNVERIFIED, self.unverified, "—", "—", "—", str(self.places), "—"]
-        if self.broken:
             return [
                 self.name,
-                "контракт порушено",
-                "; ".join(self.broken),
+                str(self.mine),
+                UNVERIFIED,
+                "—",
                 "—",
                 "—",
                 "—",
                 str(self.places),
+                self.unverified,
+            ]
+        if self.broken:
+            return [
+                self.name,
+                str(self.mine),
+                "контракт порушено",
                 "—",
+                "—",
+                "—",
+                "—",
+                str(self.places),
+                "; ".join(self.broken),
             ]
         return [
             self.name,
             str(self.mine),
             str(self.invisible),
+            str(self.calls),
             str(self.asked),
             str(self.overhead),
             self.coordination,
@@ -117,7 +137,7 @@ def executable_lines(name: str) -> int:
     )
 
 
-def behaviour_prose(name: str) -> int:
+def behaviour_prose(name: str | Path) -> int:
     """Скільки місць прози описують поведінку — ціна відповіді «чому цей крок».
 
     Міряється з джерела розбором AST, а не оголошується числом: оголошене число було б
@@ -126,7 +146,8 @@ def behaviour_prose(name: str) -> int:
     Явна координація дає **нуль**: наступний крок вирішує код, а не текст. Неявна дає
     стільки, скільки описів треба прочитати й уявити, як їх прочитала модель.
     """
-    tree = ast.parse((HERE / name).read_text(encoding="utf-8"))
+    source = name if isinstance(name, Path) else HERE / name
+    tree = ast.parse(source.read_text(encoding="utf-8"))
     return sum(
         1
         for node in ast.walk(tree)
@@ -151,6 +172,7 @@ def measured(
         module=module,
         mine=executable_lines(module),
         invisible=len(invisible),
+        calls=tally.calls,
         asked=tally.asked,
         overhead=tally.overhead,
         coordination=result.coordination,
@@ -166,7 +188,13 @@ def skipped(name: str, module: str, reason: str) -> Row:
     «Місць прози» лишається виміряним: воно читається з коду, а не з прогону, і саме тому
     непригнана реалізація все одно дає один справжній вимір замість суцільних прочерків.
     """
-    return Row(name=name, module=module, unverified=reason, places=behaviour_prose(module))
+    return Row(
+        name=name,
+        module=module,
+        unverified=reason,
+        mine=executable_lines(module),
+        places=behaviour_prose(module),
+    )
 
 
 def render(rows: list[Row], rules: list[tuple[str, str, str]]) -> str:

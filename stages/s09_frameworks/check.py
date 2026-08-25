@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -21,6 +22,7 @@ from typing import Any
 
 from shared.check_runner import NotVerified, code_mentions, require_intact_source, run_checks
 from shared.fake_llm import FakeLLM
+from shared.llm import get_model
 from stages.s09_frameworks import (
     baseline,
     compare,
@@ -70,6 +72,30 @@ def _table():
 
 def _counted_rows(rows: list[compare.Row]) -> list[compare.Row]:
     return [row for row in rows if row.counted]
+
+
+# Модулі, конструювання клієнта з яких означає обхід спільної межі (ADR-0007).
+TRANSPORTS = frozenset({"openai", "httpx", "requests", "litellm"})
+
+
+def _client_constructions(source: str) -> list[str]:
+    """Місця, де модуль будує власний транспорт. Порожньо — усе йде крізь спільну межу.
+
+    Розбирається AST і шукається **виклик** виду `openai.OpenAI(...)` чи `httpx.Client()`,
+    а не згадка слова: слово `openai` є і в рядку `"openai/gpt-4o"`, який лише називає
+    провайдера для чужої обгортки й нікого не конструює.
+    """
+    found: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        callee = node.func
+        if isinstance(callee, ast.Attribute) and isinstance(callee.value, ast.Name):
+            if callee.value.id in TRANSPORTS:
+                found.append(f"рядок {node.lineno}: {callee.value.id}.{callee.attr}")
+        elif isinstance(callee, ast.Name) and callee.id in TRANSPORTS:
+            found.append(f"рядок {node.lineno}: {callee.id}")
+    return found
 
 
 def _executable_lines(name: str) -> int:
@@ -136,10 +162,18 @@ def check_exactly_one_row_carries_no_framework() -> None:
 def check_all_implementations_honour_the_same_task_contract() -> None:
     """контракт: усі реалізації виконують ту саму задачу, і це доводиться прогоном (AC-02)"""
     with _table() as (rows, _, _text):
+        # По ВСІХ рядках, а не по вцілілих. `_counted_rows` фільтрує саме за `not broken`,
+        # тож `for row in ran: assert not row.broken` — тавтологія: він викидає з-під
+        # ассерта рівно тих, про кого ассерт мав би скаржитись.
+        violated = [(row.name, row.broken) for row in rows if row.broken]
+        assert not violated, violated
         ran = _counted_rows(rows)
         assert ran, "жодної реалізації не прогнано — контракт нема на чому довести"
-        for row in ran:
-            assert not row.broken, (row.name, row.broken)
+        if len(ran) < len(IMPLEMENTATIONS):
+            raise NotVerified(
+                f"виконанням доведено {len(ran)} із {len(IMPLEMENTATIONS)}: "
+                + "; ".join(row.unverified for row in rows if row.unverified)
+            )
 
     # Контракт — **код**, а не проза: він виконується на результаті, а не читається очима.
     import dataclasses  # noqa: PLC0415
@@ -291,6 +325,35 @@ def check_twenty_offline_runs_give_the_same_table() -> None:
     for run_index in range(1, 20):
         assert fingerprint() == first, f"прогін {run_index} дав іншу таблицю — числа мигтять"
 
+    # І один прогін у СВІЖОМУ процесі. Двадцять прогонів тут ідуть в одному процесі, де
+    # пакети вже імпортовані, тож мигтіння МІЖ процесами вони не бачать за побудовою —
+    # а саме воно й було: 13992 невидимих рядки на холодному старті проти 1895 на теплому.
+    import json  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+
+    probe = (
+        "import json, tempfile;"
+        "from pathlib import Path;"
+        "from stages.s09_frameworks.run import collect;"
+        "t=tempfile.mkdtemp();"
+        "print(json.dumps([r.cells() for r in collect(Path(t)/'s09.jsonl')], ensure_ascii=False))"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=REPO_ROOT,
+        timeout=120,
+    )
+    assert done.returncode == 0, done.stderr[-400:]
+    cold = tuple(tuple(cells) for cells in json.loads(done.stdout.strip().splitlines()[-1]))
+    assert cold == first, (
+        "свіжий процес дав іншу таблицю — прогрів прибрано або зламано, і колонка "
+        f"невидимих рядків міряє, скільки разів запускали команду:{NEWLINE}{cold}"
+    )
+
 
 # --- координація -------------------------------------------------------------------------
 
@@ -359,15 +422,18 @@ def check_implicit_coordination_names_the_price_of_that_answer() -> None:
         )
 
     # І вимір доводиться на синтетичному джерелі, а не лише на власних файлах.
-    probe = HERE / "__prose_probe.py"
-    probe.write_text(
-        "Agent(role='r', goal='g', backstory='b')" + NEWLINE + "Task(description='d')" + NEWLINE,
-        encoding="utf-8",
-    )
-    try:
-        assert compare.behaviour_prose(probe.name) == 4, compare.behaviour_prose(probe.name)
-    finally:
-        probe.unlink(missing_ok=True)
+    # Проба — у тимчасовий каталог, а не в дерево вихідників: убитий посеред прогону
+    # набір лишав би там зайвий модуль, який далі побачить `ruff`.
+    with tempfile.TemporaryDirectory() as tmp:
+        probe = Path(tmp) / "probe.py"
+        probe.write_text(
+            "Agent(role='r', goal='g', backstory='b')"
+            + NEWLINE
+            + "Task(description='d')"
+            + NEWLINE,
+            encoding="utf-8",
+        )
+        assert compare.behaviour_prose(probe) == 4, compare.behaviour_prose(probe)
 
     with _table() as (rows, _, text):
         for row in rows:
@@ -425,37 +491,65 @@ def check_the_flag_on_without_credentials_fails_loudly() -> None:
                 "четвертий рядок, отримав три й не дізнався про це"
             )
         assert via_adk.FLAG in said and "неможливо" in said, said
-        # Названо ІМʼЯ змінної, а не її значення (spec §6.1).
-        for name in via_adk.CREDENTIALS:
-            assert os.environ.get(name, "не задано") not in said or name in said, said
     finally:
         if was is None:
             os.environ.pop(via_adk.FLAG, None)
         else:
             os.environ[via_adk.FLAG] = was
 
-    # Дзеркальна половина: прапорець вимкнено — жодного шуму.
-    assert not via_adk.wanted(), "прапорець лишився ввімкненим після перевірки"
-    via_adk.demand()
+    # Дзеркальна половина: прапорець вимкнено — жодного шуму. Оточення читача при цьому
+    # не діагностується: попередня редакція стверджувала `not wanted()` після `finally`,
+    # тож у того, хто експортував прапорець, червоніла перевірка про власний харнес.
+    without = {name: value for name, value in os.environ.items() if name != via_adk.FLAG}
+    saved = dict(os.environ)
+    os.environ.clear()
+    os.environ.update(without)
+    try:
+        assert not via_adk.wanted()
+        via_adk.demand()
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
 
 
 def check_a_changed_framework_api_reddens_that_implementations_smoke() -> None:
     """ВІДМОВА · смоук: розрив API ловиться тут, а не на прогоні читача (AC-08, NFR-8)"""
-    if not via_langgraph.available():
-        raise NotVerified("langgraph не встановлено — смоук нема на чому прогнати")
+    # Смоук — це ВИКОНАННЯ, а не імпорт: зникла точка входу має червоніти тут. І по ВСІХ
+    # доступних реалізаціях: перевірка, названа за AC-08, знала одну, тож на машині з
+    # CrewAI без LangGraph «смоук кожної реалізації» давав би НЕ ПЕРЕВІРЕНО для всіх.
+    smoked = []
+    for module, _name, _packages in IMPLEMENTATIONS:
+        if module is baseline or module.unavailable_because():
+            continue
+        if hasattr(module, "wanted") and not module.wanted():
+            continue
+        result = module.run(_client())
+        assert result.tools_used == contract.TOOLS, (module.NAME, result.tools_used)
+        assert result.stopped_by == contract.ANSWERED, (module.NAME, result.stopped_by)
+        smoked.append(module.NAME)
+    if not smoked:
+        raise NotVerified("жодного фреймворка не встановлено — смоук нема на чому прогнати")
 
-    # Смоук — це ВИКОНАННЯ, а не імпорт: зникла точка входу має червоніти тут.
-    result = via_langgraph.run(_client())
-    assert result.steps == ("research", "writer"), result.steps
-    assert result.tools_used == contract.TOOLS, result.tools_used
+    # NFR-8: **верхня** межа, а не підлога. Перевірка звіряла лише наявність рядка з
+    # підлогою — тобто стверджувала протилежне тому, що вимагає NFR, і мовчала б, поки
+    # читачеві приїжджає наступна мажорна версія.
 
-    # Пін мінорною межею названий у маніфесті, а не в голові.
     manifest = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert "crewai>=0.60; python_version < '3.14'" in manifest, (
+    start = manifest.index("s09 = [")
+    block = manifest[start : manifest.index("]", start)]
+    pinned = re.findall(r'"([a-z-]+)>=([\d.]+),<([\d.]+)', block)
+    assert {name for name, _, _ in pinned} == {"langgraph", "crewai"}, pinned
+    for name, floor, ceiling in pinned:
+        assert float(ceiling.split(".")[0]) > float(floor.split(".")[0]) or ceiling > floor, (
+            f"{name}: межа {ceiling} не вища за підлогу {floor}"
+        )
+    assert "python_version < '3.14'" in block, (
         "маркер CrewAI зник — установка етапу на 3.14 знову впаде цілком і забере "
         "з собою LangGraph, який установився б чудово"
     )
-    assert "langgraph>=0.2" in manifest, "LangGraph зник з extras етапу"
+    assert "langchain-openai" not in block, (
+        "мертва залежність повернулась: жоден модуль етапу її не імпортує"
+    )
 
 
 # --- висновок ----------------------------------------------------------------------------
@@ -523,16 +617,33 @@ def check_a_broken_implementation_reddens_the_check_that_asserts_about_it() -> N
 
 def check_no_implementation_reaches_the_network_without_a_key() -> None:
     """ВІДМОВА · межа: жодна реалізація не створює власного клієнта (AC-11)"""
+    # Шукається **конструювання клієнта**, а не слово. `code_mentions` бачить `Name.id` та
+    # `Attribute.attr` окремо, тож `"openai.openai"` не збігався ніколи — ассерт був
+    # зеленим на джерелі, що дослівно містить `openai.OpenAI(...)`. А пошук самих слів дає
+    # хибне спрацювання на `"openai/…"` — це префікс провайдера для LiteLlm, не клієнт.
     for name in IMPLEMENTATION:
-        source = (HERE / name).read_text(encoding="utf-8")
-        assert not code_mentions(source, {"openai.openai", "httpx.client", "requests.post"}), (
-            f"{name} створює власний клієнт — етап перестає проходитись офлайн, і робить це мовчки"
+        borrowed = _client_constructions((HERE / name).read_text(encoding="utf-8"))
+        assert not borrowed, (
+            f"{name} конструює власний транспорт ({borrowed}) — етап перестає проходитись "
+            "офлайн, і робить це мовчки"
         )
 
-    # І доводиться ВИКОНАННЯМ: усі прогони йдуть на підробці, без ключа й без мережі.
+    # Дзеркальна половина: пошук здатний знайти те, що шукає. Без неї «нічого не знайдено»
+    # не відрізняється від «шукати не вміє» — саме цим і був попередній ассерт.
+    planted = "import openai" + NEWLINE + "client = openai.OpenAI(api_key='x')" + NEWLINE
+    assert _client_constructions(planted), "пошук не бачить навіть дослівного конструктора"
+
+    # І доводиться ВИКОНАННЯМ. Неповне покриття віддається третім станом, а не зеленим:
+    # звіт «ok» на двох доведених із чотирьох дає читачеві підстави думати, що доведено все.
     with _table() as (rows, _, _text):
-        for row in _counted_rows(rows):
+        ran = _counted_rows(rows)
+        for row in ran:
             assert row.asked > 0, f"{row.name}: лічильник не бачив жодного запиту — клієнт чужий"
+        if len(ran) < len(IMPLEMENTATIONS):
+            raise NotVerified(
+                f"виконанням доведено {len(ran)} із {len(IMPLEMENTATIONS)}: "
+                + "; ".join(row.unverified for row in rows if row.unverified)
+            )
 
 
 def check_the_stage_8_evaluator_extracts_more_than_one_trajectory() -> None:
@@ -547,13 +658,21 @@ def check_the_stage_8_evaluator_extracts_more_than_one_trajectory() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         traces = Path(tmp) / "s09.jsonl"
         rows = collect(traces)
-        walked = extract(traces)
+        # Групування САМЕ за ключем прогону. Дефолтний `by_trace_id` дав би стільки ж
+        # траєкторій і на коді, що ключа не пише взагалі, — тобто доводив би тотожність.
+        walked = extract(traces, key=lambda step: step.get("case"))
+        by_id = extract(traces)
 
     ran = [row for row in rows if row.counted]
     assert len(walked) == len(ran), (
-        f"оцінювач витяг {len(walked)} траєкторій на {len(ran)} прогонів — ключ прогону "
-        "не працює, і етап 9 додав пʼятий випадок до чотирьох наявних"
+        f"оцінювач витяг {len(walked)} траєкторій за ключем прогону на {len(ran)} прогонів"
     )
+    assert {trajectory.key for trajectory in walked} == {row.name for row in ran}, (
+        "ключі траєкторій не збігаються з іменами реалізацій — поле `case` пишеться не тим"
+    )
+    # Дзеркальна половина: без ключа групування дає те саме число, і саме тому попередня
+    # редакція нічого не доводила.
+    assert len(by_id) == len(walked), (len(by_id), len(walked))
     if len(ran) < 2:
         # На голій установці працює лише базова лінія. Рівність вище вже довела, що ключ
         # діє; «більше однієї» потребує двох прогонів, і чесніше сказати це, ніж послабити
@@ -564,9 +683,13 @@ def check_the_stage_8_evaluator_extracts_more_than_one_trajectory() -> None:
         )
     assert len(walked) > 1, "менше двох траєкторій — твердження про ключ нема на чому довести"
 
-    # І сам вимір етапу 8 має побачити цей етап як позначений.
-    found = survey_run_keys(REPO_ROOT / "stages")
-    assert found.get("s09") is None or found["s09"] == "case", found.get("s09")
+    # Вимір етапу 8 сам себе не міряє (`s09 >= "s08"` він пропускає), тож ассерт про
+    # `found["s09"]` не міг би впасти ніколи. Стверджуємо те, що справді перевірюване:
+    # поле `case` є в переліку, який знає оцінювач, і воно справді пишеться в кроки.
+    assert "s09" not in survey_run_keys(REPO_ROOT / "stages"), "оцінювач почав міряти етап 9"
+    for module in ("baseline.py", "via_langgraph.py", "via_crewai.py", "via_adk.py"):
+        source = (HERE / module).read_text(encoding="utf-8")
+        assert "case=" in source, f"{module} не пише ключа прогону"
 
 
 # --- урок і матеріали читача ---------------------------------------------------------------
@@ -581,7 +704,6 @@ def check_the_lesson_fits_the_reading_budget() -> None:
 def check_the_lesson_numbers_match_the_bench() -> None:
     """ВІДМОВА · урок: числа таблиці обчислені, а не набрані руками"""
     import json  # noqa: PLC0415
-    import re  # noqa: PLC0415
 
     # Числа уроку виводяться з УСІХ модулів реалізації **і з демо**, яке вирішує, що
     # потрапляє в таблицю. Під час мутації будь-якого з них ця перевірка червоніла б про
@@ -614,21 +736,27 @@ def check_the_lesson_numbers_match_the_bench() -> None:
         assert f"| {lines} |" in english, f"{name}: карта називає інший розмір, ніж {lines}"
 
     # Головні числа таблиці — теж вимір, а не проза.
+    # Диз'юнкцій тут немає навмисно: `X in lesson or str(X) in lesson` тримається правою
+    # половиною завжди, бо будь-яке число трапляється в тексті десь. Таблиця уроку
+    # вирівняна пробілами, тож звіряється нормалізований рядок.
+    flat_lesson = re.sub(r"[ 	]+", " ", lesson)
     with _table() as (rows, _, _text):
-        by_module = {row.module: row for row in rows}
-        for module in ("baseline.py", "via_langgraph.py"):
-            row = by_module[module]
-            if not row.counted:
-                continue
-            assert f"| {row.mine} |" in lesson or str(row.mine) in lesson, module
-            assert str(row.invisible) in lesson, f"{module}: {row.invisible} невидимих не в уроці"
-        for module, expected in (("via_crewai.py", 10), ("via_langgraph.py", 0)):
-            places = compare.behaviour_prose(module)
-            assert places == expected or str(places) in lesson, (module, places)
+        # Урок цитує числа ПОВНОЇ установки. На голій вони інші й мають бути іншими, тож
+        # звіряти нема з чим — це третій стан, а не розходження прози з кодом.
+        if any(row.unverified for row in rows if row.module == "via_langgraph.py"):
+            raise NotVerified(
+                "langgraph не встановлено — таблиця уроку описує повну установку, "
+                'постав `pip install -e ".[s09]"`'
+            )
+        for row in rows:
+            cells = row.cells()
+            wanted = f"| {row.name} | {cells[1]} | {cells[2]}"
+            assert wanted in flat_lesson, (
+                f"рядок {row.name!r} у таблиці уроку не той, що дає прогін: {wanted!r}"
+            )
+            assert f"| {row.places} |" in flat_lesson or f" {row.places} |" in flat_lesson, row.name
 
-    assert f"| Мутацій у вправах | {len(pinned)} |" in lesson or str(len(pinned)) in lesson, len(
-        pinned
-    )
+    assert f"| Мутацій у вправах | {len(pinned)} |" in lesson, len(pinned)
 
 
 def check_the_exercises_match_the_pinned_mutations() -> None:
@@ -698,7 +826,10 @@ def check_the_demo_shows_every_scene_offline_within_its_budget() -> None:
 
     assert code == 0, code
     assert took <= 10, f"демо йшло {took:.1f} с — стеля 10 с (NFR-2b)"
-    assert output.startswith("[FakeLLM]"), output.splitlines()[0]
+    # Банер приходить із `shared.llm`, а не з літерала етапу: перевірка на літерал була
+    # тавтологією й не побачила б, що демо каже «модель підроблена» читачеві з ключем.
+    first = output.splitlines()[0]
+    assert first.startswith("[") and get_model() in first, first
     for number in range(1, 7):
         assert f"{NEWLINE}{number}. " in output, f"сцена {number} не надрукувалась"
 

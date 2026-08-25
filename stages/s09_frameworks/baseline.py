@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from shared.llm import get_model
 from shared.trace import trace_run
 from stages.s09_frameworks import contract
 
@@ -32,8 +33,14 @@ def unavailable_because() -> str:
 
 
 def ask(client: Any, messages: list[dict[str, Any]], *, tools: bool = False) -> Any:
-    """Один виклик моделі. Клієнт подається ззовні — власного тут немає (ADR-0007)."""
-    payload: dict[str, Any] = {"model": "fake", "messages": messages}
+    """Один виклик моделі. Клієнт подається ззовні — власного тут немає (ADR-0007).
+
+    Імʼя моделі береться з налаштувань, а не з літерала `"fake"`. Захардкоджене імʼя
+    працює рівно доти, доки читач не налаштував ключ: справжній провайдер відповідає на
+    неіснуючу модель відмовою, і етап падає на першій сцені саме в того, хто пройшов
+    етап 1 і зробив усе правильно.
+    """
+    payload: dict[str, Any] = {"model": get_model(), "messages": messages}
     if tools:
         payload["tools"] = [contract.TOOL_SCHEMA]
     return client.chat.completions.create(**payload).choices[0].message

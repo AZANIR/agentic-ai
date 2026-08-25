@@ -32,9 +32,9 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
+from shared.llm import get_model
 from shared.trace import trace_run
 from stages.s09_frameworks import contract
-from stages.s09_frameworks.baseline import ask
 
 NAME = "LangGraph"
 PACKAGE = "langgraph"
@@ -51,6 +51,22 @@ class Carried(TypedDict, total=False):
     answer: str
     used: list[str]
     steps: list[str]
+
+
+def ask(client: Any, messages: list[dict[str, Any]], *, tools: bool = False) -> Any:
+    """Той самий виклик моделі — і навмисно **свій**, а не запозичений у базової лінії.
+
+    Спільний хелпер робив колонку «мої рядки» несиметричною: базова лінія несла ці пʼять
+    рядків у своїх, а LangGraph діставав їх безкоштовно. Помилка йшла в бік «фреймворк
+    дешевший» — рівно той бік, від якого застерігає розвʼязок вправи 3.
+
+    Етапи цього курсу й так навмисно дублюють ідеї замість ділитися кодом; тут дублювання
+    ще й обовʼязкове, бо інакше вимір бреше на пʼять рядків.
+    """
+    payload: dict[str, Any] = {"model": get_model(), "messages": messages}
+    if tools:
+        payload["tools"] = [contract.TOOL_SCHEMA]
+    return client.chat.completions.create(**payload).choices[0].message
 
 
 def unavailable_because() -> str:
