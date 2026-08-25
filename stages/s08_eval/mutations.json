@@ -1,7 +1,7 @@
 {
   "stage": "s08-eval",
   "executed_floor": 20,
-  "note": "Мутації ламають властивості, а не синтаксис. Найважливіші стосуються не оцінювання, а ЧЕСНОСТІ звіту: порожній рівень стає пройденим, знаменник береться від оцінених, відмова приладу рахується провалом агента, нічия зникає як окреме значення. Усі вони лишають харнес працездатним і роблять звіт ЗЕЛЕНІШИМ — саме тому їх складно помітити без перевірки, і саме тому вони найдорожчі. Число `expect_failed` копіюється з ПРОГОНУ, а не пишеться від руки.",
+  "note": "Мутації ламають властивості, а не синтаксис. Найважливіші стосуються не оцінювання, а ЧЕСНОСТІ звіту: порожній рівень стає пройденим, знаменник береться від оцінених, відмова приладу рахується провалом агента, нічия зникає як окреме значення. Усі вони лишають харнес працездатним і роблять звіт ЗЕЛЕНІШИМ — саме тому їх складно помітити без перевірки, і саме тому вони найдорожчі. Вправи 12–14 повертають дефекти, які знайшло незалежне рев'ю: e2e, що судить опис замість трейсу; парсер бала, для якого «3 з 10» — десятка; «остання відповідь», якою стає результат інструмента. Число `expect_failed` копіюється з ПРОГОНУ, а не пишеться від руки.",
   "mutations": [
     {
       "name": "вправа 1 · порожній рівень зараховується як пройдений",
@@ -22,7 +22,7 @@
       "file": "stages/s08_eval/levels.py",
       "old": "        return Verdict(E2E, UNSCORED, JUDGED, str(error))",
       "new": "        return Verdict(E2E, FAILED, JUDGED, str(error))",
-      "expect_failed": 2
+      "expect_failed": 1
     },
     {
       "name": "вправа 4 · нічия перестає бути окремим значенням",
@@ -69,7 +69,7 @@
     {
       "name": "вправа 10 · крайність оголошується статусом, а не спостерігається",
       "file": "stages/s08_eval/cases.py",
-      "old": "        return bool(kinds & EDGE_KINDS) or not self.answer.strip() or self.status != \"ok\"",
+      "old": "        said = [act for act in self.acts if act.fields.get(\"answer\", \"\").strip()]\n        return not said",
       "new": "        return self.status != \"ok\"",
       "expect_failed": 1
     },
@@ -79,6 +79,27 @@
       "old": "    if not any(spot.startswith(\"термінального\") for spot in blind):",
       "new": "    if True:",
       "expect_failed": 1
+    },
+    {
+      "name": "вправа 12 · e2e знову судить опис кейса, а не трейс",
+      "file": "stages/s08_eval/levels.py",
+      "old": "    said = trajectory.answer()",
+      "new": "    said = case.answer",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 13 · парсер бала знову збирає всі цифри рядка",
+      "file": "stages/s08_eval/judge.py",
+      "old": "        number = re.fullmatch(r\"(\\d{1,2})\", said)",
+      "new": "        number = re.search(r\"(\\d{1,2})\", \"\".join(ch for ch in said if ch.isdigit()))",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 14 · останньою відповіддю стає будь-який крок із текстом",
+      "file": "stages/s08_eval/trajectory.py",
+      "old": "            if step[\"kind\"] not in SPEAKING:\n                continue",
+      "new": "            pass",
+      "expect_failed": 2
     }
   ]
 }

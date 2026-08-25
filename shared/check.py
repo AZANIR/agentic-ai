@@ -9,8 +9,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 from shared.check_runner import run_checks
@@ -18,7 +20,7 @@ from shared.config import LOCAL, PROD, ConfigError, Settings
 from shared.embeddings import get_embedder
 from shared.fake_llm import FakeLLM, FakeLLMError, text, tool_call
 from shared.llm import banner, get_client, is_fake
-from shared.trace import group_by_trace, trace_run
+from shared.trace import group_by_trace, iter_steps, trace_run
 
 # Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії.
 # Заміряно 0.6 с. Піднімати можна свідомо, разом із числом у NFR.
@@ -236,6 +238,55 @@ def check_trace_records_failures() -> None:
         assert "run_end" not in kinds, "невдалий прогін не має вдавати успішний"
 
 
+def check_an_unimplemented_sink_is_refused_with_its_reason() -> None:
+    """ВІДМОВА · trace: нереалізований стік відхиляється, і причина названа
+
+    Ця гілка не виконувалась жодною перевіркою — і саме тому попередня редакція її
+    повідомлення прожила з фактичною помилкою: воно посилалось на ADR етапу 6, який
+    рішення не ухвалював. Текст, який ніхто не запускає, старіє мовчки.
+    """
+    import shared.trace as module
+
+    original = module.settings
+    module.settings = replace(original, trace_sink="otlp")
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            with contextlib.suppress(ConfigError):
+                with trace_run("демо", path=Path(tmp) / "t.jsonl"):
+                    pass
+                raise AssertionError("невідомий стік прийнято мовчки")
+            try:
+                with trace_run("демо", path=Path(tmp) / "t.jsonl"):
+                    pass
+            except ConfigError as error:
+                said = str(error)
+    finally:
+        module.settings = original
+
+    assert "otlp" in said, said
+    assert "ADR-0009" in said, "причина відмови не посилається на рішення, яким її ухвалили"
+    assert "jsonl" in said.lower(), "не названо, що ж підтримується"
+
+
+def check_a_torn_trace_line_is_skipped_not_fatal() -> None:
+    """ВІДМОВА · trace: обірваний хвіст пропускається, а не валить читання
+
+    Файл дописується без переписування, тож убитий посеред запису процес лишає
+    обірваний рядок. Читач, який на ньому падає, робить непридатним увесь трейс заради
+    останнього рядка — а трейс потрібен саме тоді, коли щось убило процес.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "t.jsonl"
+        with trace_run("демо", path=path, stage="s01") as tracer:
+            tracer.step("llm_call", model="fake")
+        whole = path.read_text(encoding="utf-8")
+        path.write_text(whole + '{"trace_id": "trc_x", "seq"', encoding="utf-8")
+
+        steps = list(iter_steps(path))
+        assert len(steps) == 3, f"прочитано {len(steps)} кроків — обірваний хвіст усе зламав"
+        assert all("kind" in step for step in steps), steps
+
+
 CHECKS = [
     check_config_defaults_to_local,
     check_config_reads_provider,
@@ -254,6 +305,8 @@ CHECKS = [
     check_embedder_reports_its_name,
     check_trace_writes_and_reads_back,
     check_trace_records_failures,
+    check_an_unimplemented_sink_is_refused_with_its_reason,
+    check_a_torn_trace_line_is_skipped_not_fatal,
 ]
 
 if __name__ == "__main__":

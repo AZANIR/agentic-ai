@@ -118,15 +118,30 @@ def trace_run(
 
 
 def iter_steps(path: Path | str | None = None) -> Iterator[dict[str, Any]]:
-    """Прочитати кроки з файлу трейсів, по одному."""
+    """Прочитати кроки з файлу трейсів, по одному.
+
+    **Нерозбірливий рядок пропускається, а не валить читання.** Файл дописується без
+    переписування (ADR-0009 етапу 8), тож убитий посеред запису процес природно лишає
+    обірваний хвіст. Читач, який на ньому падає, робить непридатним увесь трейс заради
+    останнього рядка — а трейс потрібен саме тоді, коли щось убило процес.
+
+    Кроки без ``kind`` теж пропускаються: усе, що читає трейс, розгалужується за ним, і
+    крок без нього не є кроком.
+    """
     target = Path(path) if path is not None else default_trace_path()
     if not target.exists():
         return
     with target.open(encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
-            if line:
-                yield json.loads(line)
+            if not line:
+                continue
+            try:
+                step = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(step, dict) and "kind" in step:
+                yield step
 
 
 def group_by_trace(path: Path | str | None = None) -> dict[str, list[dict[str, Any]]]:

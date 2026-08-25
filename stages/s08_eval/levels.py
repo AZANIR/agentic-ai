@@ -24,7 +24,7 @@ from dataclasses import dataclass
 
 from stages.s08_eval.cases import Case
 from stages.s08_eval.judge import Judge, Unavailable
-from stages.s08_eval.trajectory import Trajectory
+from stages.s08_eval.trajectory import FRAME, Trajectory
 
 PASSED = "пройдено"
 FAILED = "провалено"
@@ -83,15 +83,25 @@ class Verdict:
     kind: str
     reason: str
 
-    @property
-    def passed(self) -> bool:
-        return self.state == PASSED
 
+def e2e(case: Case, trajectory: Trajectory, judge: Judge) -> Verdict:
+    """Чи виконано задачу. **Судить** — бо «виконано» не є порівнянням рядків.
 
-def e2e(case: Case, judge: Judge) -> Verdict:
-    """Чи виконано задачу. **Судить** — бо «виконано» не є порівнянням рядків."""
+    Відповідь береться з **трейсу**, а не з опису кейса. Різниця не косметична: суддя, що
+    читає опис, виносить вердикт про те, що агент мав сказати, а не про те, що він сказав.
+    Перша редакція робила саме так — і кейс, у якого з трейсу прибрали крок відповіді,
+    діставав «пройдено, бал 3». Перевірка «та сама відповідь, різні шляхи» при цьому
+    порівнювала один рядок сам із собою: тотожність, яку неможливо порушити.
+
+    Відповіді в трейсі немає взагалі — **не оцінено**, симетрично до компонентного рівня:
+    дивитись нема на що, і зараховувати це успіхом означало б робити звіт тим зеленішим,
+    чим бідніший трейс.
+    """
+    said = trajectory.answer()
+    if said is None:
+        return Verdict(E2E, UNSCORED, JUDGED, "відповіді в трейсі немає")
     try:
-        scored = judge.score(case.task, case.answer, case.expected_answer)
+        scored = judge.score(case.task, said, case.expected_answer)
     except Unavailable as error:
         return Verdict(E2E, UNSCORED, JUDGED, str(error))
     state = PASSED if scored.score >= PASS_SCORE else FAILED
@@ -125,12 +135,22 @@ def component(case: Case, trajectory: Trajectory) -> Verdict:
     broken = [step for step in trajectory.steps if step["kind"] in BROKEN_KINDS]
     if broken:
         first = broken[0]
-        where = f"крок {first.get('seq', '?')} · {first['kind']}"
-        what = first.get("tool") or first.get("node") or first.get("reason") or ""
-        return Verdict(COMPONENT, FAILED, DETERMINISTIC, f"{where}: {what}".strip(": "))
+        # Номер — позиція в ТРАЄКТОРІЇ, а не наскрізний `seq` дописувача. На трейсі сервісу
+        # `seq` глобальний на процес, тож другий крок третього запиту звався «крок 9», а
+        # рівень траєкторії поруч рахував кроки вже без обрамлення.
+        worked = [step for step in trajectory.steps if step["kind"] not in FRAME]
+        where = worked.index(first) + 1 if first in worked else 0
+        # Друкується **імʼя** поля, а не вільний текст. `reason` пише людина або сервіс, і
+        # на живому трафіку він переніс би написане користувачем просто у звіт (AC-07b).
+        named = next((f" · {first[name]}" for name in ("tool", "node") if name in first), "")
+        return Verdict(COMPONENT, FAILED, DETERMINISTIC, f"крок {where} · {first['kind']}{named}")
     return Verdict(COMPONENT, PASSED, DETERMINISTIC, f"{len(seen)} кроків без відмов")
 
 
 def evaluate(case: Case, trajectory: Trajectory, judge: Judge) -> list[Verdict]:
     """Три вердикти. Порядок сталий: e2e, траєкторія, компонент."""
-    return [e2e(case, judge), path(case, trajectory), component(case, trajectory)]
+    return [
+        e2e(case, trajectory, judge),
+        path(case, trajectory),
+        component(case, trajectory),
+    ]

@@ -27,6 +27,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -45,6 +46,27 @@ CHARS_PER_POINT = 40
 
 class Unavailable(Exception):
     """Суддя не зміг винести вердикт. Це **не** провал кейса, а третій стан (AC-08)."""
+
+
+# Закритий перелік причин, за яких прилад вважається недоступним. Провайдери не мають
+# спільної ієрархії винятків, тож розпізнаємо і за типом, і за словом у повідомленні —
+# але **лише** за названим, а не за фактом винятку.
+UNAVAILABLE_TYPES = ("Timeout", "RateLimit", "Connection", "APIStatus", "APIConnection")
+UNAVAILABLE_WORDS = ("quota", "rate limit", "rate_limit", "timeout", "overloaded", "budget")
+
+
+def _is_unavailable(error: Exception) -> bool:
+    """Чи належить ця відмова до закритого переліку «прилад недоступний».
+
+    Нова причина відмови провайдера сюди не потрапить — і **читатиметься як провал**,
+    навмисно гучно, доки її не додадуть правкою (spec §8).
+    """
+    if isinstance(error, TimeoutError | ConnectionError):
+        return True
+    named = type(error).__name__
+    if any(word in named for word in UNAVAILABLE_TYPES):
+        return True
+    return any(word in str(error).lower() for word in UNAVAILABLE_WORDS)
 
 
 @dataclass(frozen=True)
@@ -79,7 +101,13 @@ STEM = 5
 
 
 def _words(text: str) -> set[str]:
-    return {word.lower().strip(".,!?:;»«()") for word in text.split() if len(word) > 3}
+    """Значущі слова. Пунктуація знімається **до** відсіву за довжиною.
+
+    Порядок не косметичний: `«три»` проходив як чотирисимвольний, а `три` — ні, тож суддя
+    не відрізняв три місяці від пʼяти залежно від того, чи стояла поруч крапка.
+    """
+    stripped = (word.lower().strip(".,!?:;»«()") for word in text.split())
+    return {word for word in stripped if len(word) > 3}
 
 
 def _grounded(answer: str, expected: str) -> int:
@@ -170,9 +198,13 @@ class ModelJudge:
             return reply.choices[0].message.content or ""
         except ConfigError as error:
             raise Unavailable(str(error)) from error
-        except Exception as error:  # noqa: BLE001 — будь-яка причина, один третій стан
-            # Квота, частота, тайм-аут, нерозбірлива відповідь — усе це «не оцінено»,
-            # а не «провалено» (AC-08). Провал агента й відмова приладу — різні події.
+        except Exception as error:
+            # Перелік ЗАКРИТИЙ (AC-08). Ловити будь-який виняток означало б, що баг у
+            # самому харнесі — `ZeroDivisionError`, `AttributeError` — читається як
+            # «прилад недоступний»: тиха зелень замість гучного провалу, тобто рівно та
+            # вада, від якої весь етап застерігає.
+            if not _is_unavailable(error):
+                raise
             raise Unavailable(f"{type(error).__name__}: {error}") from error
 
     def compare(self, task: str, first: str, second: str, *, expected: str = "") -> Compared:
@@ -183,9 +215,13 @@ class ModelJudge:
                 f"{chr(10)}Яка краще? Відповідай одним словом: перша, друга або нічия."
             )
             .strip()
+            .strip(".,!?:;»«()")
             .lower()
         )
-        winner = next((w for w in (FIRST, SECOND, TIE) if w in said), None)
+        # ТОЧНИЙ збіг, а не пошук підрядка. Пошук ішов у сталому порядку, тож «перша гірша,
+        # перемагає друга» давало `перша` — і `position_sweep` рахував це переворотом.
+        # Детектор рапортував біас, породжений власним парсером, на судді, який його не мав.
+        winner = said if said in (FIRST, SECOND, TIE) else None
         if winner is None:
             raise Unavailable(f"вердикт нерозбірливий: {said[:60]!r}")
         return Compared(winner, said[:80])
@@ -196,14 +232,21 @@ class ModelJudge:
             f"Задача: {task}{chr(10)}Відповідь: {answer}{chr(10)}Має покривати: {expected}"
             f"{chr(10)}Постав бал від 0 до {SCALE}. Відповідай самим числом."
         ).strip()
-        digits = "".join(ch for ch in said if ch.isdigit())
-        if not digits:
+        # Одне ціле число, і нічого крім нього. Попередня редакція збирала ВСІ цифри
+        # рядка, тож «оцінка: 3 з 10» ставало `int("310"[:2])` = 10, а «0 з 10» — 1.
+        # Промпт сам називає шкалу, тож її повторення — найімовірніша форма відповіді,
+        # і суддя, що каже «три з десяти», читався як найвищий бал.
+        number = re.fullmatch(r"(\d{1,2})", said)
+        if number is None:
             raise Unavailable(f"бал нерозбірливий: {said[:60]!r}")
-        return Scored(min(SCALE, int(digits[:2])), said[:80])
+        return Scored(min(SCALE, int(number.group(1))), said[:80])
 
 
-def get_judge(*, real: bool = False, steady: bool = False) -> Judge:
-    """Суддя за режимом. Дефолт — упереджена підробка: етап проходиться без ключа."""
-    if real:
-        return ModelJudge()
-    return SteadyJudge() if steady else BiasedJudge()
+def get_judge(*, real: bool = False) -> Judge:
+    """Суддя за режимом. Дефолт — упереджена підробка: етап проходиться без ключа.
+
+    `SteadyJudge` тут немає навмисно: він потрібен лише дзеркальній половині детектора й
+    створюється там прямо. Фабрика з гілкою, якою ніхто не користується, — це розгалуження,
+    що вдає вибір.
+    """
+    return ModelJudge() if real else BiasedJudge()

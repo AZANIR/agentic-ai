@@ -29,7 +29,7 @@ So the proof of this stage is not a table of scores. It is a **caught bias**.
 
 ```bash
 python -m stages.s08_eval.run     # eight scenes, no key, no network
-python -m stages.s08_eval.check   # 30 checks, 14 of them on failure modes
+python -m stages.s08_eval.check   # 31 checks, 15 of them on failure modes
 python scripts/mutate.py s08 --expect
 ```
 
@@ -57,13 +57,13 @@ gets a free point, and every forty characters add one regardless of content.
 
 | File | What it holds | Lines |
 |---|---|---|
-| `trajectory.py` | steps into trajectories; the grouping key is a **parameter** | 46 |
-| `cases.py` | 21 cases generated through the real tracer, 9 edge by observation | 35 |
-| `levels.py` | three independent verdicts, each carrying its evaluator kind | 44 |
-| `judge.py` | two protocols — pairwise and pointwise; the closed list of "unavailable" | 89 |
+| `trajectory.py` | steps into trajectories; the grouping key is a **parameter** | 70 |
+| `cases.py` | 21 cases generated through the real tracer, 9 edge by observation | 36 |
+| `levels.py` | three independent verdicts, each carrying its evaluator kind | 46 |
+| `judge.py` | two protocols — pairwise and pointwise; the closed list of "unavailable" | 99 |
 | `bias.py` | detectors that sit **above** the judge, never inside it | 56 |
 | `report.py` | three shares, a third state, and a parser that reads the written file back | 67 |
-| `online.py` | cheap checks on everything, the judge on a deterministic share | 55 |
+| `online.py` | cheap checks on everything, the judge on a deterministic share | 61 |
 
 Budget: 110 executable lines per implementation module.
 
@@ -108,9 +108,14 @@ to create the conditions under which it is violated.
 
 ## What the traces lack — measured, not assumed
 
-Stage 6 deferred this question here twice. The answer: stages label "which run is this" with
-**four different fields** (`scenario`, `phase`, `scene`, `trace_ref`) and two label it with
-none. On a service trace the evaluator is blind on two measurements — no answers recorded, so
+Stage 6 deferred this question here twice. The answer is **computed from the sources**, not
+written in prose: **three fields** name the run (`scenario`, `scene`, `trace_ref`) and **four**
+stages name it with nothing at all — 2, 3, 4 and 7. Stage 4 has a `phase`, but that is the
+*failure* phase: on the happy path it is `None`, so it cannot key a run.
+
+The first edition of this paragraph said four fields and two stages, and was wrong on both
+counts. A number describing what measurement lacks must not itself be a guess, so the survey
+now parses the tracer calls and a check reconciles it with the prose. On a service trace the evaluator is blind on two measurements — no answers recorded, so
 an empty answer cannot be caught; no terminal request step, so an unfinished run cannot be
 caught.
 
@@ -142,7 +147,7 @@ external sink adds none.
 
 ## Where to break it
 
-Eleven mutations. The ones worth your time are not about evaluation but about the **honesty of
+Fourteen mutations. The ones worth your time are not about evaluation but about the **honesty of
 the report**: an empty level becomes passed, the denominator moves to the evaluated, an
 instrument failure gets billed to the agent, a blind measurement turns into a finding. All of
 them leave the harness working and the report looking better.

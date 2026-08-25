@@ -15,7 +15,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+import ast
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,14 @@ START = "run_start"
 END = "run_end"
 ERROR = "run_error"
 FRAME = frozenset({START, END, ERROR})
+
+# Кроки, у яких говорить МОДЕЛЬ. Поле `text` є і в результатів інструментів, тож без
+# цього переліку «остання відповідь» була б останнім рядком будь-якого походження.
+SPEAKING = frozenset({"llm_call", "answered", "say", "speak", "think"})
+
+# Поля, якими етапи позначають «який це прогін». Перелік **вимірюється**, а не
+# оголошується: `survey_run_keys()` шукає їх у джерелах, і саме її число потрапляє в урок.
+RUN_KEYS = ("scenario", "scene", "trace_ref", "run", "case")
 
 Key = Callable[[dict[str, Any]], str | None]
 
@@ -59,10 +68,6 @@ class Trajectory:
         """Скільки кроків зробив агент. Обрамлення не рахується."""
         return sum(1 for step in self.steps if step["kind"] not in FRAME)
 
-    def kinds(self) -> list[str]:
-        """Види кроків у порядку виконання — те, з чого читається шлях."""
-        return [step["kind"] for step in self.steps if step["kind"] not in FRAME]
-
     def of_kind(self, *kinds: str) -> list[dict[str, Any]]:
         return [step for step in self.steps if step["kind"] in kinds]
 
@@ -84,13 +89,23 @@ class Trajectory:
                 return "error"
         return None
 
-    def answer(self) -> str:
-        """Остання відповідь моделі. Порожньо, якщо агент не сказав нічого."""
+    def answer(self) -> str | None:
+        """Остання відповідь **моделі**, або `None`, якщо агент не сказав нічого.
+
+        Вид кроку обмежений `SPEAKING`: результат інструмента з полем `text` теж рядок, і
+        без обмеження він став би «останньою відповіддю», визначивши вердикт e2e. Правило
+        приписування каже «e2e про ОСТАННЮ ВІДПОВІДЬ і ні про що інше».
+
+        `None` і `""` — різні факти, і рівень оцінювання розрізняє їх: перше означає, що
+        агент не відповідав, друге — що відповів порожньо.
+        """
         for step in reversed(self.steps):
+            if step["kind"] not in SPEAKING:
+                continue
             for name in ("answer", "text", "reply"):
                 if isinstance(step.get(name), str):
                     return step[name]
-        return ""
+        return None
 
 
 def extract(path: Path | str, *, key: Key = by_trace_id) -> list[Trajectory]:
@@ -110,6 +125,44 @@ def extract(path: Path | str, *, key: Key = by_trace_id) -> list[Trajectory]:
     return list(grouped.values())
 
 
-def walk(path: Path | str, *, key: Key = by_trace_id) -> Iterator[Trajectory]:
-    """Те саме ліниво — для файлів, які не хочеться тримати в памʼяті цілком."""
-    yield from extract(path, key=key)
+def survey_run_keys(stages: Path | str) -> dict[str, str | None]:
+    """Яким полем кожен етап позначає прогін — **виміряно з джерел**, а не з памʼяті.
+
+    Це і є відповідь на питання, яке етап 6 двічі відклав сюди (ADR-0008). Вона мусить
+    обчислюватись, а не стояти числом у прозі: попередня редакція називала чотири поля й
+    два етапи без ключа, і помилялась двічі — рахувала фазу відмови етапу 4 за ключ
+    прогону й забула про етап 7.
+
+    :returns: ``{"s01": "scenario", "s02": None, …}`` — `None` означає «ключа немає».
+    """
+    found: dict[str, str | None] = {}
+    for package in sorted(Path(stages).glob("s[0-9][0-9]_*")):
+        name = package.name[:3]
+        if name >= "s08":  # оцінювання не міряє себе
+            continue
+        written: set[str] = set()
+        for path in sorted(package.glob("*.py")):
+            if path.name == "check.py":  # перевірки не є прогоном етапу
+                continue
+            written |= _traced_fields(path.read_text(encoding="utf-8"))
+        found[name] = next((key for key in RUN_KEYS if key in written), None)
+    return found
+
+
+def _traced_fields(source: str) -> set[str]:
+    """Іменовані аргументи, що доїжджають у трейс: `.step(...)` і `trace_run(...)`.
+
+    Греп по `"scenario="` дав би хибний вимір: у етапі 7 є `whole(run=run)` — параметр
+    функції, а не поле кроку. Помилка того самого роду, що й зарахування фази відмови
+    етапу 4 за ключ прогону, і саме вона зробила попереднє число неправдою.
+    """
+    fields: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        callee = node.func
+        named = callee.attr if isinstance(callee, ast.Attribute) else getattr(callee, "id", "")
+        if named not in ("step", "trace_run"):
+            continue
+        fields |= {word.arg for word in node.keywords if word.arg}
+    return fields

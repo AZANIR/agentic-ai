@@ -17,9 +17,16 @@ import ast
 import re
 import tempfile
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
-from shared.check_runner import require_intact_source, run_checks
+from shared.check_runner import (
+    NotVerified,
+    code_mentions,
+    require_intact_source,
+    run_checks,
+)
+from shared.trace import iter_steps as shared_iter_steps
 from shared.trace import trace_run
 from stages.s08_eval import levels
 from stages.s08_eval.bias import (
@@ -29,13 +36,18 @@ from stages.s08_eval.bias import (
     length_sweep,
     position_sweep,
 )
-from stages.s08_eval.cases import CASES, Case, write
+from stages.s08_eval.cases import CASES, Act, Case, write
 from stages.s08_eval.judge import (
+    FIRST,
     SCALE,
+    SECOND,
+    TIE,
     BiasedJudge,
+    ModelJudge,
     Scored,
     SteadyJudge,
     Unavailable,
+    _is_unavailable,
 )
 from stages.s08_eval.levels import (
     COMPONENT,
@@ -57,9 +69,16 @@ from stages.s08_eval.online import (
     watch,
 )
 from stages.s08_eval.report import LEVELS, STATES, Report, Row, parse, render, save
-from stages.s08_eval.trajectory import by_ref, by_trace_id, extract
+from stages.s08_eval.trajectory import (
+    _traced_fields,
+    by_ref,
+    by_trace_id,
+    extract,
+    survey_run_keys,
+)
 
 HERE = Path(__file__).resolve().parent
+REPO_ROOT = HERE.parent.parent
 
 # Стеля часу для `scripts/check_all.py` — проти розростання, не ціль швидкодії (NFR-2).
 BUDGET_SECONDS = 30
@@ -235,6 +254,27 @@ def check_same_answer_different_paths_different_verdicts() -> None:
         "e2e розрізнив кейси з однаковою відповіддю — тоді він дивиться не на відповідь"
     )
     assert straight.by_level(PATH).state == PASSED, straight.by_level(PATH)
+    # «Остання ВІДПОВІДЬ і ні про що інше»: результат інструмента з полем `text` теж
+    # рядок, і без обмеження за видом кроку він став би тим, що судить e2e.
+    noisy = Case(
+        name="інструмент віддав текст після відповіді",
+        task="де моє замовлення",
+        expected_tools=("get_order_status",),
+        budget=4,
+        answer="",
+        expected_answer="замовлення в дорозі завтра",
+        acts=(
+            Act("llm_call", {"tool_calls": [], "answer": "Замовлення в дорозі, доставка завтра."}),
+            Act("tool_call", {"tool": "get_order_status", "text": "СМІТТЯ З ІНСТРУМЕНТА"}),
+        ),
+    )
+    with _traced_cases([noisy]) as (path, made):
+        trajectory = extract(path)[0]
+        assert trajectory.answer() == "Замовлення в дорозі, доставка завтра.", (
+            f"останньою відповіддю став {trajectory.answer()!r} — крок інструмента "
+            "визначає вердикт e2e, хоч правило каже «і ні про що інше»"
+        )
+
     assert lucky.by_level(PATH).state == FAILED, (
         "щаслива випадковість пройшла рівень траєкторії — оцінювач не відрізняє "
         "інженерію від того, що просто зійшлося"
@@ -291,15 +331,24 @@ def check_deterministic_evaluators_call_the_judge_zero_times() -> None:
                 "платить за судження, робить вид оцінювача порожньою домовленістю"
             )
 
-        judged = levels.e2e(case, judge)
+        judged = levels.e2e(case, trajectory, judge)
         assert judged.kind == JUDGED and judge.calls == 1, (judged, judge.calls)
 
-    # Сумарна звірка: викликів рівно стільки, скільки оцінювачів, що судять.
+    # Сумарна звірка: викликів рівно стільки, скільки оцінювачів, що судять, **мінус**
+    # ті, кому не було що судити. Суддю не кличуть на трейс без відповіді — це не
+    # розбіжність, а вся суть третього стану: за відсутні дані ніхто не платить.
     report, _ = _report()
     judging = sum(1 for row in report.rows for verdict in row.verdicts if verdict.kind == JUDGED)
-    assert report.judge_calls == judging, (
-        f"викликів {report.judge_calls}, оцінювачів, що судять — {judging}. Суддю кличуть "
-        "про всяк випадок"
+    nothing = sum(
+        1
+        for row in report.rows
+        for verdict in row.verdicts
+        if verdict.reason == "відповіді в трейсі немає"
+    )
+    assert nothing, "жоден кейс не має трейсу без відповіді — гілку не перевірено"
+    assert report.judge_calls == judging - nothing, (
+        f"викликів {report.judge_calls}, оцінювачів, що судять — {judging}, з них "
+        f"{nothing} без даних. Суддю кличуть про всяк випадок"
     )
 
 
@@ -390,6 +439,18 @@ def check_an_unavailable_judge_yields_not_evaluated_never_a_failure() -> None:
     assert blank.evaluated_nothing(), "суцільне «не оцінено» не розпізнано"
     assert "НЕ Є УСПІШНИМ" in render(blank), "порожня зелень видана за результат"
 
+    # Перелік ЗАКРИТИЙ: баг у самому харнесі мусить летіти далі, а не читатись як
+    # «прилад недоступний». Без цього ассерту гілка `ModelJudge._ask` не виконується
+    # жодного разу — обидва підроблені судді кидають `Unavailable` самі.
+    assert not _is_unavailable(ZeroDivisionError("баг у харнесі")), (
+        "будь-який виняток читається як «не оцінено» — тиха зелень замість гучного провалу"
+    )
+    assert not _is_unavailable(AttributeError("NoneType has no attribute choices")), (
+        "зіпсована відповідь провайдера читається як недоступність приладу"
+    )
+    for named in (TimeoutError("збіг"), RuntimeError("rate limit exceeded"), ConnectionError()):
+        assert _is_unavailable(named), f"{type(named).__name__} має бути в переліку"
+
     # Детектор біасу теж має третій стан, а не нуль знахідок.
     found = position_sweep(_MuteJudge(), POSITION_PAIRS)
     assert found.unavailable and not found.biased, found
@@ -426,22 +487,33 @@ def check_cheap_checks_cover_every_trajectory_the_judge_only_a_share() -> None:
         expected = sum(sampled(f"trc_req{index:04d}") for index in range(60))
 
         assert seen.checked == 60, seen.checked
+        assert seen.sampled_count == expected, (seen.sampled_count, expected)
         assert seen.judged == expected, (seen.judged, expected)
-        assert 0 < seen.judged < seen.checked, (
-            f"суддя бачив {seen.judged} із {seen.checked}: або нікого, або всіх — тоді "
-            "частка не є часткою"
+        assert 0 < seen.sampled_count < seen.checked, (
+            f"у семплі {seen.sampled_count} із {seen.checked}: або нікого, або всіх — "
+            "тоді частка не є часткою"
+        )
+        # Відібрані й оцінені — різні числа. Суддя, у якого скінчилась квота, не
+        # робить семплер неправильним, і частка не має від цього мінятись.
+        blocked = watch(service, key=by_ref, judge=_MuteJudge(), share=DEFAULT_SHARE)
+        assert blocked.sampled_count == expected and blocked.judged == 0, blocked
+        assert blocked.share == seen.share, (
+            f"частка змінилась з {seen.share:.3f} на {blocked.share:.3f}, коли замовк "
+            "суддя — вона рахується від оцінених, а мусить від відібраних"
         )
 
         # Обидва числа названі в одному рядку — інакше «на частці» лишається обіцянкою.
         line = seen.line()
-        assert str(seen.checked) in line and str(seen.judged) in line, line
+        assert f"перевірено {seen.checked}" in line, line
+        assert f"у семплі {seen.sampled_count}" in line, line
+        assert f"оцінено {seen.judged}" in line, line
 
     # Поза смугою: `watch` лише читає. Ані `trace_run`, ані запису в модулі немає.
+    # Не греп по тексту, а розбір AST: `code_mentions` не бачить ані docstring, ані
+    # коментарів, тож перевірка не червоніє на прозі, що САМЕ від запису й застерігає.
     source = (HERE / "online.py").read_text(encoding="utf-8")
-    for written in ("trace_run", "write_text", "open("):
-        assert written not in source, (
-            f"онлайн-модуль пише ({written}) — оцінювання стало доданком до відповіді"
-        )
+    written = code_mentions(source, {"trace_run", "write_text", "write_bytes", "open"})
+    assert not written, f"онлайн-модуль пише ({written}) — оцінювання стало доданком до відповіді"
 
 
 def check_neither_request_nor_answer_text_reaches_the_report_or_the_trace() -> None:
@@ -454,14 +526,48 @@ def check_neither_request_nor_answer_text_reaches_the_report_or_the_trace() -> N
         seen = watch(path, key=by_ref, judge=judge, share=1.0)
         assert seen.checked == 3, seen.checked
 
-        materials = NEWLINE.join([seen.line(), *seen.problems, *seen.blind])
+        # МАТЕРІАЛИ — це записаний звіт і власний трейс прогону, як каже AC-07b, а не
+        # обʼєкт `Watch`. Попередня редакція дивилась саме на нього, а він складається з
+        # лічильників і сталих літералів: жодна мутація коду не змогла б занести туди
+        # текст користувача, тож ассерт був істинним ЗА ПОБУДОВОЮ.
+        # Кейс із секретом у **вільному** полі `reason` — єдиний реальний шлях витоку:
+        # компонентний рівень колись копіював його значення просто у причину вердикта.
+        leaky = Case(
+            name="запит із чутливим текстом",
+            task="запит користувача",
+            expected_tools=(),
+            budget=4,
+            answer="",
+            expected_answer="",
+            acts=(Act("tool_rejected", {"tool": "pay", "reason": SECRET_ASK}),),
+        )
+        report = Report(judge_name=judge.name)
+        with _traced_cases([leaky]) as (leaky_path, made):
+            for trajectory in extract(leaky_path):
+                case = made[trajectory.key]
+                report.rows.append(Row(case, evaluate(case, trajectory, judge)))
+        for trajectory in extract(path, key=by_ref):
+            report.rows.append(Row(leaky, evaluate(leaky, trajectory, judge)))
+        own = Path(tmp) / "own.jsonl"
+        with trace_run("eval", path=own, stage="s08") as tracer:
+            tracer.step("watched", checked=seen.checked, sampled=seen.sampled_count)
+
+        materials = NEWLINE.join(
+            [render(report), own.read_text(encoding="utf-8"), seen.line(), *seen.problems]
+        )
         for text in (SECRET_ASK, SECRET_REPLY, "Hunter2Zaporizhzhia"):
             assert text not in materials, (
                 f"текст користувача {text[:24]!r} потрапив у матеріали оцінювання"
             )
 
-        # Судді подають сталий підпис, а не питання людини.
-        assert "запит користувача" in watch.__doc__, "стала підпису не названа в контракті"
+        # Сталий підпис — властивість СИГНАТУРИ, а не слово в docstring: підміна дефолта
+        # на справжнє питання лишила б грепання по прозі зеленим.
+        import inspect
+
+        signature = inspect.signature(watch).parameters["task"].default
+        assert signature == "запит користувача", (
+            f"дефолт `task` став {signature!r} — у промпт судді пішов текст людини"
+        )
 
     # Дзеркальна половина: фікстури демонстрації біасу під заборону НЕ підпадають —
     # без них знахідка стала б числом без прикладу.
@@ -508,18 +614,31 @@ def check_stage_traces_are_read_exactly_as_the_stages_wrote_them() -> None:
     """крос-контекст: читаємо трейси етапів, не змінюючи жодного етапу (AC-02)"""
     for name in (*IMPLEMENTATION, "run.py", "check.py"):
         source = (HERE / name).read_text(encoding="utf-8")
-        for stage in range(1, 8):
-            assert f"stages.s0{stage}_" not in source, (
-                f"{name} імпортує етап {stage} — етап, який довелося б інструментувати "
-                "заради оцінювання, довів би, що трасування додали запізно (C-2)"
-            )
+        # `code_mentions` розбирає AST, тож не червоніє на docstring, який сам застерігає
+        # від імпорту сусіднього етапу. Греп по тексту робив саме це — форма, проти якої
+        # цей помічник і написаний (`shared/check_runner.py`).
+        borrowed = code_mentions(source, {f"stages.s0{stage}_" for stage in range(1, 8)})
+        assert not borrowed, (
+            f"{name} імпортує сусідній етап ({borrowed}) — етап, який довелося б "
+            "інструментувати заради оцінювання, довів би, що трасування додали запізно (C-2)"
+        )
 
-    # Читання йде крізь спільний `shared.trace`, а не крізь власний розбір JSON.
-    reader = (HERE / "trajectory.py").read_text(encoding="utf-8")
-    assert "from shared.trace import iter_steps" in reader, (
+    # Читання йде крізь спільний `shared.trace` — і це звіряється **тотожністю обʼєкта**,
+    # а не наявністю підрядка з іменем імпорту.
+    assert extract.__globals__["iter_steps"] is shared_iter_steps, (
         "траєкторії читаються не спільним читачем — власний розбір переживе зміну формату мовчки"
     )
-    assert "json.loads" not in reader, "модуль розбирає рядки сам, повз shared.trace"
+
+    # І головне: харнес читає СПРАВЖНІЙ трейс, записаний етапами, а не лише той, що
+    # написала ця перевірка. Без цього твердження «оцінювання поверх наявних трейсів»
+    # доводиться файлом власного виробництва — і `_service_trace` про це прямо каже.
+    written = sorted(REPO_ROOT.glob("traces/*.jsonl"))
+    if not written:
+        raise NotVerified("у traces/ порожньо — прогони будь-який етап і повтори")
+    for path in written:
+        walked = extract(path)
+        assert walked, f"{path.name}: жодної траєкторії — читач не розуміє чужого формату"
+        assert all(trajectory.steps for trajectory in walked), path.name
 
 
 def check_the_input_trace_file_is_byte_identical_after_a_run() -> None:
@@ -606,6 +725,25 @@ def check_what_the_traces_lack_is_counted_not_assumed() -> None:
     with _traced_cases() as (path, _):
         assert blind_spots(extract(path)) == [], "етап 1 теж оголошено сліпим"
 
+    # І головне: «чого бракує» — це ВИМІР із джерел, а не число в прозі. Попередня
+    # редакція називала чотири поля й два етапи без ключа, і помилялась двічі: рахувала
+    # фазу відмови етапу 4 за ключ прогону й забула про етап 7.
+    found = survey_run_keys(HERE.parent)
+    named = sorted({field for field in found.values() if field})
+    without = sorted(stage for stage, field in found.items() if field is None)
+
+    assert "s08" not in found, "оцінювання міряє себе"
+    assert named == ["scenario", "scene", "trace_ref"], named
+    assert without == ["s02", "s03", "s04", "s07"], without
+    assert "phase" not in named, (
+        "фаза відмови етапу 4 порахована ключем прогону — на щасливому шляху вона None"
+    )
+
+    # Дзеркальна половина виміру: параметр функції не є полем трейсу. Саме на цьому
+    # спіткнувся греп — `whole(run=run)` етапу 7 читався як ключ прогону.
+    assert _traced_fields("tracer.step('x', scenario='a')") == {"scenario"}, "крок не читається"
+    assert _traced_fields("whole(run=run)") == set(), "параметр функції порахований полем"
+
 
 def check_the_step_order_is_restored_from_the_sequence_number() -> None:
     """ВІДМОВА · траєкторія: порядок кроків береться з `seq`, а не з порядку в файлі"""
@@ -647,6 +785,55 @@ def check_the_step_order_is_restored_from_the_sequence_number() -> None:
 # --- урок і матеріали читача -------------------------------------------------------------
 
 
+def check_the_real_judge_refuses_an_unreadable_verdict() -> None:
+    """ВІДМОВА · суддя-модель: вердикт розбирається точно або не розбирається (AC-05, AC-08)
+
+    Ця перевірка існує тому, що `ModelJudge` не виконувався **жодного разу**: обидва
+    підроблені судді кидають `Unavailable` самі, а справжнього не було навіть у списку
+    імпортів. Файл, який лише читають, — це файл, який не запускають (PLAYBOOK §5).
+    """
+    judge = ModelJudge()
+
+    # Бал: одне ціле число, і нічого крім нього. Попередня редакція збирала ВСІ цифри
+    # рядка, тож «оцінка: 3 з 10» ставало десяткою, а «0 з 10» — одиницею. Промпт сам
+    # називає шкалу, тож її повторення — найімовірніша форма відповіді.
+    for said, expected in (("8", 8), ("0", 0), (" 3 ", 3), ("10", SCALE), ("99", SCALE)):
+        judge._ask = lambda _, text=said: text
+        assert judge.score("t", "a", "b").score == expected, (said, expected)
+    for said in ("8/10", "оцінка: 3 з 10", "0 з 10", "вісім", ""):
+        judge._ask = lambda _, text=said: text
+        try:
+            scored = judge.score("t", "a", "b")
+        except Unavailable:
+            continue
+        raise AssertionError(f"{said!r} розібрано як {scored.score} — нерозбірливе стало балом")
+
+    # Вердикт: ТОЧНИЙ збіг. Пошук підрядка йшов у сталому порядку, тож «перемагає друга»
+    # давало «перша» — і `position_sweep` рахував це переворотом, рапортуючи біас,
+    # породжений власним парсером, на судді, який його не мав.
+    for said, expected in (("перша", FIRST), ("Друга.", SECOND), (" НІЧИЯ ", TIE)):
+        judge._ask = lambda _, text=said: text
+        assert judge.compare("t", "a", "b").winner == expected, said
+    for said in ("перша гірша, перемагає друга", "не перша, а друга", "важко сказати"):
+        judge._ask = lambda _, text=said: text
+        try:
+            verdict = judge.compare("t", "a", "b")
+        except Unavailable:
+            continue
+        raise AssertionError(f"{said!r} розібрано як {verdict.winner!r} — вердикт з повітря")
+
+    # І дзеркальна половина: без ключа суддя чесно недоступний, а не мовчки зелений.
+    from shared.config import settings  # noqa: PLC0415
+
+    if settings.has_real_llm:
+        raise NotVerified("ключ налаштовано — гілка «провайдера немає» не перевіряється")
+    try:
+        ModelJudge().score("t", "a", "b")
+    except Unavailable:
+        return
+    raise AssertionError("без провайдера суддя видав бал — узятий нізвідки")
+
+
 def check_the_lesson_fits_the_reading_budget() -> None:
     """урок: не більше 2500 слів (NFR-3)"""
     words = len((HERE / "README.md").read_text(encoding="utf-8").split())
@@ -685,6 +872,20 @@ def check_the_lesson_numbers_match_the_suite() -> None:
         f"склад набору у прозі не збігається з набором: {len(CASES)} / {edge}"
     )
     assert f"| Мутацій у вправах | {len(pinned)} |" in lesson, len(pinned)
+
+    # ГОЛОВНІ числа етапу — теж вимір. Без цього доказ лишався єдиним місцем уроку, де
+    # числа набрані руками, попри власну доктрину «обчислені, а не написані».
+    for found in (
+        position_sweep(BiasedJudge(), POSITION_PAIRS),
+        length_sweep(BiasedJudge(), LENGTH_PAIRS),
+        position_sweep(SteadyJudge(), POSITION_PAIRS),
+    ):
+        assert found.line() in lesson, f"урок не називає того, що дає прогін: {found.line()}"
+    stream = [f"req_{index:08x}" for index in range(1_000)]
+    hit = sum(sampled(request) for request in stream)
+    assert f"{hit} до судді = {hit / len(stream):.1%}" in lesson, (
+        f"частка семплінгу в уроці не та, що дає прогін: {hit}"
+    )
 
     # Три частки — з прогону, а не з попередньої редакції уроку. Таблиця уроку вирівняна
     # пробілами, тож звіряється нормалізований рядок, а не сира розмітка.
@@ -772,14 +973,25 @@ def check_at_least_a_third_of_the_case_set_is_edge_by_observation() -> None:
 
     stored = {field.name for field in dataclasses.fields(Case)}
     assert "edge" not in stored, (
-        f"крайність стала полем кейса ({stored & {chr(101) + 'dge'}}) — набір із двадцяти "
-        "щасливих шляхів лишиться зеленим, бо прапорець можна виставити"
+        "крайність стала полем кейса — набір із двадцяти щасливих шляхів лишиться "
+        "зеленим, бо прапорець можна виставити"
     )
     assert isinstance(Case.edge, property), "крайність не обчислюється, а зберігається"
 
-    # Дзеркальна половина: кейс без жодної спостережної ознаки крайнім не рахується.
+    # Дзеркальна половина, без якої попередній ассерт нічого не вартий: прапорець можна
+    # перейменувати. Крайність має залежати ВИКЛЮЧНО від `acts`, тож зміна будь-якого
+    # іншого поля не сміє її перемкнути — а `status="whatever"` колись перемикав.
     plain = next(case for case in CASES if case.name == "прямий шлях")
     assert not plain.edge, "щасливий шлях порахований крайнім — тоді крайні всі"
+    for field in dataclasses.fields(Case):
+        if field.name == "acts":
+            continue
+        current = getattr(plain, field.name)
+        moved = dataclasses.replace(plain, **{field.name: "" if isinstance(current, str) else ()})
+        assert moved.edge == plain.edge, (
+            f"поле {field.name!r} змінює крайність — отже вона оголошується рукою, а не "
+            "читається з трейсу"
+        )
 
 
 def check_a_broken_level_reddens_the_check_that_asserts_about_that_level() -> None:
@@ -812,6 +1024,13 @@ def check_a_broken_level_reddens_the_check_that_asserts_about_that_level() -> No
 
 def check_the_report_is_deterministic_across_twenty_runs() -> None:
     """ВІДМОВА · детермінізм: двадцять прогонів дають ті самі вердикти (NFR-6)"""
+    from shared.config import settings  # noqa: PLC0415
+
+    if settings.has_real_llm:
+        # NFR-6b: із реальним суддею детермінізм не вимагається. Гілка мусить існувати —
+        # інакше три сторінки прози обіцяють механізм, якого немає, і перевірка лишається
+        # зеленою там, де мала б чесно сказати «не перевіряли».
+        raise NotVerified("ключ налаштовано — з реальним суддею детермінізм не вимагається")
 
     def fingerprint() -> tuple:
         report, _ = _report()
@@ -862,8 +1081,9 @@ def check_the_demo_shows_every_scene_offline_within_its_budget() -> None:
     # Числа сцен мають збігатися з тим, що дає прогін тут, а не бути набраними руками.
     report, _ = _report()
     assert f"{report.share(E2E):.0%}" in output, "частка e2e у виводі не та, що дає прогін"
-    assert str(len(CASES)) in output and str(sum(1 for c in CASES if c.edge)) in output, (
-        "склад набору у виводі не збігається з набором"
+    assert f"кейсів: {len(CASES)}, крайніх: {sum(1 for c in CASES if c.edge)}" in output, (
+        "склад набору у виводі не збігається з набором — підрядковий ассерт цього не ловив: "
+        "у виводі десятки цифр, тож перевірка проходила за будь-якої девʼятки"
     )
 
     # Демо не тягне ані мережі, ані ключа: обидва біаси знайдено підробленим суддею.
@@ -884,6 +1104,7 @@ def check_the_failure_modes_are_at_least_a_third() -> None:
     )
 
 
+@dataclass
 class _HalfJudge(BiasedJudge):
     """Суддя, що відповідає через раз. Роль: вичерпана квота посеред прогону.
 
@@ -925,6 +1146,7 @@ CHECKS = [
     check_a_stable_judge_yields_zero_flips,
     check_padding_a_correct_answer_raises_its_score,
     check_an_unavailable_judge_yields_not_evaluated_never_a_failure,
+    check_the_real_judge_refuses_an_unreadable_verdict,
     check_cheap_checks_cover_every_trajectory_the_judge_only_a_share,
     check_neither_request_nor_answer_text_reaches_the_report_or_the_trace,
     check_the_sampled_share_matches_the_declared_one_within_the_stated_margin,

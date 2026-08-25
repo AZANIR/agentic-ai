@@ -52,12 +52,18 @@ class Case:
 
     @property
     def edge(self) -> bool:
-        """Крайній випадок — за трейсом, не за міткою."""
-        kinds = {act.kind for act in self.acts}
-        return bool(kinds & EDGE_KINDS) or not self.answer.strip() or self.status != "ok"
+        """Крайній випадок — **за кроками**, і ні за чим іншим.
 
-    def tools(self) -> tuple[str, ...]:
-        return tuple(a.fields["tool"] for a in self.acts if "tool" in a.fields)
+        Читається виключно з `acts`, тобто з того, що потрапить у трейс. Попередня редакція
+        дивилась ще й на `answer` і `status` — обидва поля виставляє рукою автор кейса, тож
+        набір із двадцяти одного щасливого шляху ставав «крайнім» одним `status="whatever"`.
+        Рівно той сценарій, який AC-10 називає причиною відмовитись від мітки.
+        """
+        kinds = {act.kind for act in self.acts}
+        if kinds & EDGE_KINDS:
+            return True
+        said = [act for act in self.acts if act.fields.get("answer", "").strip()]
+        return not said
 
 
 def _order(tool: str, order_id: str = "ord_4471") -> Act:

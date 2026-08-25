@@ -27,22 +27,19 @@ import sys
 import tempfile
 from pathlib import Path
 
+from shared.trace import iter_steps
 from stages.s08_eval.bias import LENGTH_PAIRS, POSITION_PAIRS, length_sweep, position_sweep
 from stages.s08_eval.cases import CASES, write
 from stages.s08_eval.judge import SCALE, SteadyJudge, get_judge
 from stages.s08_eval.levels import UNSCORED, evaluate
 from stages.s08_eval.online import DEFAULT_SHARE, MIN_STREAM, TOLERANCE, sampled, watch
 from stages.s08_eval.report import LEVELS_ORDER, Report, Row, save
-from stages.s08_eval.trajectory import by_ref, by_trace_id, extract
+from stages.s08_eval.trajectory import by_ref, by_trace_id, extract, survey_run_keys
 
 BANNER = (
     "[BiasedJudge] Суддя підроблений і упереджений НАВМИСНО: він грає роль зламаного "
     "приладу. Це не доказ, що справжні судді упереджені, — це матеріал для детектора."
 )
-
-# Трейси попередніх етапів, які демо читає, якщо вони є. Не породжує: етапи 1–7 не
-# змінюються заради оцінювання, і їхні прогони — це їхні прогони.
-NEIGHBOURS = ("s01", "s06")
 
 # Довжина синтетичного потоку для виміру частки. Не менша за `MIN_STREAM`: коротший
 # потік не відрізняє десять відсотків від нуля.
@@ -100,9 +97,8 @@ def scene_report(report: Report, path: Path) -> None:
     print()
 
 
-def scene_position(judge) -> None:
+def scene_position(found) -> None:
     print("4. Position bias — перестановка міняє вердикт")
-    found = position_sweep(judge, POSITION_PAIRS)
     print(f"   {found.line()}")
     for line in found.detail:
         print(f"      {line}")
@@ -112,9 +108,8 @@ def scene_position(judge) -> None:
     print()
 
 
-def scene_length(judge) -> None:
+def scene_length(found) -> None:
     print("5. Length bias — зайвий текст додає балів")
-    found = length_sweep(judge, LENGTH_PAIRS)
     print(f"   {found.line()}   (шкала 0..{SCALE})")
     for line in found.detail:
         print(f"      {line}")
@@ -169,43 +164,79 @@ def scene_online(path: Path) -> None:
 
 def scene_gaps() -> None:
     print("8. Чого бракує у трейсі — виміряно, а не припущено")
-    for name in NEIGHBOURS:
-        found = Path("traces") / f"{name}.jsonl"
-        if not found.exists():
-            print(f"   {name}: трейсу немає — прогони етап і повтори")
+
+    # Читаємо ВСЕ, що лежить у `traces/`, і групуємо за метаполем `stage`, яке пише кожен
+    # крок. Перша редакція шукала `traces/s01.jsonl` — назви, якої `shared.trace` не
+    # створює ніколи (там `traces/<дата>.jsonl`), тож обидві гілки друкували «трейсу
+    # немає», а відповідь на AC-12 стояла нижче сталою прозою. Демо не має друкувати
+    # числа, якого не отримало.
+    seen_any = False
+    for path in sorted(Path("traces").glob("*.jsonl")):
+        stages = sorted({step.get("stage") for step in iter_steps(path)} - {None})
+        # Один рядок на ФАЙЛ, а не на етап у ньому. Числа траєкторій і зауважень
+        # файлові, і друкувати їх окремо під кожним етапом означало б показати те саме
+        # число тричі так, ніби це три різні виміри.
+        key = by_ref if "s06" in stages else by_trace_id
+        seen = watch(path, key=key)
+        if not seen.checked:
             continue
-        key = by_ref if name == "s06" else by_trace_id
-        seen = watch(found, key=key)
-        print(f"   {name}: траєкторій {seen.checked}, зауважень {len(seen.problems)}")
+        seen_any = True
+        print(
+            f"   {path.name} ({', '.join(stages) or 'без мітки етапу'}): "
+            f"траєкторій {seen.checked}, зауважень {len(seen.problems)}"
+        )
         for blind in seen.blind:
             print(f"      сліпе: {blind}")
+    if not seen_any:
+        print("   у traces/ порожньо — прогони будь-який етап і повтори")
     print()
-    print("   Етапи позначають «який це прогін» чотирма різними полями — scenario, phase,")
-    print("   scene, trace_ref, — а два не позначають ніяк. Це і є відповідь на питання,")
-    print("   яке етап 6 двічі відклав сюди (ADR-0008).")
+
+    # Головне число сцени — теж вимір, а не проза (AC-12).
+    found = survey_run_keys(Path("stages"))
+    named = sorted({field for field in found.values() if field})
+    blind = sorted(stage for stage, field in found.items() if field is None)
+    print(f"   ключем прогону слугують {len(named)} різні поля: {', '.join(named)}")
+    print(f"   {len(blind)} етапи не позначають прогін ніяк: {', '.join(blind)}")
+    print()
+    print("   Етап 4 має `phase`, але це фаза ВІДМОВИ: на щасливому шляху вона None, тож")
+    print("   ключем прогону бути не може. Це і є відповідь на питання, яке етап 6 двічі")
+    print("   відклав сюди (ADR-0008).")
     print()
 
 
 def main(*, real: bool = False, report_path: Path | None = None) -> int:
+    from shared.config import settings  # noqa: PLC0415
+
     judge = get_judge(real=real)
-    print(BANNER if not real else f"[{judge.name}] Суддя справжній: числа мигтітимуть.")
+    if not real:
+        print(BANNER)
+    elif settings.has_real_llm:
+        print(f"[{judge.name}] Суддя справжній: числа мигтітимуть.")
+    else:
+        # Банер за прапорцем брехав: без ключа сцени 4 і 5 друкували НЕ ОЦІНЕНО, звіт —
+        # «прогін не є успішним», а перший рядок обіцяв справжню модель.
+        print(f"[{judge.name}] Просили справжнього суддю, але провайдера не налаштовано.")
+        print("   Усе, що потребує судження, буде НЕ ОЦІНЕНО. Прибери --real або дай ключ.")
     print(f"   кейсів: {len(CASES)}, крайніх: {sum(1 for c in CASES if c.edge)}")
     print()
 
     with tempfile.TemporaryDirectory() as tmp:
         traces = Path(tmp) / "cases.jsonl"
         report = _walk(traces, judge)
-        report.findings = [
-            position_sweep(judge, POSITION_PAIRS),
-            length_sweep(judge, LENGTH_PAIRS),
-        ]
+        # Свіпи проганяються ОДИН раз і передаються у сцени. Перша редакція рахувала їх
+        # двічі — для звіту й для сцен, — тож суддя робив 41 виклик, а звіт друкував 21.
+        # З --real це двадцять зайвих оплачених викликів на кожен прогін демо.
+        position = position_sweep(judge, POSITION_PAIRS)
+        length = length_sweep(judge, LENGTH_PAIRS)
+        report.findings = [position, length]
+        report.judge_calls = judge.calls
         target = save(report, report_path or Path(tmp) / "report.md")
 
         scene_levels(report)
         scene_same_answer(report)
         scene_report(report, target)
-        scene_position(judge)
-        scene_length(judge)
+        scene_position(position)
+        scene_length(length)
         scene_mirror()
         scene_online(traces)
     scene_gaps()
