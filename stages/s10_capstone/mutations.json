@@ -1,0 +1,70 @@
+{
+  "stage": "s10-capstone",
+  "executed_floor": 12,
+  "note": "Мутації ламають властивості складання, а не синтаксис. Найважливіші стосуються не сервісу, а ЧЕСНОСТІ виміру: мовчазна частина перестає називатись, ціна перехідників роздувається на весь модуль швів, усі виконані рядки з'їжджають на один етап, обґрунтування перестає звірятись із репозиторієм. Усі вони лишають сервіс працездатним і дають таблицю, яка виглядає нормальною — саме тому їх складно помітити без перевірки. Число `expect_failed` копіюється з ПРОГОНУ, а не пишеться від руки.",
+  "mutations": [
+    {
+      "name": "вправа 1 · мовчазна частина перестає називатись",
+      "file": "stages/s10_capstone/assemble.py",
+      "old": "        return sorted(name for name in PARTS if not self.executed.get(name))",
+      "new": "        return []",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 2 · усі виконані рядки з'їжджають на перший етап",
+      "file": "stages/s10_capstone/assemble.py",
+      "old": "            if folder and folder in parts:",
+      "new": "            if folder:",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 3 · у ціну потрапляє весь модуль швів",
+      "file": "stages/s10_capstone/assemble.py",
+      "old": "        if isinstance(node, ast.FunctionDef) and node.name in wanted:",
+      "new": "        if isinstance(node, ast.FunctionDef):",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 4 · прогрів зникає, і в ціну прогону їде імпорт",
+      "file": "stages/s10_capstone/assemble.py",
+      "old": "    work()\n    with watching() as seen:",
+      "new": "    with watching() as seen:",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 5 · обґрунтування перестає звіряти ADR із репозиторієм",
+      "file": "stages/s10_capstone/arch.py",
+      "old": "        if feature is None or not sorted((feature / \"adr\").glob(f\"{number}-*.md\")):",
+      "new": "        if False:",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 6 · рішення без джерела проходить мовчки",
+      "file": "stages/s10_capstone/arch.py",
+      "old": "        if not item.stage:",
+      "new": "        if False:",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 7 · перехідник починає вирішувати",
+      "file": "stages/s10_capstone/seams.py",
+      "old": "    if result.stopped_by_limit:",
+      "new": "    if result.steps > 2:",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 8 · сценарій перестає звіряти фінальний стан",
+      "file": "stages/s10_capstone/scenarios.py",
+      "old": "        if self.remembered != self.scenario.remembered:",
+      "new": "        if False:",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 9 · звіт «що складання виявило» перестає називати етапи",
+      "file": "stages/s10_capstone/arch.py",
+      "old": "    return [line.strip(\"- \").strip() for line in body.split(\"\\n\") if line.strip().startswith(\"- \")]",
+      "new": "    return []",
+      "expect_failed": 1
+    }
+  ]
+}

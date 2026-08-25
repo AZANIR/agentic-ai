@@ -85,7 +85,7 @@ Stages 1–8 complete; each passed an independent two-reviewer gate.
 | Stage 7 — voice | **done**, 44 checks, 37 on failure modes; 1574 -> 450 ms |
 | Stage 8 — evaluation | **done**, 31 checks, 15 on failure modes; position bias 3 of 3, mirrored 0 of 3 |
 | Stage 9 — frameworks | **done**, 28 checks, 12 on failure modes; baseline 37 lines against 54 + 1895 invisible |
-| Stage 10 | not started |
+| Stage 10 — capstone | **done**, 24 checks, 11 on failure modes; 7 of 7 parts execute, 166 executed lines against 19 adapter lines (11 %) |
 
 ## Sources
 
