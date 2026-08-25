@@ -30,6 +30,7 @@ REPO = HERE.parent.parent
 DECISIONS = "## Рішення й джерела"
 OWN = "## Власні рішення капстоуна"
 REVEALED = "## Що складання виявило"
+WRAP = "## Обвіс і його походження"
 
 # Рядок таблиці: `| рішення | джерело |`. Джерело — `sNN` і, за потреби, `ADR-NNNN`.
 ROW = re.compile(r"^\| (?P<what>[^|]+?) \| (?P<source>[^|]+?) \|$")
@@ -46,37 +47,79 @@ class Justification:
 
 
 def _section(text: str, title: str) -> str:
-    """Тіло розділу до наступного заголовка того ж рівня."""
-    if title not in text:
+    """Тіло розділу до наступного заголовка того ж рівня.
+
+    Заголовок шукається **рядком цілком**. Пошук підрядком ловив би `### Рішення й джерела
+    (чернетка)` як початок розділу другого рівня — і таблиця нижче зникала б із розбору
+    мовчки, лишаючи `dangling()` порожнім.
+    """
+    padded = "\n" + text
+    marker = "\n" + title + "\n"
+    if marker not in padded:
         return ""
-    body = text.split(title, 1)[1]
-    return body.split("\n## ", 1)[0]
+    return padded.split(marker, 1)[1].split("\n## ", 1)[0]
+
+
+def _table_lines(body: str) -> list[str]:
+    """Усі рядки, що виглядають як рядок таблиці, — розібрані розбирачем чи ні."""
+    return [line.strip() for line in body.split("\n") if line.strip().startswith("|")]
+
+
+def _is_header(what: str) -> bool:
+    """Заголовок таблиці або роздільник — не рішення."""
+    return set(what) <= {"-"} or what in ("Рішення", "Що", "Пункт")
 
 
 def _rows(body: str) -> list[tuple[str, str]]:
     """Рядки таблиці без заголовка й роздільника."""
     found = []
-    for line in body.split("\n"):
-        match = ROW.match(line.strip())
-        if not match:
+    for line in _table_lines(body):
+        match = ROW.match(line)
+        if not match or _is_header(match["what"].strip()):
             continue
-        what, source = match["what"].strip(), match["source"].strip()
-        if set(what) <= {"-"} or what in ("Рішення", "Що", "Пункт"):
-            continue
-        found.append((what, source))
+        found.append((match["what"].strip(), match["source"].strip()))
     return found
 
 
-def justifications(text: str) -> list[Justification]:
-    """Рішення з розділу «Рішення й джерела», розібрані на частини."""
+def unparsed(text: str, title: str) -> list[str]:
+    """Рядки таблиці, яких розбирач НЕ зрозумів. Порожньо — розібрано все.
+
+    Пропущений рядок не відрізняється від відсутнього. Рядок із трьох стовпців, з
+    екранованою рискою або без пробілів навколо `|` просто зникав із розбору — разом із
+    битим посиланням усередині, і `dangling()` повертав порожньо. Тому нерозібраний
+    рядок — це вада, а не тиша.
+    """
+    return [
+        line
+        for line in _table_lines(_section(text, title))
+        if ROW.match(line) is None and not set(line) <= set("|-: ")
+    ]
+
+
+def _cited(body: str) -> list[Justification]:
+    """Рядки «щось + джерело», розібрані на частини."""
     parsed = []
-    for what, source in _rows(_section(text, DECISIONS)):
+    for what, source in _rows(body):
         match = SOURCE.match(source)
         if match is None:
             parsed.append(Justification(what=what, stage="", adr=""))
             continue
         parsed.append(Justification(what=what, stage=match["stage"], adr=match["adr"] or ""))
     return parsed
+
+
+def justifications(text: str) -> list[Justification]:
+    """Рішення з розділу «Рішення й джерела», розібрані на частини."""
+    return _cited(_section(text, DECISIONS))
+
+
+def wrap_items(text: str) -> list[Justification]:
+    """Пункти обвісу разом із джерелами — той самий розбір, що для рішень.
+
+    Спершу цей розділ до звірки не входив, і підміна `s06` на `s99` тут проходила зеленою.
+    Вада в обох таблицях однакова, тож і перевірка мусить бути одна.
+    """
+    return _cited(_section(text, WRAP))
 
 
 def stage_folder(stage: str) -> Path | None:
@@ -92,13 +135,18 @@ def feature_folder(stage: str) -> Path | None:
 
 
 def dangling(text: str) -> list[str]:
-    """Биті посилання. Порожньо — усі джерела на місці.
+    """Биті посилання **в обох таблицях із джерелами**. Порожньо — усі джерела на місці.
 
-    Три різні вади, і кожна названа окремо: джерела немає взагалі, етапу не існує, ADR не
-    існує. Злиття їх в одне повідомлення зробило б виправлення грою у вгадування.
+    Чотири різні вади, і кожна названа окремо: рядок не розібрався, джерела немає взагалі,
+    етапу не існує, ADR не існує. Злиття їх в одне повідомлення зробило б виправлення грою
+    у вгадування.
     """
-    broken = []
-    for item in justifications(text):
+    broken = [
+        f"{line}: рядок таблиці не розібрано"
+        for title in (DECISIONS, WRAP)
+        for line in unparsed(text, title)
+    ]
+    for item in justifications(text) + wrap_items(text):
         if not item.stage:
             broken.append(f"{item.what!r}: джерела не названо")
             continue

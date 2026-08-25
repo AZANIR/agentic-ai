@@ -48,7 +48,11 @@ class Reply:
     branch: str = ""
     trace_id: str = ""
     parts: tuple[str, ...] = field(default_factory=tuple)
+    tools: tuple[str, ...] = ()
     detail: str = ""
+    # Поле не для читача, а для HTTP-шару етапу 6: він кладе його в заголовок `Retry-After`.
+    # Складання виявило його останнім — саме на підстановці `Reply` у чужий застосунок.
+    retry_after: float | None = None
 
 
 def _branch(question: str) -> str:
@@ -94,8 +98,12 @@ class Capstone:
         if not verdict.allowed:
             return self._refused(verdict, trace_id)
 
+        # Перелік учасників живе ТУТ, а не всередині `_work`: коли частина відмовляє,
+        # відповідь мусить назвати й тих, хто вже відпрацював. Інакше «нічого не сталося»
+        # і «зламалось на середині» виглядають однаково.
+        parts: list[str] = ["s06"]
         try:
-            return self._work(verdict, question, trace_id=trace_id, now=now)
+            return self._work(verdict, question, trace_id=trace_id, now=now, parts=parts)
         except Exception as error:  # noqa: BLE001 — межа сервісу: далі летіти нікуди
             # Відмова ЧАСТИНИ не є падінням системи — урок етапу 4. Сервіс лишається
             # живим, а у відповіді названо, що саме відмовило.
@@ -106,23 +114,46 @@ class Capstone:
                 text=f"частина відмовила: {type(error).__name__}",
                 kind="dependency_down",
                 trace_id=trace_id,
+                parts=tuple(parts),
                 detail=type(error).__name__,
             )
 
     def _refused(self, verdict: Verdict, trace_id: str) -> Reply:
         """Відмова коштує нуль викликів моделі — уся суть воротарів етапу 6."""
         self.metrics.request(verdict.kind)
-        return Reply(ok=False, text=verdict.reason, kind=verdict.kind, trace_id=trace_id)
+        return Reply(
+            ok=False,
+            text=verdict.reason,
+            kind=verdict.kind,
+            trace_id=trace_id,
+            retry_after=verdict.retry_after,
+        )
 
-    def _work(self, verdict: Verdict, question: str, *, trace_id: str, now: float) -> Reply:
-        branch = _branch(question)
-        parts: list[str] = ["s06"]
+    def _work(
+        self,
+        verdict: Verdict,
+        question: str,
+        *,
+        trace_id: str,
+        now: float,
+        parts: list[str],
+    ) -> Reply:
+        wanted = _branch(question)
+
+        # Списання йде ПЕРЕД роботою. Етап 6 ухвалив «запобіжник до витрати, не після»,
+        # і списання в кінці означало б, що відмова частини між викликом моделі та
+        # списанням дає безкоштовний виклик — тобто рівно те, від чого запобіжник ставили.
+        spent = charge(verdict.owner, self.counters, COST_PER_REQUEST, now=now)
+        self.metrics.spend(COST_PER_REQUEST)
 
         context = seams.from_search(self.base, question, tracer=self.tracer)
         parts.append(context.part)
-        asked = f"{context.text}\n\n{question}" if context.text else question
+        asked = context.prompt or question
 
-        if branch == SEARCH and context.text:
+        # Гілка, ЯКА СПРАЦЮВАЛА, а не та, яку хотіли. Пошук без влучань відправляє
+        # питання агентові — і відповідь, підписана «search», брехала б про свій шлях.
+        branch = wanted if wanted != SEARCH or context.text else AGENT
+        if branch == SEARCH:
             worked = context
         elif branch == ROUTED:
             worked = seams.from_graph(asked, client=self.client, tracer=self.tracer)
@@ -131,22 +162,28 @@ class Capstone:
         if worked.part not in parts:
             parts.append(worked.part)
 
-        spent = charge(verdict.owner, self.counters, COST_PER_REQUEST, now=now)
-        self.metrics.spend(COST_PER_REQUEST)
-        self.metrics.request(OK)
-
         kept = decide(seams.classify(question))
         if kept.keep:
             seams.remember(self.memory, verdict.owner, question, now=now)
             parts.append("s05")
         self.tracer.step(
-            "done", trace_ref=trace_id, branch=branch, spent=spent, kept=kept.keep, parts=parts
+            "done",
+            trace_ref=trace_id,
+            branch=branch,
+            spent=spent,
+            kept=kept.keep,
+            parts=parts,
+            tools=list(worked.tools),
         )
+        # Запит рахується успішним ОДИН раз і аж тут: `metrics.request(OK)` посеред роботи
+        # клав той самий запит і в «успіх», і — після винятку нижче — у «відмова».
+        self.metrics.request(OK)
         return Reply(
             ok=True,
             text=worked.text,
             branch=branch,
             trace_id=trace_id,
             parts=tuple(parts),
+            tools=worked.tools,
             detail=worked.detail,
         )

@@ -66,12 +66,16 @@ def main() -> int:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        # Без стелі часу зависання дитячого процесу зависає й розв'язок — мовчки й назавжди.
+        timeout=300,
     )
     if done.returncode != 0:
         print(done.stderr.strip()[-2000:])
         return 1
 
-    cold, warm = (int(number) for number in done.stdout.split())
+    # Останні два числа, а не всі: банер чи попередження в stdout інакше валили б
+    # розв'язок трасуванням замість причини.
+    cold, warm = (int(number) for number in done.stdout.split()[-2:])
 
     print("Вправа 4 · що ховає прогрів")
     print()

@@ -19,8 +19,9 @@ everything stage 2 exists for — **never run**.
 ## Run it
 
 ```bash
-python -m stages.s10_capstone.run     # seven scenes, no key, no network
-python -m stages.s10_capstone.check   # 24 checks, 11 of them on failure modes
+python -m stages.s10_capstone.run      # eight scenes, no key, no network
+python -m stages.s10_capstone.check    # 32 checks, 16 of them on failure modes
+uvicorn stages.s10_capstone.serve:app  # the second deploy — with no HTTP code of its own
 python scripts/mutate.py s10 --expect
 ```
 
@@ -28,54 +29,73 @@ python scripts/mutate.py s10 --expect
 
 | What | How much |
 |---|---|
-| Parts that execute / declared | 7 / 7 |
-| Stage lines executed per run | 166 |
-| Adapter lines | 19 (11 %) |
+| Parts that execute | 6 |
+| Deliberately not wired | 3 |
+| Stage lines executed per run | 173 |
+| Adapter lines that executed | 12 |
+| Adapter lines written | 16 |
 | Seams named | 6 |
-| Decisions with a source / capstone's own | 24 / 3 |
-| Checks / on failure modes | 24 / 11 |
+| Scenarios | 6 |
+| Checks | 32 |
 
-Two stages execute zero lines **by decision**: MCP tools (stage 4) need a running server, voice
-(stage 7) needs gigabytes of weights. Both sit in a separate list with their reason. Zero for a
-**declared** part reddens the suite by name.
+Three stages execute zero lines **by decision**, each with its reason: MCP tools (stage 4) need
+a running server, voice (stage 7) needs gigabytes of weights, and stage 9 turned out to be an
+**instrument**, not a part. Zero for a **declared** part reddens the suite by name.
 
-## The measurement
+## Two measurement defects the stage found in itself
 
-The instrument comes from stage 9 — executed-line tracing — rather than being written again: two
-definitions of "executed" would make the two stages' numbers incomparable. Its limits are
-inherited with it: the number describes **this request** and **this thread**.
+**Stage 9 "worked" with exactly one line, and that line was the instrument.** It sat among the
+parts and reported a non-zero number until a run over empty work reported the same one: it was
+`sys.settrace(previous)` in the counter's own `finally`. The instrument was measuring itself.
+"Measures" is not "uses" — the same distinction as "imports" versus "uses".
 
-One trap was caught by the capstone's own run. The first draft opened a tracing context per
-stage and measured zero for six of seven: `sys.settrace` is global **per thread**, so each
-context overwrote the previous one. The symptom was quiet and plausible — the table printed,
-the numbers were whole integers, and only the last stage was non-zero.
+**The price of assembly was counted in a different unit from what it was compared against.**
+Adapters statically, from the code; stages dynamically, from execution. The numerator said "is
+in the code", the denominator said "runs", and the two printed side by side looked comparable.
+Both are executed lines now, and the gap — 16 written against 12 executed — is informative in
+itself: `build_search` runs at startup, not per request.
 
 ## The rules that made it a capstone rather than a rewrite
 
 - **A mismatch goes into an adapter, never into a part.** A part you had to change disproves
   "the parts were mature", and the change touches that stage's lesson, checks, tag and article.
   The need for the change goes into the **report**, naming the stage.
-- **An adapter never decides.** Whatever decides is a part, and a part belongs in a stage — with
-  a lesson and checks. The check catches the coarse cases: branching inside an adapter reddens.
+- **An adapter never decides.** The check catches both forms — `if` and `a if c else b`; only an
+  empty-value guard is exempt, and narrowly: `if not <name>:` with a single `return`.
 - **Every decision cites a source stage, and the citation is verified by code.** `arch.py` parses
-  `ARCHITECTURE.md` and asserts the stage exists and the named ADR exists. Twice in this
-  repository a plausible document pointed nowhere and aged silently.
+  `ARCHITECTURE.md` and asserts the stage and the named ADR exist. A row the parser cannot read
+  is a defect, not silence — it used to vanish from the check along with the dangling citation
+  inside it.
+- **Found text reaches the model behind stage 2's data fence.** The first draft glued the
+  document to the question with a blank line, reopening a gap stage 2 had closed.
+
+## The second deploy costs no adapter at all
+
+`serve.py` builds no application. It takes stage 6's `create_app` and substitutes the assembled
+`Capstone`. `Reply` is deliberately **not** named `Answer`, yet it satisfies that application's
+contract completely: stages 6 and 10 agree on **shape, not name**. One field was missing —
+`retry_after` — and it surfaced not in design but on the first request that raised
+`AttributeError`.
+
+The live HTTPS run stays `NOT EVALUATED`: it needs a real machine, and green there would be
+green for the unverified.
 
 ## What it deliberately does not prove
 
 - That the executed-line count generalizes beyond this request and this thread.
 - That the citation check knows a source *contains* the decision — only that it exists.
-- That "an adapter never decides" is enforced beyond the shape of a branch.
-- That five scenarios are coverage. They show assembly; the case set lives in stage 8.
+- That "an adapter never decides" holds beyond the two branch forms it recognizes.
+- That six scenarios are coverage. They show assembly; the case set lives in stage 8.
 - That the latency numbers hold anywhere else: 20 requests, a fake model, one machine.
 
 ## Where to look
 
-| File | What it holds |
-|---|---|
-| [`seams.py`](seams.py) | Six seams and the adapters that close them — the price, kept visible |
-| [`assemble.py`](assemble.py) | Executed-line measurement, grouped by stage |
-| [`service.py`](service.py) | The assembled service — no loop, no search, no memory of its own |
-| [`scenarios.py`](scenarios.py) | Five scenarios checking branch, parts and final state |
-| [`arch.py`](arch.py) | The parser that makes `ARCHITECTURE.md` executable |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | 24 decisions with sources, 3 of the capstone's own, and what assembly revealed |
+| File | Lines | What it holds |
+|---|---|---|
+| [`seams.py`](seams.py) | 46 | Six seams and the adapters that close them — the price, kept visible |
+| [`assemble.py`](assemble.py) | 60 | Executed-line measurement, grouped by stage |
+| [`service.py`](service.py) | 71 | The assembled service — no loop, no search, no memory of its own |
+| [`scenarios.py`](scenarios.py) | 64 | Six scenarios checking branch, parts, tools and final state |
+| [`arch.py`](arch.py) | 74 | The parser that makes `ARCHITECTURE.md` executable |
+| [`latency.py`](latency.py) | 21 | Latency, with conditions as data — printed before the number |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | — | Decisions with sources, the capstone's own, and what assembly revealed |

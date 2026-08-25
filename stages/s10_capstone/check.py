@@ -19,12 +19,23 @@ from pathlib import Path
 from typing import Any
 
 from shared.check_runner import NotVerified, code_mentions, require_intact_source, run_checks
+from shared.counters import InMemory
+from shared.fake_llm import FakeLLM, text
 from shared.trace import trace_run
+from stages.s06_platform.guards import OK
 from stages.s08_eval.trajectory import extract
-from stages.s10_capstone import arch, assemble, scenarios, seams
+from stages.s10_capstone import arch, assemble, latency, scenarios, seams
+from stages.s10_capstone import service as service_module
 from stages.s10_capstone.run import main as demo_main
 from stages.s10_capstone.run import measured
-from stages.s10_capstone.service import AGENT, ROUTED, SEARCH, Capstone, Reply
+from stages.s10_capstone.service import (
+    AGENT,
+    COST_PER_REQUEST,
+    ROUTED,
+    SEARCH,
+    Capstone,
+    Reply,
+)
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
@@ -34,6 +45,7 @@ BUDGET_SECONDS = 30
 
 NEWLINE = chr(10)
 LINE_BUDGET = 110
+WORD_BUDGET = 2500
 
 # Індекс будується раз на прогін набору: він однаковий для всіх перевірок, а будувати його
 # на кожній означало б міряти ембеддинги замість складання.
@@ -54,21 +66,6 @@ def _running():
         traces = Path(tmp) / "s10.jsonl"
         with trace_run("check", path=traces, stage="s10", case="check") as tracer:
             yield scenarios.build(Path(tmp), tracer, base=_base()), Path(tmp), traces
-
-
-def _executable_lines(name: str) -> int:
-    tree = ast.parse((HERE / name).read_text(encoding="utf-8"))
-    return len(
-        {
-            node.lineno
-            for node in ast.walk(tree)
-            if isinstance(node, ast.stmt)
-            and not isinstance(node, (ast.Import, ast.ImportFrom))
-            and not (
-                isinstance(node, ast.Expr) and isinstance(getattr(node.value, "value", None), str)
-            )
-        }
-    )
 
 
 def _assembly() -> assemble.Assembly:
@@ -102,11 +99,18 @@ def check_one_command_answers_and_names_the_parts_that_took_part() -> None:
 
 
 def check_five_scenarios_check_the_branch_and_the_final_state() -> None:
-    """сценарії: звіряється гілка І фінальний стан, не лише текст (AC-05)"""
+    """сценарії: звіряється гілка, інструменти І фінальний стан, не лише текст (AC-05)"""
     with _running() as (_service, tmp, _traces):
         outcomes = scenarios.play_all(tmp, _tracer_of(_service), base=_base())
 
-    assert len(outcomes) == 5, len(outcomes)
+    assert len(outcomes) == len(scenarios.SCENARIOS), len(outcomes)
+    assert any(item.breaks for item in scenarios.SCENARIOS), (
+        "жоден сценарій не ламає частини — а саме це ADR-0006 обіцяє окремим рядком"
+    )
+    assert any(item.tools for item in scenarios.SCENARIOS), (
+        "жоден сценарій не кличе інструмента — тоді диспетчер етапу 1 не виконується "
+        "взагалі й лише ВИГЛЯДАЄ зібраним"
+    )
     for outcome in outcomes:
         assert not outcome.mismatch, (outcome.scenario.name, outcome.mismatch)
 
@@ -123,19 +127,12 @@ def check_five_scenarios_check_the_branch_and_the_final_state() -> None:
 def check_a_failing_part_leaves_the_service_alive_and_named() -> None:
     """ВІДМОВА · відмова частини не є падінням системи (AC-05b)"""
 
-    class Falls:
-        """Клієнт, що відмовляє на кожному виклику. Роль: недоступна залежність."""
-
-        class chat:  # noqa: N801
-            class completions:  # noqa: N801
-                @staticmethod
-                def create(**_kwargs: Any) -> Any:
-                    raise ConnectionError("провайдер недоступний")
-
     with tempfile.TemporaryDirectory() as tmp:
         traces = Path(tmp) / "s10.jsonl"
         with trace_run("check", path=traces, stage="s10", case="falls") as tracer:
-            service = scenarios.build(Path(tmp), tracer, client=Falls(), base=_base())
+            # Той самий клієнт, що в сценарії «частина відмовляє»: дві копії відмови
+            # означали б, що перевірка й сценарій ламають РІЗНЕ й лише схоже.
+            service = scenarios.build(Path(tmp), tracer, client=scenarios.Falls(), base=_base())
             reply = service.ask(scenarios.KEY, "Порахуй 2 плюс 2.", now=scenarios.NOW)
         kinds = [step["kind"] for step in _steps(traces)]
 
@@ -207,6 +204,10 @@ def check_a_part_with_zero_executed_lines_reddens_and_is_named() -> None:
     assert got.silent == [], got.silent
 
     # І свідомо не ввімкнені стоять ОКРЕМО: нуль для них — рішення, а не помилка.
+    assert assemble.NOT_WIRED, (
+        "перелік свідомо не ввімкнених порожній — тоді «нуль за рішенням» і «нуль за "
+        "недоглядом» знову одне й те саме (ADR-0008)"
+    )
     for name in assemble.NOT_WIRED:
         assert name not in assemble.PARTS, f"{name} і в частинах, і в не ввімкнених"
         assert assemble.NOT_WIRED[name].strip(), f"{name}: причину не названо"
@@ -220,9 +221,13 @@ def check_the_price_of_assembly_is_two_numbers_in_one_unit() -> None:
     assert got.worked > 0, "виконаних рядків нуль — вимір не працює"
     assert str(got.adapters) in got.line() and str(got.worked) in got.line(), got.line()
 
-    # Одиниця одна: обидва числа — виконувані рядки, порахованi тим самим способом.
-    assert assemble.adapter_lines() == got.adapters, assemble.adapter_lines()
-    assert assemble.executable_lines("seams.py") > got.adapters, (
+    # Одиниця одна: ОБИДВА числа — рядки, що ВИКОНАЛИСЬ. Ціна, порахована статично, поруч
+    # із виконаним лічила б «є в коді» проти «працює» — саме ту підміну, яку етап викриває.
+    assert got.adapters < got.written, (
+        f"виконаних рядків перехідників {got.adapters} з {got.written} написаних — "
+        "рівність означає, що ціну беруть із коду, а не з прогону"
+    )
+    assert assemble.executable_lines("seams.py") > got.written, (
         "перехідники важать як увесь модуль швів — тоді в ціну потрапила проза про ціну"
     )
 
@@ -230,13 +235,13 @@ def check_the_price_of_assembly_is_two_numbers_in_one_unit() -> None:
     # реєстру — число мусить впасти. Порівняння з власною копією тієї ж логіки довело б
     # лише, що дві копії однакові (та сама тавтологія, що вже ловилась на етапах 8 і 9).
     kept = dict(seams.ADAPTERS)
-    seams.ADAPTERS.pop("memory_takes_a_path")
+    seams.ADAPTERS.pop("answer_of_agent")
     try:
         fewer = assemble.adapter_lines()
     finally:
         seams.ADAPTERS.clear()
         seams.ADAPTERS.update(kept)
-    assert fewer < got.adapters, (
+    assert fewer < got.written, (
         "реєстр перехідників на ціну не впливає — у неї їде весь модуль швів, "
         "і «ціна складання» перестає бути ціною складання"
     )
@@ -255,7 +260,7 @@ def check_adapters_stay_under_a_fifth_of_what_executed() -> None:
 
 
 def check_the_warmup_runs_before_the_measured_pass() -> None:
-    """ВІДМОВА · прогрів: імпорт не входить у ціну прогону (NFR-8)"""
+    """ВІДМОВА · прогрів: імпорт не входить у ціну прогону (NFR-10)"""
     calls: list[int] = []
     assemble.measure(lambda: calls.append(1))
     assert len(calls) == 2, (
@@ -273,7 +278,25 @@ def check_every_adapter_names_the_seam_it_closes() -> None:
     for item in seams.SEAMS:
         assert len(set(item.between)) == 2, (item.name, item.between)
         assert len(item.why) > 40, f"{item.name}: причину названо надто коротко"
-        assert all(part.startswith("s") for part in item.between), item.between
+        # Етап, названий у шві, мусить ІСНУВАТИ. `startswith('s')` пропускав і `s99`,
+        # тобто перевіряв форму рядка замість того, про що шов говорить.
+        for part in item.between:
+            assert part == "s10" or arch.stage_folder(part) is not None, (
+                f"шов {item.name!r} називає етап {part!r}, якого не існує"
+            )
+
+
+def _branching(node: ast.AST) -> list[ast.AST]:
+    """Розгалуження всередині функції, окрім охорони порожнього значення.
+
+    `ast.IfExp` тут разом із `ast.If` навмисно: `a if cond else b` — те саме рішення, лише
+    в один рядок, і перша редакція його не збирала взагалі.
+    """
+    return [
+        inner
+        for inner in ast.walk(node)
+        if isinstance(inner, (ast.If, ast.IfExp, ast.Match)) and not _is_empty_guard(inner)
+    ]
 
 
 def check_an_adapter_that_decides_is_refused() -> None:
@@ -283,22 +306,44 @@ def check_an_adapter_that_decides_is_refused() -> None:
     for node in ast.walk(tree):
         if not (isinstance(node, ast.FunctionDef) and node.name in wanted):
             continue
-        branching = [
-            inner
-            for inner in ast.walk(node)
-            if isinstance(inner, (ast.If, ast.Match)) and not _is_guard(inner)
-        ]
-        assert not branching, (
+        assert not _branching(node), (
             f"перехідник {node.name!r} розгалужується — той, що вирішує, є частиною, "
             "і їй місце в етапі з уроком і перевірками"
         )
 
+    # Дзеркальна половина: перевірка мусить ЛОВИТИ обидві форми рішення. Без неї виняток
+    # для охорони тихо звільняв усе, чий тест — просто ім'я, і перехідник, що переадресовує
+    # операторові, проходив як «переклад форми».
+    for source, why in (
+        ("def a(x):\n    if x.needs_human:\n        return 1\n    return 2", "рішення через if"),
+        ("def a(x):\n    return 1 if x.confident else 2", "рішення через вираз"),
+        (
+            "def a(x):\n    if x.steps > 2:\n        return 1\n    return 2",
+            "рішення через порівняння",
+        ),
+    ):
+        found = ast.parse(source).body[0]
+        assert _branching(found), f"{why} не спіймано — виняток для охорони надто широкий"
 
-def _is_guard(node: Any) -> bool:
-    """Охорона порожнього значення — не рішення: вона перекладає «нічого» у «нічого»."""
-    return isinstance(node, ast.If) and isinstance(
-        node.test, (ast.UnaryOp, ast.Name, ast.Attribute)
-    )
+    # І навпаки: охорона порожнього значення рішенням не є й лишається дозволеною.
+    kept = ast.parse("def a(x):\n    if not x.hits:\n        return None\n    return x.hits").body[
+        0
+    ]
+    assert not _branching(kept), "охорону порожнього значення названо рішенням"
+
+
+def _is_empty_guard(node: Any) -> bool:
+    """Охорона порожнього значення — не рішення: вона перекладає «нічого» у «нічого».
+
+    Вузько навмисно: тільки `if not <ім'я>:` з єдиним `return` у тілі. Ширший виняток —
+    «будь-який тест, що є іменем» — звільняв і `if result.needs_human: …`, тобто рівно те
+    рішення, заради заборони якого перевірка існує.
+    """
+    if not isinstance(node, ast.If):
+        return False
+    negated = isinstance(node.test, ast.UnaryOp) and isinstance(node.test.op, ast.Not)
+    over_name = negated and isinstance(node.test.operand, (ast.Name, ast.Attribute))
+    return bool(over_name) and len(node.body) == 1 and isinstance(node.body[0], ast.Return)
 
 
 # --- обґрунтування --------------------------------------------------------------------------
@@ -321,18 +366,42 @@ def check_a_dangling_citation_reddens_and_is_named() -> None:
     good = arch.read()
     assert not arch.dangling(good), arch.dangling(good)
 
-    # Три різні вади, і кожна мусить бути спіймана окремо.
-    for source, expect in (
-        ("s99", "етапу s99 не існує"),
-        ("s01 · ADR-9999", "ADR-9999"),
-        ("невідомо", "джерела не названо"),
+    first = arch.justifications(good)[0].what
+    wrapped = arch.wrap_items(good)[0].what
+    row, wrap_row = f"| {first} | s06 |", f"| {wrapped} | s06 |"
+
+    # Кожна вада мусить бути спіймана ОКРЕМО. Три перші — про джерело; три наступні — про
+    # рядок, який розбирач не зрозумів. Пропущений рядок не відрізняється від відсутнього:
+    # биле посилання всередині нього зникало разом із ним, і `dangling()` мовчав.
+    for spoiled_row, expect in (
+        (f"| {first} | s99 |", "етапу s99 не існує"),
+        (f"| {first} | s01 · ADR-9999 |", "ADR-9999"),
+        (f"| {first} | невідомо |", "джерела не названо"),
+        (f"| {first} | s99 | нотатка |", "не розібрано"),
+        (f"|{first}|s99|", "не розібрано"),
+        (f"| {first} " + chr(92) + "| хвіст | s99 |", "не розібрано"),
     ):
-        first = arch.justifications(good)[0].what
-        spoiled = good.replace(f"| {first} | s06 |", f"| {first} | {source} |")
+        spoiled = good.replace(row, spoiled_row)
         assert spoiled != good, f"рядок {first!r} не знайдено — проба не підмінила нічого"
         broken = arch.dangling(spoiled)
-        assert broken, f"{source!r} не спіймано"
-        assert any(expect in line for line in broken), (source, broken)
+        assert broken, f"{spoiled_row!r} не спіймано"
+        assert any(expect in line for line in broken), (spoiled_row, broken)
+
+    # Таблиця обвісу теж називає етапи, і спершу вона до звірки не входила.
+    spoiled = good.replace(wrap_row, f"| {wrapped} | s99 |")
+    assert spoiled != good, f"рядок обвісу {wrapped!r} не знайдено"
+    assert any("s99" in line for line in arch.dangling(spoiled)), (
+        "биле посилання в таблиці обвісу проходить мовчки — а вада там та сама"
+    )
+
+    # І заголовок третього рівня не має ковтати розділ: інакше рішень стає нуль, а
+    # `dangling()` — порожній, тобто вада виглядає як бездоганний документ.
+    drafted = good.replace(
+        arch.DECISIONS, f"### {first} (чернетка)" + NEWLINE * 2 + arch.DECISIONS, 1
+    )
+    assert len(arch.justifications(drafted)) == len(arch.justifications(good)), (
+        "заголовок третього рівня ковтнув розділ рішень"
+    )
 
 
 def check_every_wrap_item_names_its_source_stage() -> None:
@@ -376,42 +445,211 @@ def check_the_assembly_report_is_not_empty() -> None:
 
 
 def check_the_stage_8_evaluator_judges_the_capstone_unchanged() -> None:
-    """крос-контекст: оцінювач етапу 8 читає трейси капстоуна (AC-09)"""
+    """крос-контекст: оцінювач етапу 8 дає ТРИ рівні на кількох траєкторіях (AC-09)"""
+    from stages.s08_eval.cases import Case  # noqa: PLC0415
+    from stages.s08_eval.judge import get_judge  # noqa: PLC0415
+    from stages.s08_eval.levels import COMPONENT, E2E, PATH, evaluate  # noqa: PLC0415
+    from stages.s08_eval.trajectory import RUN_KEYS, by_ref  # noqa: PLC0415
+
     with _running() as (service, _tmp, traces):
         for item in scenarios.SCENARIOS:
-            service.ask(scenarios.KEY, item.question, now=scenarios.NOW)
-        walked = extract(traces, key=lambda step: step.get("case"))
-        by_id = extract(traces)
+            service.ask(item.key, item.question, now=scenarios.NOW)
+        # Групування ЗА ЗАПИТОМ, а не за прогоном: `case` один на весь файл, тож
+        # `len(walked) == len(by_run)` було б тотожністю 1 == 1 і не стверджувало нічого.
+        walked = extract(traces, key=by_ref)
+        by_run = extract(traces, key=lambda step: step.get("case"))
 
-    assert walked, "оцінювач не витяг жодної траєкторії з трейсу капстоуна"
+    assert len(walked) > 1, (
+        f"оцінювач витяг {len(walked)} траєкторію — на шести запитах це означає, що він "
+        "групує за прогоном, а не за запитом, і «три рівні» рахувалися б на одному мішку"
+    )
+    assert len(walked) > len(by_run), (len(walked), len(by_run))
     assert all(trajectory.steps for trajectory in walked), "порожня траєкторія"
-    assert len(by_id) == len(walked), (len(by_id), len(walked))
 
-    # Ключ прогону стоїть із першого рядка — і оцінювач його знає (правило етапу 9).
-    from stages.s08_eval.trajectory import RUN_KEYS  # noqa: PLC0415
+    # І він ВИНОСИТЬ вердикти, а не лише читає рядки. Три рівні, порядок сталий.
+    judge = get_judge()
+    for scenario, trajectory in zip(scenarios.SCENARIOS, walked, strict=False):
+        case = Case(
+            name=scenario.name,
+            task=scenario.question,
+            expected_tools=scenario.tools,
+            budget=12,
+            answer="",
+            expected_answer="",
+            acts=(),
+        )
+        verdicts = evaluate(case, trajectory, judge)
+        assert [item.level for item in verdicts] == [E2E, PATH, COMPONENT], verdicts
+        assert all(item.state for item in verdicts), (scenario.name, verdicts)
 
     assert "case" in RUN_KEYS, "ключ прогону капстоуна не входить у перелік оцінювача"
 
 
 def check_latency_numbers_are_printed_with_their_conditions() -> None:
-    """затримка: число друкується разом з умовами (AC-08)"""
-    import time  # noqa: PLC0415
+    """затримка: p50 і p95 ДРУКУЮТЬСЯ разом з умовами (AC-08)"""
+    import io  # noqa: PLC0415
+    from contextlib import redirect_stdout  # noqa: PLC0415
 
     with _running() as (service, _tmp, _traces):
-        marks = []
-        for _ in range(20):
-            started = time.perf_counter()
-            service.ask(scenarios.KEY, "Скільки днів на повернення?", now=scenarios.NOW)
-            marks.append((time.perf_counter() - started) * 1000)
+        took = latency.measure(service)
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            latency.report(took)
+    printed = buffer.getvalue()
 
-    marks.sort()
-    p50, p95 = marks[len(marks) // 2], marks[-max(1, len(marks) // 20)]
-    assert p95 >= p50, (p50, p95)
+    assert took.runs == latency.RUNS, took.runs
+    assert took.p95 >= took.p50, took
 
-    # Умови мусять стояти в уроці поруч із числами — інакше число не є виміром.
+    # Числа НАДРУКОВАНІ, і надруковані ті самі, що заміряні. Без цього «є p50 і p95»
+    # доводилось би тим, що список відсортований, — тобто нічим.
+    assert f"p50 {took.p50:.1f}" in printed, printed
+    assert f"p95 {took.p95:.1f}" in printed, printed
+
+    # Умови стоять ПЕРЕД числами — інакше число не є виміром (урок етапу 7).
+    for condition in latency.CONDITIONS:
+        assert condition in printed, f"умову {condition!r} не надруковано"
+    assert printed.index(latency.CONDITIONS[0]) < printed.index("p50"), (
+        "число надруковано раніше за свої умови"
+    )
+
+    # І урок повторює ті самі умови: читач, який не запускав демо, мусить їх бачити.
     lesson = (HERE / "README.md").read_text(encoding="utf-8")
     for condition in ("підроблен", "локальн", "запит"):
         assert condition in lesson.lower(), f"урок не називає умову {condition!r}"
+
+
+def check_one_request_is_counted_once_and_in_one_bucket() -> None:
+    """ВІДМОВА · метрики: відмова частини не додає ще й успіху (AC-01c)"""
+    with tempfile.TemporaryDirectory() as tmp:
+        traces = Path(tmp) / "s10.jsonl"
+        with trace_run("check", path=traces, stage="s10", case="metrics") as tracer:
+            service = scenarios.build(Path(tmp), tracer, client=scenarios.Falls(), base=_base())
+            reply = service.ask(scenarios.KEY, "Яка зараз погода в Києві?", now=scenarios.NOW)
+            counted = dict(service.metrics.requests)
+
+    assert not reply.ok and reply.kind == "dependency_down", (reply.ok, reply.kind)
+    assert sum(counted.values()) == 1, (
+        f"один запит порахований {sum(counted.values())} раз(и): {counted} — оператор "
+        "бачить більше запитів, ніж було, і той самий запит як успіх І як відмову"
+    )
+    assert counted.get("dependency_down") == 1, counted
+
+    # Друга половина, і без неї перша неповна: успішний запит теж рахується РІВНО раз.
+    # Інакше «рахувати один раз» можна задовольнити, не рахуючи взагалі.
+    with _running() as (service, _tmp, _traces):
+        good = service.ask(scenarios.KEY, "Скільки днів на повернення?", now=scenarios.NOW)
+        healthy = dict(service.metrics.requests)
+    assert good.ok, (good.kind, good.text)
+    assert healthy == {OK: 1}, f"успішний запит дав метрики {healthy} — очікувався рівно один успіх"
+    # І відповідь називає тих, хто ВЖЕ відпрацював: інакше «нічого не сталося» і
+    # «зламалось на середині» виглядають однаково.
+    assert "s06" in reply.parts and "s02" in reply.parts, reply.parts
+
+
+@contextmanager
+def _asking(budget: float):
+    """Сервіс із заданою денною межею. Дві витрати замість ста — щоб перевірка була швидка."""
+    with tempfile.TemporaryDirectory() as tmp:
+        traces = Path(tmp) / "s10.jsonl"
+        with trace_run("check", path=traces, stage="s10", case="budget") as tracer:
+            yield Capstone(
+                settings=scenarios.demo_settings(budget_usd_per_day=budget),
+                counters=InMemory(),
+                client=FakeLLM(script=[text("51")], repeat_last=True),
+                tracer=tracer,
+                memory_path=Path(tmp) / "facts.jsonl",
+                base=_base(),
+            )
+
+
+def _kinds(service: Any, times: int) -> list[str]:
+    return [
+        service.ask(scenarios.KEY, "Скільки днів на повернення?", now=scenarios.NOW).kind
+        for _ in range(times)
+    ]
+
+
+def check_the_found_text_travels_behind_the_stage_2_fence() -> None:
+    """ВІДМОВА · чужий текст іде в модель за огорожею блоку даних (AC-01d)"""
+    from stages.s02_rag.answer import CLOSE_DATA, OPEN_DATA  # noqa: PLC0415
+
+    with _running() as (service, _tmp, _traces):
+        found = seams.from_search(
+            service.base, "Скільки днів на повернення товару?", tracer=service.tracer
+        )
+
+    assert found.text, "пошук нічого не знайшов — огорожу нема на чому перевіряти"
+    assert OPEN_DATA in found.prompt and CLOSE_DATA in found.prompt, (
+        "знайдений текст їде в модель БЕЗ огорожі блоку даних — етап 2 цю щілину закрив, "
+        "а капстоун відкрив її наново, у тому єдиному місці, де всі частини стоять поруч"
+    )
+    fenced = found.prompt.split(OPEN_DATA, 1)[1].split(CLOSE_DATA, 1)[0]
+    assert found.text.split()[0] in fenced, "огорожа є, а знайдене — поза нею"
+
+    # І сервіс веде в модель САМЕ той промпт, а не склеєний власноруч. Без цього огорожу
+    # можна лишити в перехіднику й обійти її на рівень вище.
+    source = (HERE / "service.py").read_text(encoding="utf-8")
+    assert "asked = context.prompt or question" in source, (
+        "сервіс складає промпт сам — тоді огорожа етапу 2 не діє там, де вона потрібна"
+    )
+    assert 'f"{context.text}' not in source, "сервіс склеює знайдений текст із питанням"
+
+
+def check_the_budget_guard_has_a_witness() -> None:
+    """ВІДМОВА · бюджет: вичерпана межа зупиняє запити, і без списання це червоніє (AC-07c)"""
+    allowed = 2
+    with _asking(allowed * COST_PER_REQUEST) as service:
+        kinds = _kinds(service, allowed + 1)
+        spent = service.metrics.spent_usd
+
+    assert kinds[:allowed] == [OK] * allowed, kinds
+    assert kinds[allowed] == "budget_exhausted", (
+        f"межу вичерпано, а сервіс відповів {kinds[allowed]!r} — запобіжник етапу 6 не працює"
+    )
+    assert abs(spent - allowed * COST_PER_REQUEST) < 1e-9, spent
+
+    # Дзеркальна половина, і саме вона тут головна: списання, підмінене на нуль, робить
+    # запобіжник вічно голодним. Без неї `charge` можна було прибрати зовсім — набір
+    # лишався зеленим, і бюджетний воротар не спрацьовував уже НІКОЛИ.
+    healthy = service_module.charge
+    service_module.charge = lambda *_args, **_kwargs: 0.0
+    try:
+        with _asking(allowed * COST_PER_REQUEST) as service:
+            kinds = _kinds(service, allowed + 1)
+    finally:
+        service_module.charge = healthy
+    assert "budget_exhausted" not in kinds, (
+        "запобіжник спрацював навіть без списання — тоді він реагує не на витрати"
+    )
+
+
+def check_the_lesson_numbers_come_from_the_run() -> None:
+    """урок: числа в таблиці «Числа» збігаються з виміром (AC-02c)"""
+    got = _assembly()
+    lesson = (HERE / "README.md").read_text(encoding="utf-8")
+
+    # Числа, вбиті в урок і не звірені ні з чим, старіють мовчки — рівно те, проти чого
+    # написаний `arch.py`. Будь-який рядок, доданий в етапи 1–8, зсуває їх, і саме тут
+    # це має почервоніти, а не через рік у читача.
+    for label, value in (
+        ("Виконано рядків етапів на прогін", got.worked),
+        ("Рядків перехідників, що виконались", got.adapters),
+        ("Рядків перехідників написано", got.written),
+        ("Частин, що виконуються", len(assemble.PARTS)),
+        ("Свідомо не ввімкнено", len(assemble.NOT_WIRED)),
+        ("Швів названо", len(seams.SEAMS)),
+        ("Сценаріїв", len(scenarios.SCENARIOS)),
+        ("Перевірок", len(CHECKS)),
+    ):
+        row = f"| {label} | {value} |"
+        assert row in lesson, f"урок не містить рядка {row!r} — число розійшлося з виміром"
+
+
+def check_the_lesson_fits_the_word_budget() -> None:
+    """бюджет: урок вкладається у стелю слів (NFR-3)"""
+    for name in ("README.md", "README.en.md"):
+        words = len((HERE / name).read_text(encoding="utf-8").split())
+        assert words <= WORD_BUDGET, f"{name}: {words} > {WORD_BUDGET} слів"
 
 
 def check_a_missing_load_tool_yields_not_evaluated_never_a_failure() -> None:
@@ -457,16 +695,87 @@ def check_a_broken_adapter_reddens_the_check_about_that_seam() -> None:
 # --- бюджети ---------------------------------------------------------------------------------
 
 
+def check_the_http_layer_is_stage_6_and_not_a_second_one() -> None:
+    """деплой: зібраний сервіс віддається застосунком етапу 6, без свого шару (AC-13)"""
+    source = (HERE / "serve.py").read_text(encoding="utf-8")
+
+    assert "from stages.s06_platform.api import create_app" in source, (
+        "капстоун не бере застосунок етапу 6 — тоді це другий HTTP-шар, а не складання"
+    )
+    assert not code_mentions(source, {"fastapi.fastapi", "fastapi"}), (
+        "капстоун сам будує FastAPI — переписаний шар проходив би повз перевірку "
+        "«немає власних воротарів», бо воротарі й справді лишились чужими"
+    )
+    tree = ast.parse(source)
+    routes = [
+        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.decorator_list
+    ]
+    assert not routes, f"власні маршрути в капстоуні: {[node.name for node in routes]}"
+
+
+def check_the_assembled_service_answers_over_http_unchanged() -> None:
+    """ВІДМОВА · деплой: чужий застосунок відмовляє без ключа й відповідає з ним (AC-13b)"""
+    # Спроба імпорту, а не `find_spec`: симуляція чистої установки блокує пакет
+    # хуком, який КИДАЄ, і `find_spec` падає замість того, щоб повернути `None`.
+    try:
+        from fastapi.testclient import TestClient  # noqa: PLC0415
+
+        from stages.s06_platform.api import create_app  # noqa: PLC0415
+        from stages.s06_platform.observe import Health  # noqa: PLC0415
+    except ImportError as error:
+        raise NotVerified(f"fastapi недоступний — це чиста установка: {error}") from error
+
+    with _running() as (service, _tmp, _traces):
+        client = TestClient(create_app(service, Health(provider="fake")))
+        refused = client.post(
+            "/ask",
+            json={"question": "Скільки днів на повернення товару?"},
+            headers={"x-api-key": "not-a-key"},
+        )
+        answered = client.post(
+            "/ask",
+            json={"question": "Скільки днів на повернення товару?"},
+            headers={"x-api-key": scenarios.KEY},
+        )
+        state = client.get("/healthz")
+
+    assert refused.status_code == 401, (refused.status_code, refused.text[:200])
+    assert refused.json()["kind"] == "unauthenticated", refused.json()
+    assert answered.status_code == 200, (answered.status_code, answered.text[:200])
+    assert answered.json()["ok"] and answered.json()["text"], answered.json()
+    assert state.status_code in (200, 503), state.status_code
+
+    # `Reply` навмисно НЕ зветься `Answer`, і саме тому цікаво, що чужому шару цього
+    # досить: етапи 6 і 10 домовлені формою, а не іменем. Поле `retry_after` виявилось
+    # останнім — на цій самій підстановці, а не в проєкті.
+    assert hasattr(Reply, "retry_after") or "retry_after" in Reply.__dataclass_fields__, (
+        "форма відповіді розійшлася з тим, чого чекає застосунок етапу 6"
+    )
+
+
+def check_the_live_deploy_stays_not_evaluated() -> None:
+    """ВІДМОВА · деплой: прогін проти справжнього HTTPS — третій стан (AC-13c)"""
+    smoke = REPO_ROOT / "deploy" / "smoke.sh"
+    assert smoke.exists(), "переліку для живого сервісу немає взагалі"
+    assert "s10" in (REPO_ROOT / "deploy" / "RUNBOOK.md").read_text(encoding="utf-8"), (
+        "RUNBOOK не знає про другий деплой — тоді його ніхто не відтворить"
+    )
+    raise NotVerified(
+        "прогін проти справжнього HTTPS потребує піднятої машини; офлайн його не "
+        "відтворити — і зелений колір тут був би за неперевірене"
+    )
+
+
 def check_the_modules_fit_the_line_budget() -> None:
     """бюджет: кожен модуль капстоуна вкладається у стелю рядків (NFR-1)"""
     for name in assemble.OWN:
         require_intact_source(name)
-        lines = _executable_lines(name)
+        lines = assemble.executable_lines(name)
         assert lines <= LINE_BUDGET, f"{name}: {lines} > {LINE_BUDGET} виконуваних рядків"
 
 
 def check_the_demo_shows_every_scene_offline_within_its_budget() -> None:
-    """e2e · демо: сім сцен, без ключа й без мережі, у межах часу (NFR-2b)"""
+    """e2e · демо: вісім сцен, без ключа й без мережі, у межах часу (NFR-2b)"""
     import io  # noqa: PLC0415
     import time  # noqa: PLC0415
     from contextlib import redirect_stdout  # noqa: PLC0415
@@ -480,7 +789,7 @@ def check_the_demo_shows_every_scene_offline_within_its_budget() -> None:
 
     assert code == 0, code
     assert took <= 15, f"демо йшло {took:.1f} с — стеля 15 с (NFR-2b)"
-    for number in range(1, 8):
+    for number in range(1, 9):
         assert f"{NEWLINE}{number}. " in output, f"сцена {number} не надрукувалась"
 
     # Числа сцен збігаються з тим, що дає вимір тут, а не набрані руками.
@@ -540,8 +849,16 @@ CHECKS = [
     check_the_assembly_report_is_not_empty,
     check_the_stage_8_evaluator_judges_the_capstone_unchanged,
     check_latency_numbers_are_printed_with_their_conditions,
+    check_one_request_is_counted_once_and_in_one_bucket,
+    check_the_found_text_travels_behind_the_stage_2_fence,
+    check_the_budget_guard_has_a_witness,
+    check_the_lesson_numbers_come_from_the_run,
+    check_the_lesson_fits_the_word_budget,
     check_a_missing_load_tool_yields_not_evaluated_never_a_failure,
     check_a_broken_adapter_reddens_the_check_about_that_seam,
+    check_the_http_layer_is_stage_6_and_not_a_second_one,
+    check_the_assembled_service_answers_over_http_unchanged,
+    check_the_live_deploy_stays_not_evaluated,
     check_the_modules_fit_the_line_budget,
     check_the_demo_shows_every_scene_offline_within_its_budget,
     check_twenty_runs_give_the_same_branches_and_states,

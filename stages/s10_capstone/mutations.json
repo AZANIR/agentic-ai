@@ -1,7 +1,7 @@
 {
   "stage": "s10-capstone",
   "executed_floor": 12,
-  "note": "Мутації ламають властивості складання, а не синтаксис. Найважливіші стосуються не сервісу, а ЧЕСНОСТІ виміру: мовчазна частина перестає називатись, ціна перехідників роздувається на весь модуль швів, усі виконані рядки з'їжджають на один етап, обґрунтування перестає звірятись із репозиторієм. Усі вони лишають сервіс працездатним і дають таблицю, яка виглядає нормальною — саме тому їх складно помітити без перевірки. Число `expect_failed` копіюється з ПРОГОНУ, а не пишеться від руки.",
+  "note": "Мутації ламають властивості складання, а не синтаксис. Найважливіші стосуються не сервісу, а ЧЕСНОСТІ виміру: мовчазна частина перестає називатись, ціна перехідників роздувається або знову береться з коду замість прогону, усі виконані рядки з'їжджають на один етап, обґрунтування перестає звірятись із репозиторієм. Усі вони лишають сервіс працездатним і дають таблицю, яка виглядає нормальною — саме тому їх складно помітити без перевірки. Число `expect_failed` копіюється з ПРОГОНУ, а не пишеться від руки.",
   "mutations": [
     {
       "name": "вправа 1 · мовчазна частина перестає називатись",
@@ -15,21 +15,21 @@
       "file": "stages/s10_capstone/assemble.py",
       "old": "            if folder and folder in parts:",
       "new": "            if folder:",
-      "expect_failed": 2
+      "expect_failed": 3
     },
     {
       "name": "вправа 3 · у ціну потрапляє весь модуль швів",
       "file": "stages/s10_capstone/assemble.py",
-      "old": "        if isinstance(node, ast.FunctionDef) and node.name in wanted:",
-      "new": "        if isinstance(node, ast.FunctionDef):",
-      "expect_failed": 1
+      "old": "        if not (isinstance(node, ast.FunctionDef) and node.name in wanted):",
+      "new": "        if not isinstance(node, ast.FunctionDef):",
+      "expect_failed": 2
     },
     {
       "name": "вправа 4 · прогрів зникає, і в ціну прогону їде імпорт",
       "file": "stages/s10_capstone/assemble.py",
       "old": "    work()\n    with watching() as seen:",
       "new": "    with watching() as seen:",
-      "expect_failed": 1
+      "expect_failed": 2
     },
     {
       "name": "вправа 5 · обґрунтування перестає звіряти ADR із репозиторієм",
@@ -48,8 +48,8 @@
     {
       "name": "вправа 7 · перехідник починає вирішувати",
       "file": "stages/s10_capstone/seams.py",
-      "old": "    if result.stopped_by_limit:",
-      "new": "    if result.steps > 2:",
+      "old": "    stopped = [name for field_name, name in STOPPED_BY if getattr(result, field_name)]",
+      "new": "    stopped = [\"зупинено\"] if result.steps > 2 else []",
       "expect_failed": 1
     },
     {
@@ -65,6 +65,27 @@
       "old": "    return [line.strip(\"- \").strip() for line in body.split(\"\\n\") if line.strip().startswith(\"- \")]",
       "new": "    return []",
       "expect_failed": 1
+    },
+    {
+      "name": "вправа 10 · ціну знову рахують за кодом, а не за прогоном",
+      "file": "stages/s10_capstone/assemble.py",
+      "old": "        adapters=_adapters_executed(seen),",
+      "new": "        adapters=adapter_lines(),",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 11 · знайдений текст їде в модель без огорожі",
+      "file": "stages/s10_capstone/seams.py",
+      "old": "        prompt=build_prompt(question, found.hits),",
+      "new": "        prompt=f\"{text} {question}\",",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 12 · запит рахується і як успіх, і як відмова",
+      "file": "stages/s10_capstone/service.py",
+      "old": "        self.metrics.request(OK)\n        return Reply(\n            ok=True,",
+      "new": "        return Reply(\n            ok=True,",
+      "expect_failed": 2
     }
   ]
 }

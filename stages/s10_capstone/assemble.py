@@ -33,26 +33,46 @@ from stages.s10_capstone import seams
 
 HERE = Path(__file__).resolve().parent
 STAGES = HERE.parent
+SEAMS = HERE / "seams.py"
 
 # Етапи, які капстоун оголошує частинами складання. Кожен мусить дати ненульове число.
-PARTS: tuple[str, ...] = ("s01", "s02", "s03", "s05", "s06", "s08", "s09")
+PARTS: tuple[str, ...] = ("s01", "s02", "s03", "s05", "s06", "s08")
 
 # Етапи, свідомо не ввімкнені. Нуль для них — рішення, а не помилка (ADR-0008).
 NOT_WIRED: dict[str, str] = {
     "s04": "інструменти MCP потребують піднятого сервера; сервіс бере інструменти етапу 1",
     "s07": "голос не додає нового висновку, а додає залежність на гігабайти",
+    "s09": (
+        "етап 9 тут — ПРИЛАД, а не спосіб оркестрації: капстоун бере з нього лічильник "
+        "виконаних рядків і координує сам. Числа він давав, але вони міряли самих себе: "
+        "`measure(lambda: None)` показував `s09: 1`, і той рядок — вимикання трасування "
+        "у `finally` лічильника"
+    ),
 }
 
 # Модулі капстоуна. `run.py` і `check.py` не рахуються — як на етапах 8 і 9.
-OWN: tuple[str, ...] = ("seams.py", "assemble.py", "service.py", "scenarios.py", "arch.py")
+OWN: tuple[str, ...] = (
+    "seams.py",
+    "assemble.py",
+    "service.py",
+    "scenarios.py",
+    "arch.py",
+    "latency.py",
+)
 
 
 @dataclass
 class Assembly:
-    """Що дав вимір: виконане по етапах і ціна перехідників."""
+    """Що дав вимір: виконане по етапах і ціна перехідників.
+
+    `adapters` і `executed` — **в одній одиниці**: виконані рядки, той самий прилад. Ціна,
+    порахована статично, поруч із виконаним лічила б «є в коді» проти «працює» — рівно ту
+    підміну, яку цей етап і викриває. `written` лишається окремо, щоб різницю було видно.
+    """
 
     executed: dict[str, int] = field(default_factory=dict)
     adapters: int = 0
+    written: int = 0
 
     @property
     def worked(self) -> int:
@@ -72,7 +92,7 @@ class Assembly:
     def line(self) -> str:
         return (
             f"виконано {self.worked} рядків етапів, перехідників {self.adapters} "
-            f"({self.ratio:.0%}); мовчать: {self.silent or 'жоден'}"
+            f"з {self.written} написаних ({self.ratio:.0%}); мовчать: {self.silent or 'жоден'}"
         )
 
 
@@ -102,30 +122,49 @@ def executable_lines(name: str) -> int:
     )
 
 
-def adapter_lines() -> int:
-    """Ціна складання: виконувані рядки самих перехідників, без решти капстоуна.
+def adapter_statement_lines() -> set[int]:
+    """Номери виконуваних рядків самих перехідників у `seams.py`.
 
     Рахуються **тільки** функції, названі в `seams.ADAPTERS`. Увесь `seams.py` включив би
     оголошення швів — тобто прозу про ціну — у саму ціну.
+
+    Одна множина на обидва числа: скільки написано (її розмір) і скільки виконалось (її
+    перетин із трасою). Два різні визначення дали б «виконано більше, ніж написано» — і
+    саме це й трапилось у першій редакції, де виконане брали за рядковими межами функції.
     """
-    tree = ast.parse((HERE / "seams.py").read_text(encoding="utf-8"))
+    tree = ast.parse(SEAMS.read_text(encoding="utf-8"))
     wanted = {function.__name__ for function in seams.ADAPTERS.values()}
-    total = 0
+    lines: set[int] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name in wanted:
-            total += len(
-                {
-                    inner.lineno
-                    for inner in ast.walk(node)
-                    if isinstance(inner, ast.stmt)
-                    and not isinstance(inner, (ast.Import, ast.ImportFrom, ast.FunctionDef))
-                    and not (
-                        isinstance(inner, ast.Expr)
-                        and isinstance(getattr(inner.value, "value", None), str)
-                    )
-                }
+        if not (isinstance(node, ast.FunctionDef) and node.name in wanted):
+            continue
+        lines |= {
+            inner.lineno
+            for inner in ast.walk(node)
+            if isinstance(inner, ast.stmt)
+            and not isinstance(inner, (ast.Import, ast.ImportFrom, ast.FunctionDef))
+            and not (
+                isinstance(inner, ast.Expr) and isinstance(getattr(inner.value, "value", None), str)
             )
-    return total
+        }
+    return lines
+
+
+def _adapters_executed(seen: set[tuple[str, int]]) -> int:
+    """Скільки рядків перехідників ВИКОНАЛОСЬ. Та сама одиниця, що й у етапів.
+
+    Різниця з написаним не є похибкою й показова сама по собі: `build_search` працює на
+    старті сервісу, а не на запиті, тож у ціну ОДНОГО запиту він не входить зовсім.
+    """
+    wanted = adapter_statement_lines()
+    return sum(
+        1 for filename, lineno in seen if lineno in wanted and Path(filename).resolve() == SEAMS
+    )
+
+
+def adapter_lines() -> int:
+    """Скільки рядків перехідників НАПИСАНО. Друга половина порівняння з виконаним."""
+    return len(adapter_statement_lines())
 
 
 @contextmanager
@@ -140,17 +179,19 @@ def watching() -> Iterator[set[tuple[str, int]]]:
     останній етап мав ненульове. Розкладання шляхів по етапах робиться **після** виміру.
     """
     packages = [package for name in PARTS if (package := _package(name))]
-    with executed_lines(*packages) as seen:
+    # Разом із етапами трасується сам капстоун: без цього рядки перехідників у виміряному
+    # не з'являться взагалі, і ціну довелося б рахувати іншим приладом — тобто в іншій одиниці.
+    with executed_lines(*packages, __package__ or "stages.s10_capstone") as seen:
         yield seen
 
 
 def _by_stage(seen: set[tuple[str, int]]) -> dict[str, int]:
     """Розкласти виконані рядки по етапах за шляхом файлу."""
     counted = dict.fromkeys(PARTS, 0)
+    folders = {name: _folder(name) for name in PARTS}
     for filename, _lineno in seen:
         parts = Path(filename).parts
-        for name in PARTS:
-            folder = _folder(name)
+        for name, folder in folders.items():
             if folder and folder in parts:
                 counted[name] += 1
                 break
@@ -173,4 +214,8 @@ def measure(work: Callable[[], Any]) -> Assembly:
     work()
     with watching() as seen:
         work()
-    return Assembly(executed=_by_stage(seen), adapters=adapter_lines())
+    return Assembly(
+        executed=_by_stage(seen),
+        adapters=_adapters_executed(seen),
+        written=adapter_lines(),
+    )

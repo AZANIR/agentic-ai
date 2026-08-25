@@ -115,19 +115,20 @@ C4Container
         Container(service, "service.py", "Python", "Складений сервіс: воротарі -> частини -> відповідь")
         Container(seams, "seams.py", "Python", "Перехідники; кожен називає свій шов")
         Container(assemble, "assemble.py", "Python", "Вимір: скільки рядків кожного етапу виконалось")
-        Container(scenarios, "scenarios.py", "Python", "Пʼять сценаріїв: гілка І фінальний стан")
+        Container(scenarios, "scenarios.py", "Python", "Шість сценаріїв: гілка, інструменти, стан")
         Container(arch, "arch.py", "Python", "Розбір ARCHITECTURE.md і звірка посилань")
+        Container(latency, "latency.py", "Python", "Затримка: умови як дані, потім числа")
+        Container(serve, "serve.py", "Python", "Точка входу: застосунок s06 навколо Capstone")
     }
 
     Container_Boundary(parts, "stages/ - частини") {
         Container(s01, "s01 цикл", "Python", "run_agent")
         Container(s02, "s02 пошук", "Python", "store + answer")
         Container(s03, "s03 роутер", "Python", "run_graph")
-        Container(s04, "s04 інструменти", "Python", "bridge")
         Container(s05, "s05 памʼять", "Python", "Memory + decide")
         Container(s06, "s06 воротарі", "Python", "admit + charge + Metrics")
         Container(s08, "s08 оцінювач", "Python", "levels + trajectory")
-        Container(s09, "s09 лічильник", "Python", "executed_lines")
+        Container(s09, "s09 прилад", "Python", "executed_lines - НЕ частина")
     }
 
     Rel(learner, service, "Запит")
@@ -136,11 +137,11 @@ C4Container
     Rel(seams, s01, "Викликає")
     Rel(seams, s02, "Викликає")
     Rel(seams, s03, "Викликає")
-    Rel(seams, s04, "Викликає")
     Rel(seams, s05, "Викликає")
     Rel(service, s06, "Воротарі - без перехідника")
     Rel(assemble, s09, "Трасує виконані рядки")
-    Rel(scenarios, s08, "Оцінює власні трейси")
+    Rel(assemble, s08, "Оцінює власні трейси")
+    Rel(serve, s06, "Бере create_app - свого HTTP-шару немає")
 ```
 
 **Чому `seams.py` окремо від `service.py`.** Перехідники мусять бути **перелічуваними**: їх

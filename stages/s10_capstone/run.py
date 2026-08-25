@@ -1,4 +1,4 @@
-"""Демонстрація етапу 10: сім сцен підряд.
+"""Демонстрація етапу 10: вісім сцен підряд.
 
     python -m stages.s10_capstone.run
 
@@ -7,13 +7,14 @@
 
 Сцени показують свої критерії приймання:
 
-    1. пʼять сценаріїв: гілка І фінальний стан           AC-05, AC-11
+    1. шість сценаріїв: гілка, інструменти, фінальний стан  AC-05, AC-11
     2. хто працював на кожному запиті                    AC-01
     3. скільки рядків кожного етапу виконалось           AC-02, AC-02b
     4. ціна складання: перехідники проти виконаного      AC-03, AC-03b
     5. шви: що з чим не зійшлося й чому                  AC-04
     6. оцінювач етапу 8 судить капстоун                  AC-09
     7. обґрунтування: кожне рішення має джерело          AC-06, AC-10
+    8. затримка: умови, а ПОТІМ числа                    AC-08
 
 **Головна тут — третя.** Решта показують, що зібралось; третя показує, **скільки з кожного
 етапу справді працює** — і саме там ховається різниця між «імпортує» й «використовує».
@@ -27,7 +28,7 @@ from typing import Any
 
 from shared.llm import banner
 from shared.trace import trace_run
-from stages.s10_capstone import arch, assemble, scenarios, seams
+from stages.s10_capstone import arch, assemble, latency, scenarios, seams
 
 
 def _judge(traces: Path) -> tuple[int, list[str]]:
@@ -57,7 +58,7 @@ def measured(service: Any, traces: Path) -> assemble.Assembly:
 
 
 def scene_scenarios(outcomes: list[scenarios.Outcome]) -> None:
-    print("1. Пʼять сценаріїв — гілка І фінальний стан")
+    print("1. Шість сценаріїв — гілка, інструменти, фінальний стан")
     for outcome in outcomes:
         mark = "OK" if not outcome.mismatch else "НІ"
         print(f"   {mark}  {outcome.scenario.name:<34} гілка={outcome.branch or '—':<7}")
@@ -97,7 +98,12 @@ def scene_executed(got: assemble.Assembly) -> None:
 def scene_price(got: assemble.Assembly) -> None:
     print("4. Ціна складання")
     print(f"   виконано рядків етапів: {got.worked}")
-    print(f"   рядків перехідників:    {got.adapters}  ({got.ratio:.0%})")
+    print(f"   рядків перехідників:    {got.adapters} з {got.written} ({got.ratio:.0%})")
+    print()
+    print("   Обидва числа — рядки, що ВИКОНАЛИСЬ, тим самим приладом. Порахувати ціну")
+    print("   статично означало б поставити «є в коді» проти «працює» — рівно ту підміну,")
+    print(f"   яку етап і викриває. Різниця {got.written - got.adapters} рядків — це")
+    print("   `build_search`: він працює на старті, а не на запиті.")
     print()
     print("   Межа жанру — пʼята частина. Капстоун, чиї перехідники важать як частини, уже")
     print("   не збирає, а переписує, і теза «частини були зрілі» стає недоказовою.")
@@ -122,6 +128,16 @@ def scene_evaluated(found: int, keys: list[str]) -> None:
     print()
     print("   Інструмент, зроблений на етапі 8, працює на системі, якої тоді не існувало, —")
     print("   і без жодної зміни в собі. Ключ прогону в трейсі стоїть із першого рядка.")
+    print()
+
+
+def scene_latency(timing: latency.Took) -> None:
+    print("8. Затримка — умови, а потім числа")
+    latency.report(timing)
+    print()
+    print("   Умови стоять ПЕРЕД числом навмисно. Етап 7 показав, що число без умов не є")
+    print("   виміром: там числа були правильні, а умови — ні, і читач переносив їх туди,")
+    print("   де вони не діяли. Справжнє навантаження лишається НЕ ПЕРЕВІРЕНО.")
     print()
 
 
@@ -152,8 +168,10 @@ def main(*, base: Any = None) -> int:
         # Вимір іде окремим прогоном: трасування дороге, і вмикати його на демо цілком
         # означало б міряти ще й друк.
         with trace_run("measure", path=traces, stage="s10", case="measure") as tracer:
-            got = measured(scenarios.build(Path(tmp), tracer, base=prepared), traces)
-        found, keys = _judge(traces)
+            measuring = scenarios.build(Path(tmp), tracer, base=prepared)
+            got = measured(measuring, traces)
+            found, keys = _judge(traces)
+            timing = latency.measure(measuring)
 
     text = arch.read()
     scene_scenarios(outcomes)
@@ -163,6 +181,7 @@ def main(*, base: Any = None) -> int:
     scene_seams()
     scene_evaluated(found, keys)
     scene_justified(text)
+    scene_latency(timing)
     return 0
 
 
