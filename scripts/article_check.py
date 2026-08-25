@@ -26,6 +26,11 @@
 береться, — і скрипт це обчислення виконує. Без файлу вимір чесно каже `НЕ ПЕРЕВІРЕНО`, а не
 зелено: «числа не звірялись» і «числа збіглися» — різні стани.
 
+Звіряються **три** сторони, не дві: число мусить стояти в тексті статті, збігатися з тим, що
+дає обчислення на теґу, і мати назване джерело. Перша редакція цього файлу брала обидві
+половини з теґа — і ловила рівно нуль, бо порівнювала дві копії одного джерела. Той самий
+клас вади, що ловився на етапах 8, 9 і 10.
+
 ## Чого цей скрипт не робить
 
 - Не читає мережу. Стаття береться з диска, код — з теґа. Нема теки `sources/` — `НЕ ПЕРЕВІРЕНО`.
@@ -295,6 +300,15 @@ def compute(how: str, *, tag: str, stage: str, file: str = "") -> int | None:
         if how == "mutations":
             return len(items)
         return sum(int(m.get("expect_failed", 0)) for m in items)
+    if how == "adrs":
+        code, listing = git("ls-tree", "--name-only", f"{tag}:docs/features")
+        if code != 0:
+            return None
+        feature = next((n for n in listing.split("\n") if n.startswith(f"{stage}-")), None)
+        if feature is None:
+            return None
+        code, files = git("ls-tree", "--name-only", f"{tag}:docs/features/{feature}/adr")
+        return None if code != 0 else sum(1 for n in files.split("\n") if n.endswith(".md"))
     if how == "exercises":
         # Ранні етапи не мали `mutations.json` узагалі: вправи жили лише в прозі. Рахувати
         # їх звідти — не милиця, а єдине джерело, яке на тому теґу існувало.
@@ -315,8 +329,58 @@ def _stage_folder(tag: str, stage: str) -> str | None:
     return None
 
 
-def check_claims(report: Report, claims: dict) -> None:
-    """Числа статті проти їхніх джерел. Без `claims.json` — третій стан, не зелений."""
+WORDS = {
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten",
+    11: "eleven",
+    12: "twelve",
+    13: "thirteen",
+    14: "fourteen",
+    15: "fifteen",
+    16: "sixteen",
+    17: "seventeen",
+    18: "eighteen",
+    19: "nineteen",
+    20: "twenty",
+    30: "thirty",
+    40: "forty",
+    50: "fifty",
+    60: "sixty",
+    70: "seventy",
+    80: "eighty",
+}
+
+
+def _spelled(value: int) -> set[str]:
+    """Як число може бути записане в тексті: цифрами й словами, з дефісом і без."""
+    forms = {str(value)}
+    if value in WORDS:
+        forms.add(WORDS[value])
+    tens, ones = divmod(value, 10)
+    if 20 <= value < 100 and ones and tens * 10 in WORDS:
+        forms.add(f"{WORDS[tens * 10]}-{WORDS[ones]}")
+        forms.add(f"{WORDS[tens * 10]} {WORDS[ones]}")
+    return forms
+
+
+def check_claims(text: str, report: Report, claims: dict) -> None:
+    """Числа статті проти їхніх джерел — і проти самої статті.
+
+    Трикутник, а не пара. `expect` мусить **цитуватися в тексті**, інакше твердження описує
+    вже не ту статтю: досить поправити прозу й забути файл, і звірка знову доводитиме, що
+    дві копії однакові. Перша редакція цього файлу брала обидві половини з теґа й ловила
+    саме нуль — та сама тавтологія, що ловилась на етапах 8, 9 і 10.
+
+    Без `claims.json` вимір каже `НЕ ПЕРЕВІРЕНО`, а не зелено.
+    """
     if not claims:
         report.unverified.append(
             "числа: немає `claims.json` — жодне число статті не має названого джерела"
@@ -328,8 +392,15 @@ def check_claims(report: Report, claims: dict) -> None:
         report.problems.append("claims: теґ не названо ні у файлі, ні в посиланнях статті")
         return
 
+    lowered = text.lower()
     for item in claims.get("numbers", []):
         report.checked += 1
+        if not any(form in lowered for form in _spelled(item["expect"])):
+            report.problems.append(
+                f"число {item['what']!r}: {item['expect']} у тексті статті не зустрічається — "
+                "твердження описує вже не цю статтю"
+            )
+            continue
         got = compute(item["how"], tag=tag, stage=item["stage"], file=item.get("file", ""))
         if got is None:
             report.unverified.append(f"число {item['what']!r}: джерело недоступне на теґу {tag}")
@@ -350,7 +421,7 @@ def review(folder: Path) -> Report:
     check_attribution(text, report)
     check_links(text, report)
     check_snippets(text, report, claims)
-    check_claims(report, claims)
+    check_claims(text, report, claims)
     return report
 
 
