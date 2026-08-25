@@ -72,7 +72,7 @@ python scripts/check_all.py      # має бути зелено, офлайн, �
 
 | Компонент | Стан |
 |---|---|
-| `shared/` — конфіг, LLM-шим, FakeLLM, трасування | готово, 17 перевірок |
+| `shared/` — конфіг, LLM-шим, FakeLLM, трасування | готово, 19 перевірок |
 | `scripts/check_all.py`, `scripts/migrate.py` | готово |
 | `deploy/docker-compose.yml` — Postgres+pgvector, Redis | готово |
 | CI (ruff + перевірки, без секретів) | готово |

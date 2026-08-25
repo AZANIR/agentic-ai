@@ -68,16 +68,23 @@ python scripts/check_all.py      # green, offline, no keys
 
 ## Status
 
-Skeleton materialized; stage 1 complete.
+Stages 1–8 complete; each passed an independent two-reviewer gate.
 
 | Component | State |
 |---|---|
-| `shared/` — config, LLM shim, FakeLLM, tracing | done, 13 checks |
+| `shared/` — config, LLM shim, FakeLLM, tracing | done, 19 checks |
 | `scripts/check_all.py`, `scripts/migrate.py` | done |
 | `deploy/docker-compose.yml` — Postgres+pgvector, Redis | done |
 | CI (ruff + checks, no secrets) | done |
-| Stage 1 - agent loop | **done**, 30 checks, independently reviewed |
-| Stages 2–10 | not started |
+| Stage 1 — agent loop | **done**, 30 checks, 15 on failure modes |
+| Stage 2 — RAG | **done**, 49 checks, 24 on failure modes |
+| Stage 3 — router | **done**, 38 checks, 20 on failure modes |
+| Stage 4 — MCP | **done**, 36 checks, 21 on failure modes |
+| Stage 5 — memory | **done**, 42 checks, 27 on failure modes |
+| Stage 6 — platform | **done**, 69 checks, 57 on failure modes; smoke against live HTTPS |
+| Stage 7 — voice | **done**, 44 checks, 37 on failure modes; 1574 -> 450 ms |
+| Stage 8 — evaluation | **done**, 31 checks, 15 on failure modes; position bias 3 of 3, mirrored 0 of 3 |
+| Stages 9–10 | not started |
 
 ## Sources
 
