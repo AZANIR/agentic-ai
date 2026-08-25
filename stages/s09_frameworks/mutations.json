@@ -1,0 +1,77 @@
+{
+  "stage": "s09-frameworks",
+  "executed_floor": 15,
+  "note": "Мутації ламають властивості, а не синтаксис. Найважливіші стосуються не фреймворків, а ЧЕСНОСТІ порівняння: контракт перестає дивитись на шлях, лічильник переїжджає всередину реалізації, невидимі рядки міряються встановленим замість виконаного, «місць прози» оголошується числом замість виміру. Усі вони лишають стенд працездатним і дають таблицю, яка виглядає порівнянною — саме тому їх складно помітити без перевірки. Число `expect_failed` копіюється з ПРОГОНУ, а не пишеться від руки.",
+  "mutations": [
+    {
+      "name": "вправа 1 · контракт перестає дивитись на шлях",
+      "file": "stages/s09_frameworks/contract.py",
+      "old": "    if result.tools_used != TOOLS:",
+      "new": "    if False:",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 2 · контракт приймає будь-яку зупинку",
+      "file": "stages/s09_frameworks/contract.py",
+      "old": "    if result.stopped_by != ANSWERED:",
+      "new": "    if result.stopped_by is None:",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 3 · надбавка рахується від того, що просила реалізація",
+      "file": "stages/s09_frameworks/counters.py",
+      "old": "            if part in self.owned:\n                self.asked += tokens(part)",
+      "new": "            self.asked += tokens(part)",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 4 · невидимі рядки шукаються лише за origin",
+      "file": "stages/s09_frameworks/counters.py",
+      "old": "    if locations := list(spec.submodule_search_locations or []):\n        return str(Path(locations[0]))\n    return str(Path(spec.origin).parent) if spec.origin else \"\"",
+      "new": "    return str(Path(spec.origin).parent) if spec.origin else \"\"",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 5 · «місць прози» перестає бачити описи задач",
+      "file": "stages/s09_frameworks/compare.py",
+      "old": "    {\"role\", \"goal\", \"backstory\", \"description\", \"instruction\", \"expected_output\"}",
+      "new": "    {\"role\", \"goal\"}",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 6 · порушник контракту тихо зникає з таблиці",
+      "file": "stages/s09_frameworks/compare.py",
+      "old": "        if self.broken:\n            return [",
+      "new": "        if False:\n            return [",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 7 · прапорець ADK мовчить, коли ключа немає",
+      "file": "stages/s09_frameworks/via_adk.py",
+      "old": "    if wanted() and (reason := unavailable_because()):",
+      "new": "    if False and (reason := unavailable_because()):",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 8 · причина недоступності зводиться до однієї",
+      "file": "stages/s09_frameworks/via_crewai.py",
+      "old": "    if sys.version_info[:2] > MAX_PYTHON:",
+      "new": "    if False:",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 9 · базова лінія зникає з порівняння",
+      "file": "stages/s09_frameworks/run.py",
+      "old": "    (baseline, \"baseline.py\", ()),\n",
+      "new": "",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 10 · таблиця більше не розбирається назад",
+      "file": "stages/s09_frameworks/compare.py",
+      "old": "        found[cells[0]] = cells[1:]",
+      "new": "        found[cells[0]] = cells[1:-1]",
+      "expect_failed": 1
+    }
+  ]
+}

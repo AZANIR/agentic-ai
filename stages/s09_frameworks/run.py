@@ -77,6 +77,12 @@ def collect(traces: Path) -> list[compare.Row]:
         if hasattr(module, "wanted") and not module.wanted():
             rows.append(compare.skipped(title, name, "прапорець вимкнено за замовчуванням"))
             continue
+        # ПРОГРІВ перед виміром. Перший прогін у процесі виконує ще й рядки імпорту
+        # пакета, і число стрибало між процесами: 1975 на першому, 1895 далі. Імпорт
+        # трапляється раз на процес, а не раз на запит, тож у ціну ПРОГОНУ він не входить —
+        # інакше колонка міряла б, скільки разів ти запускав команду.
+        module.run(_client())
+
         client = _client()
         with executed_lines(*packages) as invisible:
             result = module.traced(client, traces)

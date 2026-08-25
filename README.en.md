@@ -84,7 +84,8 @@ Stages 1–8 complete; each passed an independent two-reviewer gate.
 | Stage 6 — platform | **done**, 69 checks, 57 on failure modes; smoke against live HTTPS |
 | Stage 7 — voice | **done**, 44 checks, 37 on failure modes; 1574 -> 450 ms |
 | Stage 8 — evaluation | **done**, 31 checks, 15 on failure modes; position bias 3 of 3, mirrored 0 of 3 |
-| Stages 9–10 | not started |
+| Stage 9 — frameworks | **done**, 28 checks, 12 on failure modes; baseline 37 lines against 49 + 1895 invisible |
+| Stage 10 | not started |
 
 ## Sources
 

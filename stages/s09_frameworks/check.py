@@ -295,6 +295,33 @@ def check_twenty_offline_runs_give_the_same_table() -> None:
 # --- координація -------------------------------------------------------------------------
 
 
+def check_the_invisible_line_count_excludes_the_one_off_import() -> None:
+    """ВІДМОВА · невидимі рядки: разовий імпорт не входить у ціну прогону (AC-03)"""
+    if not via_langgraph.available():
+        raise NotVerified("langgraph не встановлено — невидимі рядки нема де взяти")
+
+    # Перший прогін у СВІЖОМУ процесі виконує ще й рядки імпорту пакета. Без прогріву
+    # число стрибало між процесами (1975 проти 1895), а перевірка мигтіння цього не бачила:
+    # у неї всі двадцять прогонів ішли в одному процесі, де імпорт уже стався.
+    cold = _client()
+    with executed_lines("langgraph", "langchain_core") as first:
+        via_langgraph.run(cold)
+    warm = _client()
+    with executed_lines("langgraph", "langchain_core") as second:
+        via_langgraph.run(warm)
+
+    assert len(second) <= len(first), (len(first), len(second))
+    assert len(second) > 0, "прогрітий прогін не виконав жодного рядка пакета"
+
+    # І число, яке потрапляє в таблицю, — саме прогріте.
+    with _table() as (rows, _, _text):
+        row = next(row for row in rows if row.module == "via_langgraph.py")
+        assert row.invisible == len(second), (
+            f"у таблиці {row.invisible} невидимих рядків, а прогрітий прогін дає "
+            f"{len(second)} — колонка міряє, скільки разів ти запускав команду"
+        )
+
+
 def check_each_implementation_answers_why_a_step_ran_and_names_the_source() -> None:
     """координація: кожна реалізація каже, звідки береться відповідь «чому цей крок» (AC-06)"""
     with _table() as (rows, _, text):
@@ -322,10 +349,25 @@ def check_implicit_coordination_names_the_price_of_that_answer() -> None:
         "із ролями, метою й передісторією"
     )
 
-    # Число вимірюється, а не оголошується: підкинутий опис має його змінити.
-    grown = compare.BEHAVIOUR_PROSE | {"persona"}
-    assert "persona" not in compare.BEHAVIOUR_PROSE, "перелік уже містить те, чого не мав"
-    assert grown != compare.BEHAVIOUR_PROSE
+    # Перелік має бачити описи ЗАДАЧ, а не лише ролей. Попередня редакція вимагала
+    # «щонайменше чотири місця» — і звуження переліку до `{role, goal}` лишало рівно
+    # чотири (двоє агентів × два поля), тобто мутація проходила наскрізь.
+    for keyword in ("description", "instruction", "expected_output"):
+        assert keyword in compare.BEHAVIOUR_PROSE, (
+            f"{keyword!r} не рахується місцем прози — там живе поведінка ЗАДАЧІ, і без "
+            "нього неявна координація виглядає дешевшою, ніж є"
+        )
+
+    # І вимір доводиться на синтетичному джерелі, а не лише на власних файлах.
+    probe = HERE / "__prose_probe.py"
+    probe.write_text(
+        "Agent(role='r', goal='g', backstory='b')" + NEWLINE + "Task(description='d')" + NEWLINE,
+        encoding="utf-8",
+    )
+    try:
+        assert compare.behaviour_prose(probe.name) == 4, compare.behaviour_prose(probe.name)
+    finally:
+        probe.unlink(missing_ok=True)
 
     with _table() as (rows, _, text):
         for row in rows:
@@ -348,10 +390,20 @@ def check_a_missing_package_yields_not_evaluated_never_a_failure() -> None:
             # Вимір із джерела лишається навіть у непригнаного рядка.
             assert row.places == compare.behaviour_prose(row.module), row.name
 
-    # Дві причини, а не одна: «не встановлено» й «не встановлюється» — різні події.
+    # Дві причини, а не одна: «не встановлено» й «не встановлюється» — різні події, і
+    # злиття їх в одну робить пораду «постав пакет» знущанням із того, у кого він не
+    # ставиться. Перевіряється саме РОЗРІЗНЕННЯ, а не наявність будь-якої причини.
+    import sys  # noqa: PLC0415
+
     reason = via_crewai.unavailable_because()
-    if reason:
-        assert "Python" in reason or "пакета немає" in reason, reason
+    if sys.version_info[:2] > via_crewai.MAX_PYTHON:
+        assert "Python" in reason, (
+            f"на Python {sys.version_info[0]}.{sys.version_info[1]} причиною названо {reason!r} — "
+            "читачеві радять поставити пакет, який на його інтерпретаторі не ставиться"
+        )
+        assert ".".join(map(str, via_crewai.MAX_PYTHON)) in reason, reason
+    elif reason:
+        assert "пакета немає" in reason, reason
 
 
 def check_the_flag_on_without_credentials_fails_loudly() -> None:
@@ -517,6 +569,107 @@ def check_the_stage_8_evaluator_extracts_more_than_one_trajectory() -> None:
     assert found.get("s09") is None or found["s09"] == "case", found.get("s09")
 
 
+# --- урок і матеріали читача ---------------------------------------------------------------
+
+
+def check_the_lesson_fits_the_reading_budget() -> None:
+    """урок: не більше 2500 слів (NFR-3)"""
+    words = len((HERE / "README.md").read_text(encoding="utf-8").split())
+    assert words <= 2500, f"урок розрісся до {words} слів"
+
+
+def check_the_lesson_numbers_match_the_bench() -> None:
+    """ВІДМОВА · урок: числа таблиці обчислені, а не набрані руками"""
+    import json  # noqa: PLC0415
+    import re  # noqa: PLC0415
+
+    # Числа уроку виводяться з УСІХ модулів реалізації **і з демо**, яке вирішує, що
+    # потрапляє в таблицю. Під час мутації будь-якого з них ця перевірка червоніла б про
+    # прозу, а не про властивість, яку мутація ламає, — і «червоних 2» читалося б як
+    # «спіймали двічі» (PLAYBOOK §5).
+    for name in (*IMPLEMENTATION, "run.py"):
+        require_intact_source(name)
+
+    lesson = (HERE / "README.md").read_text(encoding="utf-8")
+    english = (HERE / "README.en.md").read_text(encoding="utf-8")
+    checklist = (HERE / "CHECKLIST.md").read_text(encoding="utf-8")
+    pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
+
+    failures = sum(
+        1 for check in CHECKS if (check.__doc__ or "").split(NEWLINE)[0].startswith("ВІДМОВА")
+    )
+    flat = re.sub(r"\s+", " ", checklist)
+    assert f"перевірок: {len(CHECKS)}, з них на режими відмови: {failures}" in flat, (
+        "чекліст називає інші числа, ніж дає набір"
+    )
+    for page in (lesson, english):
+        assert f"{len(CHECKS)} " in page and f"{failures} " in page, (len(CHECKS), failures)
+
+    # Розміри модулів — обчислені.
+    for name in IMPLEMENTATION:
+        lines = _executable_lines(name)
+        assert f"`{lines} із {LINE_BUDGET}`" in lesson, (
+            f"{name} має {lines} виконуваних рядків — урок називає інше число"
+        )
+        assert f"| {lines} |" in english, f"{name}: карта називає інший розмір, ніж {lines}"
+
+    # Головні числа таблиці — теж вимір, а не проза.
+    with _table() as (rows, _, _text):
+        by_module = {row.module: row for row in rows}
+        for module in ("baseline.py", "via_langgraph.py"):
+            row = by_module[module]
+            if not row.counted:
+                continue
+            assert f"| {row.mine} |" in lesson or str(row.mine) in lesson, module
+            assert str(row.invisible) in lesson, f"{module}: {row.invisible} невидимих не в уроці"
+        for module, expected in (("via_crewai.py", 10), ("via_langgraph.py", 0)):
+            places = compare.behaviour_prose(module)
+            assert places == expected or str(places) in lesson, (module, places)
+
+    assert f"| Мутацій у вправах | {len(pinned)} |" in lesson or str(len(pinned)) in lesson, len(
+        pinned
+    )
+
+
+def check_the_exercises_match_the_pinned_mutations() -> None:
+    """ВІДМОВА · вправи: диф і числа беруться з mutations.json, а не пишуться"""
+    import json  # noqa: PLC0415
+
+    pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
+    text_of = (HERE / "exercises.md").read_text(encoding="utf-8")
+
+    for mutation in pinned:
+        number = int(mutation["name"].split()[1])
+        expected = mutation["expect_failed"]
+        assert f"## Вправа {number} ·" in text_of, f"вправи {number} немає в прозі"
+        assert f"**Червоних: {expected}.**" in text_of, number
+        assert mutation["file"] in text_of, f"вправа {number}: файл не названо"
+        for side in ("old", "new"):
+            for line in mutation[side].split(NEWLINE):
+                assert line.strip() in text_of, (
+                    f"вправа {number}: рядка {line.strip()!r} немає в прозі — читач не "
+                    "побачить, ЩО саме міняти"
+                )
+
+    assert text_of.count("## Вправа") == len(pinned), len(pinned)
+
+
+def check_every_reader_file_exists() -> None:
+    """матеріали: урок, карта, вправи, чеклісти й розвʼязок на місці"""
+    for name in (
+        "README.md",
+        "README.en.md",
+        "exercises.md",
+        "CHECKLIST.md",
+        "DECISION.md",
+        "mutations.json",
+        "solutions/exercise_3_where_the_overhead_hides.py",
+        "solutions/README.md",
+    ):
+        path = HERE / name
+        assert path.exists() and path.read_text(encoding="utf-8").strip(), name
+
+
 # --- бюджети ------------------------------------------------------------------------------
 
 
@@ -576,6 +729,7 @@ CHECKS = [
     check_tokens_are_counted_at_the_provider_boundary_both_numbers,
     check_the_overhead_counter_is_proven_at_both_ends,
     check_twenty_offline_runs_give_the_same_table,
+    check_the_invisible_line_count_excludes_the_one_off_import,
     check_each_implementation_answers_why_a_step_ran_and_names_the_source,
     check_implicit_coordination_names_the_price_of_that_answer,
     check_a_missing_package_yields_not_evaluated_never_a_failure,
@@ -588,6 +742,10 @@ CHECKS = [
     check_the_stage_8_evaluator_extracts_more_than_one_trajectory,
     check_the_modules_fit_the_line_budget,
     check_the_demo_shows_every_scene_offline_within_its_budget,
+    check_the_lesson_fits_the_reading_budget,
+    check_the_lesson_numbers_match_the_bench,
+    check_the_exercises_match_the_pinned_mutations,
+    check_every_reader_file_exists,
     check_the_failure_modes_are_at_least_a_third,
 ]
 
