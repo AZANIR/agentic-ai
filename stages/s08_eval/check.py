@@ -14,16 +14,18 @@
 from __future__ import annotations
 
 import ast
+import re
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
-from shared.check_runner import run_checks
+from shared.check_runner import require_intact_source, run_checks
 from shared.trace import trace_run
 from stages.s08_eval import levels
 from stages.s08_eval.bias import (
     LENGTH_PAIRS,
     POSITION_PAIRS,
+    Finding,
     length_sweep,
     position_sweep,
 )
@@ -181,13 +183,18 @@ def check_the_written_report_parses_back_to_the_same_totals() -> None:
                 f"у лічильниках {report.count(level, state)}"
             )
 
-    # Знаменник — усі кейси. Прогін, у якому суддя не дав жодного бала, не має показати
-    # частку **вищу** за той самий прогін із працездатним суддею.
-    fallen, _ = _report(judge=_MuteJudge())
-    assert fallen.total == report.total, "кількість рядків залежить від судді"
-    assert fallen.share(E2E) <= report.share(E2E), (
-        f"частка виросла з {report.share(E2E):.0%} до {fallen.share(E2E):.0%}, коли суддя "
-        "перестав відповідати — знаменник рахується від оцінених, а має від усіх"
+    # Знаменник — усі кейси. Суддя, що замовк ПОВНІСТЮ, цього не покаже: там і чисельник,
+    # і знаменник нулі, і будь-яка формула дає нуль. Ламається воно на **частковій**
+    # недоступності — і саме її треба подати.
+    half, _ = _report(judge=_HalfJudge())
+    assert half.total == report.total, "кількість рядків залежить від судді"
+    unscored = half.count(E2E, UNSCORED)
+    passed = half.count(E2E, PASSED)
+    assert unscored and passed, f"половинчастий суддя дав {passed} пройдених і {unscored} без бала"
+    assert half.share(E2E) == passed / half.total, (
+        f"частка {half.share(E2E):.3f} проти {passed}/{half.total} = "
+        f"{passed / half.total:.3f}: знаменник узято від оцінених, а мусить від усіх — "
+        f"тоді він РОСТЕ, коли суддя падає ({passed / (half.total - unscored):.3f})"
     )
 
     # Дзеркальна половина: рядок, що не доїхав до файлу, розбір мусить спіймати.
@@ -403,12 +410,27 @@ def check_cheap_checks_cover_every_trajectory_the_judge_only_a_share() -> None:
             f"дешеві чеки побачили {seen.checked} із {len(made)} траєкторій — «на всьому "
             "трафіку» означає на всьому"
         )
+        assert seen.judged == judge.calls, (seen.judged, judge.calls)
+        assert seen.problems, "жодного зауваження на наборі, де третина кейсів крайні"
+
+    # Частка — на потоці зі СТАЛИМИ ідентифікаторами. Ідентифікатор трейсу випадковий,
+    # тож на двадцяти одному прогоні `judged` мигтить між нулем і кількома: на десяти
+    # відсотках нуль випадає приблизно раз на девʼять прогонів. Перевірка, що падає раз
+    # на девʼять, буде вимкнена — і забере з собою єдиний доказ цього критерію.
+    with tempfile.TemporaryDirectory() as tmp:
+        service = Path(tmp) / "service.jsonl"
+        _service_trace(service, requests=60)
+
+        judge = BiasedJudge()
+        seen = watch(service, key=by_ref, judge=judge, share=DEFAULT_SHARE)
+        expected = sum(sampled(f"trc_req{index:04d}") for index in range(60))
+
+        assert seen.checked == 60, seen.checked
+        assert seen.judged == expected, (seen.judged, expected)
         assert 0 < seen.judged < seen.checked, (
             f"суддя бачив {seen.judged} із {seen.checked}: або нікого, або всіх — тоді "
             "частка не є часткою"
         )
-        assert seen.judged == judge.calls, (seen.judged, judge.calls)
-        assert seen.problems, "жодного зауваження на наборі, де третина кейсів крайні"
 
         # Обидва числа названі в одному рядку — інакше «на частці» лишається обіцянкою.
         line = seen.line()
@@ -442,13 +464,18 @@ def check_neither_request_nor_answer_text_reaches_the_report_or_the_trace() -> N
         assert "запит користувача" in watch.__doc__, "стала підпису не названа в контракті"
 
     # Дзеркальна половина: фікстури демонстрації біасу під заборону НЕ підпадають —
-    # без них демонстрація показувала б самі лише довжини.
+    # без них знахідка стала б числом без прикладу.
+    #
+    # Знахідка складається тут вручну, а не береться з детектора: інакше перевірка
+    # приватності червоніла б щоразу, коли детектор нічого не знайшов, — і звинувачувала б
+    # у витоку поріг, якого хтось додав у сусідній модуль.
+    shown = Finding("length bias", 1, 1, [f"{LENGTH_PAIRS[0].task}: 3 -> 5 (+2)"])
     report, _ = _report()
-    report.findings = [length_sweep(BiasedJudge(), LENGTH_PAIRS)]
-    assert any(pair.task in render(report) for pair in LENGTH_PAIRS), (
-        "заборона на текст користувача вимела й фікстури автора — знахідка стала числом "
-        "без прикладу"
+    report.findings = [shown]
+    assert LENGTH_PAIRS[0].task in render(report), (
+        "заборона на текст користувача вимела й фікстури автора"
     )
+    assert all(pair.first for pair in LENGTH_PAIRS), "пари демонстрації спорожніли"
 
 
 def check_the_sampled_share_matches_the_declared_one_within_the_stated_margin() -> None:
@@ -578,6 +605,150 @@ def check_what_the_traces_lack_is_counted_not_assumed() -> None:
     # Дзеркальна половина: на трейсі етапу 1 сліпих вимірів немає — обидва поля там є.
     with _traced_cases() as (path, _):
         assert blind_spots(extract(path)) == [], "етап 1 теж оголошено сліпим"
+
+
+def check_the_step_order_is_restored_from_the_sequence_number() -> None:
+    """ВІДМОВА · траєкторія: порядок кроків береться з `seq`, а не з порядку в файлі"""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "shuffled.jsonl"
+
+        with trace_run("left", path=path, stage="s08") as left:
+            with trace_run("right", path=path, stage="s08") as right:
+                for index in range(3):
+                    left.step("tool_call", tool=f"left_{index}")
+                    right.step("tool_call", tool=f"right_{index}")
+
+        # Рядки перевертаються НАВМИСНО. Поки один дописувач пише сам у себе, файловий
+        # порядок збігається з `seq`, і сортування нічого не змінює — перевірка, що
+        # читає щойно записаний файл, зелена й з сортуванням, і без нього.
+        #
+        # Порядок ламається там, де файл склали з кількох джерел: зшиті шарди, буферизований
+        # відправник логів, догнаний хвіст після збою. Перевернутий файл — найдешевша
+        # модель саме цього, і вона робить твердження docstring перевірюваним.
+        lines = path.read_text(encoding="utf-8").splitlines()
+        path.write_text(NEWLINE.join(reversed(lines)) + NEWLINE, encoding="utf-8")
+
+        walked = {trajectory.steps[0]["name"]: trajectory for trajectory in extract(path)}
+        assert set(walked) == {"left", "right"}, sorted(walked)
+
+        for name, trajectory in walked.items():
+            tools = trajectory.tools()
+            assert tools == [f"{name}_{index}" for index in range(3)], (
+                f"{name}: кроки прийшли як {tools} — порядок узято з файлу, а не з `seq`"
+            )
+            seqs = [step["seq"] for step in trajectory.steps]
+            assert seqs == sorted(seqs), f"{name}: {seqs}"
+            assert trajectory.outcome() == "ok", (
+                f"{name}: підсумок прогону загубився — його шукають з кінця, а кінець "
+                "визначається порядком"
+            )
+
+
+# --- урок і матеріали читача -------------------------------------------------------------
+
+
+def check_the_lesson_fits_the_reading_budget() -> None:
+    """урок: не більше 2500 слів (NFR-3)"""
+    words = len((HERE / "README.md").read_text(encoding="utf-8").split())
+    assert words <= 2500, f"урок розрісся до {words} слів"
+
+
+def check_the_lesson_numbers_match_the_suite() -> None:
+    """ВІДМОВА · урок: числа складу набору обчислені, а не набрані руками"""
+    import json
+
+    # Числа уроку виводяться з УСІХ модулів реалізації, тож під час мутації будь-якого з
+    # них ця перевірка червоніє про прозу, а не про властивість, яку мутація ламає.
+    # «Червоних 2» замість «червоних 1» читається як «спіймали двічі» — і розчиняє сигнал
+    # рівно там, де його вимірюють (PLAYBOOK §5).
+    for name in IMPLEMENTATION:
+        require_intact_source(name)
+
+    lesson = (HERE / "README.md").read_text(encoding="utf-8")
+    english = (HERE / "README.en.md").read_text(encoding="utf-8")
+    checklist = (HERE / "CHECKLIST.md").read_text(encoding="utf-8")
+    pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
+
+    failures = sum(
+        1 for check in CHECKS if (check.__doc__ or "").split(NEWLINE)[0].startswith("ВІДМОВА")
+    )
+    edge = sum(1 for case in CASES if case.edge)
+
+    for page in (lesson, english):
+        assert f"{len(CHECKS)} " in page, f"кількість перевірок ({len(CHECKS)}) не названа"
+        assert f"{failures} " in page, f"кількість режимів відмови ({failures}) не названа"
+    flat = re.sub(r"\s+", " ", checklist)
+    assert f"перевірок: {len(CHECKS)}, з них на режими відмови: {failures}" in flat, (
+        "чекліст називає інші числа, ніж дає набір"
+    )
+    assert f"| Кейсів у наборі / з них крайніх | {len(CASES)} / {edge} |" in lesson, (
+        f"склад набору у прозі не збігається з набором: {len(CASES)} / {edge}"
+    )
+    assert f"| Мутацій у вправах | {len(pinned)} |" in lesson, len(pinned)
+
+    # Три частки — з прогону, а не з попередньої редакції уроку. Таблиця уроку вирівняна
+    # пробілами, тож звіряється нормалізований рядок, а не сира розмітка.
+    report, _ = _report()
+    flat_lesson = re.sub(r"[ 	]+", " ", lesson)
+    for level in LEVELS:
+        row = " ".join(
+            [level, *(str(report.count(level, state)) for state in STATES)]
+            + [f"{report.share(level):.0%}"]
+        )
+        assert row in flat_lesson, f"у таблиці уроку не той рядок, що дає прогін: {row!r}"
+
+
+def check_the_lesson_line_counts_match_the_modules() -> None:
+    """ВІДМОВА · урок: розміри модулів у прозі — обчислені (NFR-1)"""
+    lesson = (HERE / "README.md").read_text(encoding="utf-8")
+    english = (HERE / "README.en.md").read_text(encoding="utf-8")
+
+    for name in IMPLEMENTATION:
+        require_intact_source(name)
+        lines = _executable_lines(name)
+        assert f"`{lines} із {LINE_BUDGET}`" in lesson, (
+            f"{name} має {lines} виконуваних рядків — урок називає інше число"
+        )
+        assert f"| {lines} |" in english, f"{name}: карта називає інший розмір, ніж {lines}"
+
+
+def check_the_exercises_match_the_pinned_mutations() -> None:
+    """ВІДМОВА · вправи: диф і числа беруться з mutations.json, а не пишуться"""
+    import json
+
+    pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
+    text_of = (HERE / "exercises.md").read_text(encoding="utf-8")
+
+    for mutation in pinned:
+        number = int(mutation["name"].split()[1])
+        expected = mutation["expect_failed"]
+        assert f"## Вправа {number} ·" in text_of, f"вправи {number} немає в прозі"
+        assert f"**Червоних: {expected}.**" in text_of, number
+        assert mutation["file"] in text_of, f"вправа {number}: файл не названо"
+        for side in ("old", "new"):
+            for line in mutation[side].split(NEWLINE):
+                assert line.strip() in text_of, (
+                    f"вправа {number}: рядка {line.strip()!r} немає в прозі — читач не "
+                    "побачить, ЩО саме міняти"
+                )
+
+    assert text_of.count("## Вправа") == len(pinned), len(pinned)
+
+
+def check_every_reader_file_exists() -> None:
+    """матеріали: урок, карта, вправи, чеклісти й розвʼязок на місці"""
+    for name in (
+        "README.md",
+        "README.en.md",
+        "exercises.md",
+        "CHECKLIST.md",
+        "DECISION.md",
+        "mutations.json",
+        "solutions/exercise_2_the_denominator_climbs.py",
+        "solutions/README.md",
+    ):
+        path = HERE / name
+        assert path.exists() and path.read_text(encoding="utf-8").strip(), name
 
 
 # --- набір, зуби перевірок і бюджети -----------------------------------------------------
@@ -713,6 +884,22 @@ def check_the_failure_modes_are_at_least_a_third() -> None:
     )
 
 
+class _HalfJudge(BiasedJudge):
+    """Суддя, що відповідає через раз. Роль: вичерпана квота посеред прогону.
+
+    Потрібен саме він: повна відмова робить знаменник нулем і ховає помилку, з якої
+    починається брехливий звіт.
+    """
+
+    name: str = "half-fake"
+
+    def score(self, task: str, answer: str, expected: str) -> Scored:
+        self.calls += 1
+        if self.calls % 2:
+            raise Unavailable("квота вичерпана")
+        return Scored(super()._points(answer, expected), "через раз")
+
+
 class _MuteJudge:
     """Суддя, який не може винести жодного вердикта. Роль: відсутній ключ."""
 
@@ -745,11 +932,17 @@ CHECKS = [
     check_the_input_trace_file_is_byte_identical_after_a_run,
     check_one_grouping_key_parameter_serves_both_stage_1_and_the_stage_6_service,
     check_what_the_traces_lack_is_counted_not_assumed,
+    check_the_step_order_is_restored_from_the_sequence_number,
     check_at_least_a_third_of_the_case_set_is_edge_by_observation,
     check_a_broken_level_reddens_the_check_that_asserts_about_that_level,
     check_the_report_is_deterministic_across_twenty_runs,
     check_the_modules_fit_the_line_budget,
     check_the_demo_shows_every_scene_offline_within_its_budget,
+    check_the_lesson_fits_the_reading_budget,
+    check_the_lesson_numbers_match_the_suite,
+    check_the_lesson_line_counts_match_the_modules,
+    check_the_exercises_match_the_pinned_mutations,
+    check_every_reader_file_exists,
     check_the_failure_modes_are_at_least_a_third,
 ]
 

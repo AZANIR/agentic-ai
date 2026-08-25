@@ -1,0 +1,84 @@
+{
+  "stage": "s08-eval",
+  "executed_floor": 20,
+  "note": "Мутації ламають властивості, а не синтаксис. Найважливіші стосуються не оцінювання, а ЧЕСНОСТІ звіту: порожній рівень стає пройденим, знаменник береться від оцінених, відмова приладу рахується провалом агента, нічия зникає як окреме значення. Усі вони лишають харнес працездатним і роблять звіт ЗЕЛЕНІШИМ — саме тому їх складно помітити без перевірки, і саме тому вони найдорожчі. Число `expect_failed` копіюється з ПРОГОНУ, а не пишеться від руки.",
+  "mutations": [
+    {
+      "name": "вправа 1 · порожній рівень зараховується як пройдений",
+      "file": "stages/s08_eval/levels.py",
+      "old": "        return Verdict(COMPONENT, UNSCORED, DETERMINISTIC, \"кроків підсистем у трейсі немає\")",
+      "new": "        return Verdict(COMPONENT, PASSED, DETERMINISTIC, \"кроків підсистем у трейсі немає\")",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 2 · знаменник береться від оцінених, а не від усіх",
+      "file": "stages/s08_eval/report.py",
+      "old": "        return self.count(level, state) / self.total if self.total else 0.0",
+      "new": "        judged = self.total - self.count(level, UNSCORED)\n        return self.count(level, state) / judged if judged else 0.0",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 3 · відмова судді рахується провалом агента",
+      "file": "stages/s08_eval/levels.py",
+      "old": "        return Verdict(E2E, UNSCORED, JUDGED, str(error))",
+      "new": "        return Verdict(E2E, FAILED, JUDGED, str(error))",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 4 · нічия перестає бути окремим значенням",
+      "file": "stages/s08_eval/bias.py",
+      "old": "    if verdict.winner == TIE:\n        return TIE",
+      "new": "    if verdict.winner == TIE:\n        return order[0]",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 5 · length bias отримує поріг «у межах шуму»",
+      "file": "stages/s08_eval/bias.py",
+      "old": "        if gap > 0:",
+      "new": "        if gap > 2:",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 6 · суддя втрачає позиційну надбавку",
+      "file": "stages/s08_eval/judge.py",
+      "old": "        left = self._points(first, expected) + self.position_bonus",
+      "new": "        left = self._points(first, expected)",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 7 · семплер відправляє до судді всіх",
+      "file": "stages/s08_eval/online.py",
+      "old": "    return int.from_bytes(digest, \"big\") % BUCKETS < share * BUCKETS",
+      "new": "    return len(digest) > 0",
+      "expect_failed": 2
+    },
+    {
+      "name": "вправа 8 · ключ групування знову фіксований",
+      "file": "stages/s08_eval/trajectory.py",
+      "old": "        name = key(step)",
+      "new": "        name = step.get(\"trace_id\")",
+      "expect_failed": 4
+    },
+    {
+      "name": "вправа 9 · порядок кроків береться з файлу",
+      "file": "stages/s08_eval/trajectory.py",
+      "old": "        trajectory.steps.sort(key=lambda step: step.get(\"seq\", 0))",
+      "new": "        pass",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 10 · крайність оголошується статусом, а не спостерігається",
+      "file": "stages/s08_eval/cases.py",
+      "old": "        return bool(kinds & EDGE_KINDS) or not self.answer.strip() or self.status != \"ok\"",
+      "new": "        return self.status != \"ok\"",
+      "expect_failed": 1
+    },
+    {
+      "name": "вправа 11 · сліпий вимір перетворюється на зауваження",
+      "file": "stages/s08_eval/online.py",
+      "old": "    if not any(spot.startswith(\"термінального\") for spot in blind):",
+      "new": "    if True:",
+      "expect_failed": 1
+    }
+  ]
+}
