@@ -1,218 +1,232 @@
-# Глосарій
+# Glossary
 
-Терміни, які вводить курс. Англійський термін лишається як є — саме його ти зустрінеш у
-документації, помилках і на співбесіді; українською пояснюється, що він означає.
+The terms this course introduces. One entry per idea the course actually uses — not a
+dictionary of the field.
 
-Колонка «етап» — де термін уперше стає потрібним, а не просто згадується.
-
----
-
-## Фундамент репозиторію
-
-Ці поняття вводить не стаття, а сам репозиторій. Без них не зрозуміти жодного етапу.
-
-| Термін | Що це |
-|---|---|
-| <a id="profile"></a>**Profile** · профіль | `APP_PROFILE=local\|prod`. Перемикає, ЯКІ реалізації буде створено, і більше нічого. `local` — усе в пам'яті, офлайн, детерміновано. `prod` — Postgres, Redis, справжня модель, метрики. Розгалуження живе рівно в одному місці — у фабриках `shared/`. Див. [ADR-0002](docs/adr/0002-profile-switched-adapters.md). |
-| <a id="adapter"></a>**Adapter** · адаптер | Дві реалізації одного інтерфейсу — «навчальна» і «продакшн». Код етапу не знає, яку саме отримав. Саме це дозволяє вчитися на тому самому коді, що потім тримає навантаження. |
-| <a id="fakellm"></a>**FakeLLM** · підробна модель | Детермінований клієнт, що розігрує заздалегідь записаний сценарій відповідей. Не мок заради тесту, а інструмент навчання: тільки з ним можна перевірити «ліміт кроків спрацював» — на справжній моделі така перевірка неможлива, бо вона недетермінована. [ADR-0006](docs/adr/0006-assert-checks-over-test-framework.md). |
-| <a id="trace"></a>**Trace** · трейс | Послідовність кроків одного прогону агента: що спитали модель, який інструмент вона обрала, що повернулось. Рядок JSON = один крок. Є **з етапу 1**, а не додається на етапі 8 — [ADR-0005](docs/adr/0005-tracing-from-stage-one.md). |
-| <a id="check"></a>**Check** · перевірка | `check.py` етапу: голі `assert`, офлайн, без ключа. Правило: серед перевірок обов'язково є хоча б одна на **режим відмови**. |
-| <a id="failure-mode"></a>**Failure mode** · режим відмови | Конкретний спосіб зламатися: нескінченний цикл, вигадані аргументи, мовчазна втрата даних. Курс вимагає перевіряти саме їх, бо щасливий шлях проходить і в зламаної системи. |
-| <a id="shim"></a>**Shim** · шим, прошарок | Тонкий шар, що ховає відмінності між постачальниками за одним інтерфейсом. Тут — `shared/llm.py`: один клієнт для Groq, OpenRouter, Ollama, LM Studio і OpenAI. |
+The stage a term appears under is where it first becomes necessary, not merely where it is
+first mentioned.
 
 ---
 
-## Етап 1 — Agent loop
+## Repository foundations
 
-| Термін | Що це |
+These are introduced by the repository itself rather than by any stage. Without them no stage
+makes sense.
+
+| Term | What it is |
 |---|---|
-| **Agent** · агент | Мовна модель, що може **діяти**, а не лише відповідати. Три складові: мозок (LLM), інструменти, пам'ять (необов'язкова). |
-| **Tool** · інструмент | Звичайна функція, яку агенту дозволено викликати: `get_weather(city)`, `get_order_status(order_id)`. |
-| **Tool call** · виклик інструмента | Відповідь моделі, у якій замість тексту — прохання викликати функцію з такими аргументами. **Модель нічого не виконує сама**: вона просить, а виконує твій код. Аргументи приходять РЯДКОМ JSON, не словником. |
-| **Tool schema** · схема інструмента | JSON-опис імені, призначення й параметрів функції. Модель обирає інструмент, читаючи саме його — тому погана назва й розмитий опис ламають вибір сильніше, ніж слабша модель. |
-| **ReAct loop** · цикл ReAct | Reasoning + Acting: Plan → Act → Observe → Decide → повторити. Основа майже всіх агентних фреймворків. |
-| **Max steps** · ліміт кроків | Верхня межа ітерацій циклу. Не оптимізація, а захист: без неї агент, що не може завершити задачу, крутиться нескінченно й витрачає гроші. |
-| **HITL** (human-in-the-loop) | Обов'язкове підтвердження людиною перед незворотною дією — видалення, відправлення, оплата. |
-| **Stateless** · без стану | Модель нічого не пам'ятає між викликами. Усе, що вона «знає», ти передав їй у цьому ж запиті. |
-| **Context window** · вікно контексту | Скільки токенів модель бачить за раз. Скінченне — і саме тому потрібні і RAG, і пам'ять. |
-| **Token** · токен | Шматок тексту (~4 символи англійською). Одиниця, у якій вимірюють і ліміт, і рахунок. |
-| **Step** · крок | Одна ітерація циклу: одне звернення до моделі плюс виконання **всіх** інструментів, які вона попросила в цій відповіді. Прохання про три інструменти одразу лишається одним кроком. |
-| **Tool registry** · реєстр інструментів | Відповідність «ім'я → функція + схема + познака незворотності». Єдине джерело правди про те, що агенту дозволено. |
-| **Guard** · захист | Один із трьох механізмів між рішенням моделі й наслідком: ліміт кроків, валідація аргументів, гейт підтвердження. |
-| **Irreversible tool** · незворотний інструмент | Інструмент, наслідки якого не відкотити автоматично. Не те саме, що «інструмент із побічним ефектом»: запис у лог теж має ефект, але підтвердження не потребує. |
-| **Confirmation gate** · гейт підтвердження | Механізм, що не дає виконати незворотний інструмент без явного дозволу людини. |
-| **Rejection** · відмова валідації | **Результат кроку**, а не виняток: пояснення повертається моделі, і цикл продовжується. |
-| **Type coercion** · приведення типів | Мовчазне перетворення `"3"` на `3`. У курсі заборонене: воно ховає помилку моделі саме там, де її треба побачити. |
+| <a id="profile"></a>**Profile** | `APP_PROFILE=local\|prod`. Switches WHICH implementations get built, and nothing else. `local` — everything in memory, offline, deterministic. `prod` — Postgres, Redis, a real model, metrics. The branching lives in exactly one place: the factories under `shared/`. See [ADR-0002](docs/adr/0002-profile-switched-adapters.md). |
+| <a id="adapter"></a>**Adapter** | Two implementations of one interface — a teaching one and a production one. Stage code does not know which it was handed. That is what lets you learn on the same code that later carries load. |
+| <a id="fakellm"></a>**FakeLLM** | A deterministic client that replays a pre-recorded script of responses. Not a mock for a test's sake but a teaching instrument: only with it can you check that "the step limit fired" — against a real model that check is impossible, because it is not deterministic. [ADR-0006](docs/adr/0006-assert-checks-over-test-framework.md). |
+| <a id="trace"></a>**Trace** | The sequence of steps of one agent run: what the model was asked, which tool it chose, what came back. One JSON line, one step. Present **from stage 1** rather than bolted on at stage 8 — [ADR-0005](docs/adr/0005-tracing-from-stage-one.md). |
+| <a id="check"></a>**Check** | A stage's `check.py`: bare `assert`, offline, no key. The rule: at least one check always covers a **failure mode**. |
+| <a id="failure-mode"></a>**Failure mode** | A specific way of breaking: the endless loop, invented arguments, silent data loss. The course insists on checking these, because a broken system passes the happy path too. |
+| <a id="shim"></a>**Shim** | A thin layer hiding the differences between providers behind one interface. Here: `shared/llm.py`, one client for Groq, OpenRouter, Ollama, LM Studio and OpenAI. |
 
 ---
 
-## Етап 2 — RAG
+## Stage 1 — Agent loop
 
-| Термін | Що це |
+| Term | What it is |
 |---|---|
-| <a id="rag"></a>**RAG** · retrieval-augmented generation | Знайти кілька абзаців, найближчих за змістом до питання, покласти їх у промпт і попросити модель відповісти тільки за ними. Не «модель прочитала твої документи», а «ти вирішив, які три абзаци вона побачить». |
-| <a id="embedding"></a>**Embedding** · ембеддинг | Список чисел, який представляє зміст тексту. Уся ідея пошуку тримається на одній властивості: близькі за змістом тексти мають близькі списки. |
-| <a id="vector"></a>**Vector** · вектор | Той самий список чисел як точка у просторі. «Розмірність» — скільки в ньому чисел; у навчальному ембеддері тут 256. |
-| <a id="cosine"></a>**Cosine similarity** · косинусна близькість | Міра схожості двох векторів: 1.0 — однакові, 0.0 — нічого спільного. Після нормування векторів рахується звичайним скалярним добутком — саме тому нормування не косметика. |
-| <a id="normalization"></a>**Normalization** · нормування | Привести всі вектори до однакової довжини. Без цього довгий документ вигравав би просто через довжину, а не через доречність. |
-| <a id="chunking"></a>**Chunking** · нарізка | Різати документ на фрагменти перед індексацією. Індексується й знаходиться **фрагмент**, а не документ: у вектор цілого документа зміст усереднюється. |
-| <a id="overlap"></a>**Overlap** · перекриття | Сусідні фрагменти частково повторюють одне одного, щоб думка, що припала на стик, знайшлася хоч в одному. Ціна — той самий текст індексується двічі. |
-| <a id="index"></a>**Index** · індекс | Усі фрагменти разом із їхніми векторами. Тут — у пам'яті, будується на старті; постійне сховище з'явиться на етапі 4. |
-| <a id="retrieval"></a>**Retrieval** · пошук, вибірка | Порахувати близькість запиту до кожного фрагмента й відсортувати. Два рядки коду; усе решта — поріг, top-k і фільтр навколо них. |
-| <a id="topk"></a>**Top-k** | Скільки найближчих фрагментів іде далі у промпт. Не налаштування продуктивності: `k` вирішує, чи побачить модель правильну відповідь узагалі. |
-| <a id="threshold"></a>**Threshold** · поріг близькості | Межа, нижче якої знайдене вважається не знайденим. Єдине місце, де система може сказати «не знаю»: косинус завжди поверне число, і найближче завжди існує. |
-| <a id="grounding"></a>**Grounding** · обґрунтованість | Відповідь спирається на подані дані, а не на пам'ять моделі. У цьому репозиторії негрунтована відповідь **не існує як стан**: немає джерел — немає й тексту. |
-| <a id="provenance"></a>**Provenance** · походження, джерело | Звідки взято те, на чому стоїть відповідь. Тут додається системою з переліку знайденого — [ADR етапу 0003](docs/features/s02-rag/adr/0003-system-attaches-the-source.md). Модель, яку просять цитувати, іноді назве неіснуючий документ, і вигадане посилання виглядає точно як справжнє. |
-| <a id="access-level"></a>**Access level** · рівень доступу | Факт про того, **хто питає**, а не аргумент, який обирають під час відповіді. Тому він прив'язується до інструмента через `partial`, а не стоїть у схемі, яку бачить модель. |
-| <a id="prompt-injection"></a>**Prompt injection** · ін'єкція в промпт | Рядок усередині знайденого документа, який модель може прочитати як вказівку. Позначений блок ДАНІ не робить атаку неможливою — він дає моделі межу, якої інакше не існує. |
-| <a id="fine-tuning"></a>**Fine-tuning** · донавчання | Змінити **поведінку** моделі: формат, тон, словник. RAG додає **факти**. Це не два способи зробити одне й те саме — чекліст у [`DECISION.md`](stages/s02_rag/DECISION.md). |
+| **Agent** | A language model that can **act**, not merely answer. Three parts: the brain (an LLM), tools, and memory (optional). |
+| **Tool** | An ordinary function the agent is allowed to call: `get_weather(city)`, `get_order_status(order_id)`. |
+| **Tool call** | A model response carrying, instead of text, a request to call a function with these arguments. **The model executes nothing itself**: it asks, and your code runs it. Arguments arrive as a JSON **string**, not a dictionary. |
+| **Tool schema** | The JSON description of a function's name, purpose and parameters. The model chooses a tool by reading exactly this — which is why a bad name and a vague description break the choice harder than a weaker model does. |
+| **ReAct loop** | Reasoning + Acting: Plan → Act → Observe → Decide → repeat. The basis of nearly every agent framework. |
+| **Max steps** | The upper bound on loop iterations. Not an optimisation but a guard: without it an agent that cannot finish a task spins forever and spends money doing it. |
+| **HITL** (human-in-the-loop) | A mandatory human confirmation before an irreversible action — deleting, sending, paying. |
+| **Stateless** | The model remembers nothing between calls. Everything it "knows" you passed it in this very request. |
+| **Context window** | How many tokens the model sees at once. Finite — which is precisely why both RAG and memory exist. |
+| **Token** | A piece of text (roughly 4 characters in English). The unit in which both the limit and the bill are measured. |
+| **Step** | One iteration of the loop: one call to the model plus running **all** the tools it asked for in that response. Asking for three tools at once is still one step. |
+| **Tool registry** | The mapping "name → function + schema + irreversibility flag". The single source of truth about what the agent is allowed to do. |
+| **Guard** | One of the three mechanisms between the model's decision and its consequence: the step limit, argument validation, the confirmation gate. |
+| **Irreversible tool** | A tool whose consequences cannot be rolled back automatically. Not the same as "a tool with a side effect": writing a log line has an effect too and needs no confirmation. |
+| **Confirmation gate** | The mechanism that stops an irreversible tool from running without explicit human permission. |
+| **Rejection** | The **result of a step**, not an exception: the explanation goes back to the model and the loop continues. |
+| **Type coercion** | Silently turning `"3"` into `3`. Forbidden here: it hides the model's mistake exactly where you need to see it. |
 
 ---
 
-## Етап 3 — Router
+## Stage 2 — RAG
 
-| Термін | Що це |
+| Term | What it is |
 |---|---|
-| <a id="supervisor"></a>**Supervisor** · диспетчер | Агент, чиї інструменти — інші агенти. Ніякої нової архітектури: той самий цикл етапу 1, просто за назвою інструмента стоїть агент, а не функція |
-| <a id="specialist"></a>**Specialist** · спеціаліст | Агент із вузьким набором інструментів і одним описом компетенції. Вузький — не обмеження, а причина, чому він обирає краще за широкого |
-| <a id="handoff"></a>**Handoff** · передача | Момент, коли supervisor віддає задачу спеціалістові. **Найтихіше місце для втрати прав доступу:** спеціаліст отримує задачу, а не питальника |
-| <a id="state-schema"></a>**State schema** · схема стану | Оголошений перелік того, що граф знає про задачу. Найдорожче для зміни рішення: додати поле означає, що на нього зможуть спертися всі вузли, і жоден про це не скаже. [ADR етапу 0002](docs/features/s03-router/adr/0002-state-schema-is-a-declared-contract.md) |
-| <a id="node"></a>**Node** · вузол | Крок графа: supervisor або спеціаліст. Потрапляє у `path` і у трейс |
-| <a id="edge"></a>**Edge** · ребро | Перехід між вузлами. У власному графі це `while` і `if`; у LangGraph — `add_edge` і `add_conditional_edges` |
-| <a id="revision-loop"></a>**Revision loop** · цикл ревізій | Повернення задачі спеціалістові після незадовільної відповіді. **Без лічильника — це не «трохи повільніше», а необмежений рахунок:** помилка, яка нічого не ламає, і тому найдорожча |
-| <a id="finish-reason"></a>**Finish reason** · причина завершення | Чому прогін зупинився: `answered`, `no_specialist`, `revision_limit`, `specialist_failed`. Прогін без названої причини — це прогін, про який нічого не скажеш |
-| <a id="competence"></a>**Competence** · опис компетенції | Текст, за яким модель обирає спеціаліста. Важливіший за назву вузла: `orders` моделі нічого не каже |
-| <a id="classifier"></a>**Classifier** · класифікатор | Дешевий вибір гілки без циклу ревізій. Третій вердикт чекліста й найчастіше — правильний: більшість систем, які будують як supervisor, потребували саме його |
-| <a id="langgraph"></a>**LangGraph** | Бібліотека для графів агентів. У курсі — **друга** реалізація тієї самої задачі, щоб було з чим порівняти власну, а не предмет вивчення |
-| <a id="typed-dict-state"></a>**TypedDict-стан** | Як LangGraph зберігає стан. `state.get("typo")` поверне мовчазний `None` — саме та гнучкість, ціну якої називає ADR-0002. Не вада бібліотеки: вона не знає наперед, які вузли ти додаси |
+| <a id="rag"></a>**RAG** · retrieval-augmented generation | Find the few paragraphs closest in meaning to the question, put them in the prompt, and ask the model to answer from those alone. Not "the model read your documents" but "you decided which three paragraphs it would see". |
+| <a id="embedding"></a>**Embedding** | A list of numbers representing the meaning of a text. The whole idea of search rests on one property: texts close in meaning have close lists. |
+| <a id="vector"></a>**Vector** | That same list of numbers seen as a point in space. Its "dimension" is how many numbers it holds; the teaching embedder here uses 256. |
+| <a id="cosine"></a>**Cosine similarity** | How similar two vectors are: 1.0 identical, 0.0 nothing in common. Once the vectors are normalised it is an ordinary dot product — which is why normalisation is not cosmetic. |
+| <a id="normalization"></a>**Normalization** | Bringing every vector to the same length. Without it a long document would win on length rather than on relevance. |
+| <a id="chunking"></a>**Chunking** | Cutting a document into fragments before indexing. What gets indexed and found is a **fragment**, not a document: in a whole-document vector the meaning averages out. |
+| <a id="overlap"></a>**Overlap** | Neighbouring fragments repeat part of each other, so a thought landing on a seam is found in at least one of them. The price is the same text indexed twice. |
+| <a id="index"></a>**Index** | Every fragment together with its vector. In memory here, built at startup; persistent storage arrives at stage 4. |
+| <a id="retrieval"></a>**Retrieval** | Compute the query's closeness to every fragment and sort. Two lines of code; everything else is the threshold, the top-k and the filter around them. |
+| <a id="topk"></a>**Top-k** | How many of the closest fragments go on into the prompt. Not a performance setting: `k` decides whether the model sees the right answer at all. |
+| <a id="threshold"></a>**Threshold** | The line below which "found" counts as not found. The only place the system can say "I do not know": cosine always returns a number, and a nearest match always exists. |
+| <a id="grounding"></a>**Grounding** | The answer stands on the supplied data rather than on the model's memory. In this repository an ungrounded answer **does not exist as a state**: no sources, no text. |
+| <a id="provenance"></a>**Provenance** | Where the thing the answer stands on came from. Attached here by the system from the retrieval result — [stage ADR-0003](docs/features/s02-rag/adr/0003-system-attaches-the-source.md). A model asked to cite will sometimes name a document that does not exist, and an invented citation looks exactly like a real one. |
+| <a id="access-level"></a>**Access level** | A fact about **who is asking**, not an argument chosen while answering. That is why it is bound to the tool through `partial` rather than sitting in the schema the model sees. |
+| <a id="prompt-injection"></a>**Prompt injection** | A line inside a retrieved document that the model may read as an instruction. A marked DATA block does not make the attack impossible — it gives the model a boundary that otherwise does not exist. |
+| <a id="fine-tuning"></a>**Fine-tuning** | Changing the model's **behaviour**: format, tone, vocabulary. RAG adds **facts**. These are not two ways of doing one thing — the checklist is in [`DECISION.md`](stages/s02_rag/DECISION.md). |
 
 ---
 
-## Етап 4 — MCP
+## Stage 3 — Router
 
-| Термін | Що це |
+| Term | What it is |
 |---|---|
-| <a id="mcp"></a>**MCP** · Model Context Protocol | Протокол, яким сервер оголошує свої інструменти, а клієнт їх читає й викликає. Не бібліотека й не фреймворк — домовленість про формат |
-| <a id="host"></a>**Host** · застосунок | Те, у чому живе агент: твоє демо, чат, IDE. Володіє клієнтом |
-| <a id="mcp-client"></a>**Client** · клієнт | Те, що говорить протоколом. Один клієнт на один сервер. **Усі рішення — тут** |
-| <a id="mcp-server"></a>**Server** · сервер | Окремий процес, який оголошує інструменти й виконує їх. Може належати комусь іншому |
-| <a id="list-tools"></a>**`list_tools()`** | Виклик, який робить інтеграцію **дискаверабельною**: клієнт не мусить знати наперед, що вміє сервер. Саме це, а не зручність, і купується протоколом |
-| <a id="tool-resource-prompt"></a>**Tool / Resource / Prompt** | Дія / дані для читання / заготовка промпту. Плутати їх — найчастіша помилка з MCP: `resource` модель не викликає, а `prompt` не є ні дією, ні даними |
-| <a id="narration"></a>**Narration** · проза навколо даних | Текст, який сервер пише довкола корисного вмісту: підсумок, попередження, згадка про інший інструмент. Не вада сервера — властивість формату, і парсер мусить її переживати |
-| <a id="failure-phase"></a>**Фаза відмови** | `startup` (не піднявся), `call` (замовк), `parse` (відповів, даних немає). Три різні події, невідрізненні у трейсбеку й лікуються по-різному. Тому фаза — поле результату, а не рядок у повідомленні |
-| <a id="stdio-transport"></a>**stdio-транспорт** | Обмін через `stdin`/`stdout` підпроцесу. Працює офлайн і без портів; автентифікації в ньому немає взагалі |
-| <a id="stateless-mcp"></a>**Stateless-специфікація** | Сервер не зобов'язаний памʼятати нічого між викликами. Стан їде **явно, у payload** — і саме тому виклик із трейсу можна повторити дослівно |
-| <a id="allow-list"></a>**Список дозволених** | Перелік інструментів, які клієнт готовий узяти. Сервер пропонує, клієнт бере зі свого списку; невідоме за замовчуванням **незворотне** |
-| <a id="tool-not-endpoint"></a>**Інструмент ≠ ендпоінт** | MCP-інструмент — це завдання, яке хтось хоче виконати, а не рядок із твого REST API. Три ендпоінти про замовлення — один інструмент [`DECISION.md`](stages/s04_mcp/DECISION.md) |
+| <a id="supervisor"></a>**Supervisor** | An agent whose tools are other agents. No new architecture: the same loop as stage 1, except an agent sits behind the tool name instead of a function |
+| <a id="specialist"></a>**Specialist** | An agent with a narrow tool set and one description of its competence. Narrow is not a limitation but the reason it chooses better than a broad one |
+| <a id="handoff"></a>**Handoff** | The moment the supervisor gives the task to a specialist. **The quietest place to lose access rights:** the specialist receives a task, not the asker |
+| <a id="state-schema"></a>**State schema** | The declared list of what the graph knows about the task. The most expensive decision to change later: adding a field means every node can now rely on it, and none of them will say so. [stage ADR-0002](docs/features/s03-router/adr/0002-state-schema-is-a-declared-contract.md) |
+| <a id="node"></a>**Node** | A step of the graph: the supervisor or a specialist. Lands in `path` and in the trace |
+| <a id="edge"></a>**Edge** | A transition between nodes. In the hand-written graph it is `while` and `if`; in LangGraph, `add_edge` and `add_conditional_edges` |
+| <a id="revision-loop"></a>**Revision loop** | Sending a task back to a specialist after an unsatisfactory answer. **With no counter this is not "a little slower" but an unbounded bill:** the defect that breaks nothing, and is therefore the most expensive |
+| <a id="finish-reason"></a>**Finish reason** | Why the run stopped: `answered`, `no_specialist`, `revision_limit`, `specialist_failed`. A run with no named reason is a run you can say nothing about |
+| <a id="competence"></a>**Competence description** | The text the model reads when choosing a specialist. It matters more than the node's name: `orders` tells the model nothing |
+| <a id="classifier"></a>**Classifier** | A cheap branch choice with no revision loop. The checklist's third verdict, and most often the right one: most systems built as supervisors needed exactly this |
+| <a id="langgraph"></a>**LangGraph** | A library for agent graphs. Here it is the **second** implementation of the same task, so there is something to compare the hand-written one against — not a subject of study |
+| <a id="typed-dict-state"></a>**TypedDict state** | How LangGraph stores state. `state.get("typo")` returns a silent `None` — exactly the flexibility whose price ADR-0002 names. Not a flaw in the library: it cannot know in advance which nodes you will add |
 
 ---
 
-## Етап 5 — Memory
+## Stage 4 — MCP
 
-| Термін | Що це |
+| Term | What it is |
 |---|---|
-| <a id="short-term"></a>**Short-term memory** · короткочасна памʼять | Що сказали **в цій розмові**: дослівний хвіст останніх реплік плюс переказ витісненого. Живе один прогін і не має переживати сесію |
-| <a id="long-term"></a>**Long-term memory** · довготривала памʼять | Що варто знати про співрозмовника **завжди**. Витяг → запис → вибірка; переживає перезапуск. Не знає, про що йшлося три репліки тому — це задача короткочасної |
-| <a id="context-rot"></a>**Context rot** · деградація контексту | Погіршення відповіді від нерелевантного в контексті. **Не помилка** — жодна перевірка не червоніє, жоден лог не скаржиться; відповідь просто стає трохи гіршою, і ще трохи |
-| <a id="selectivity"></a>**Selectivity** · вибірковість | Здатність **не** взяти те, що не потрібне. Головна властивість памʼяті: зберегти факт — двадцять рядків, не дістати решти — власне робота |
-| <a id="fact"></a>**Fact** · факт | Плаский запис: власник, тема, текст, час, TTL, статус. Плаский навмисно — звʼязки між фактами це граф знань, окрема задача з окремою ціною |
-| <a id="topic"></a>**Topic** · тема факту | Про що факт («адреса», «імʼя»). За темою, а не за змістом, визначається суперечність: порівняння змісту — це вже вивід, і воно коштує виклик моделі |
-| <a id="fact-status"></a>**Status** · статус запису | `active` або `replaced`. Замінений лишається у файлі й ніколи не вертається у вибірку — історія заміни сама по собі цінна |
-| <a id="ttl"></a>**TTL** · термін придатності | Скільки факт лишається чинним. Перевіряється **при вибірці**, а не видаленням при записі — видалене неможливо пояснити |
-| <a id="owner-filter"></a>**Owner filter** · фільтр власника | Відбір фактів того, хто питає. Стоїть **до** відбору top-k: після нього чужий факт займає слот, його прибирають — і зникає власна відповідь. Витоку немає; відповіді теж |
-| <a id="extraction"></a>**Extraction** · витяг фактів | Запит до моделі «що з цієї розмови варто памʼятати». Порожній перелік — нормальна відповідь, а не збій |
+| <a id="mcp"></a>**MCP** · Model Context Protocol | The protocol by which a server declares its tools and a client reads and calls them. Not a library and not a framework — an agreement about format |
+| <a id="host"></a>**Host** | Whatever the agent lives inside: your demo, a chat, an IDE. Owns the client |
+| <a id="mcp-client"></a>**Client** | The thing that speaks the protocol. One client per server. **Every decision is here** |
+| <a id="mcp-server"></a>**Server** | A separate process that declares tools and runs them. May belong to somebody else |
+| <a id="list-tools"></a>**`list_tools()`** | The call that makes an integration **discoverable**: the client need not know in advance what the server can do. That, rather than convenience, is what the protocol buys |
+| <a id="tool-resource-prompt"></a>**Tool / Resource / Prompt** | An action / data to read / a prompt template. Confusing them is the commonest MCP mistake: a model does not call a `resource`, and a `prompt` is neither an action nor data |
+| <a id="narration"></a>**Narration** | The text a server writes around the useful content: a summary, a warning, a mention of another tool. Not a flaw in the server but a property of the format, and the parser has to survive it |
+| <a id="failure-phase"></a>**Failure phase** | `startup` (never came up), `call` (went silent), `parse` (answered, no data in it). Three different events, indistinguishable in a traceback and treated differently. Which is why the phase is a field of the result rather than a line in a message |
+| <a id="stdio-transport"></a>**stdio transport** | Exchange over a subprocess's `stdin`/`stdout`. Works offline and without ports; it has no authentication at all |
+| <a id="stateless-mcp"></a>**Stateless specification** | The server is not obliged to remember anything between calls. State travels **explicitly, in the payload** — which is exactly why a call from a trace can be replayed verbatim |
+| <a id="allow-list"></a>**Allow list** | The tools the client is willing to take. The server offers, the client picks from its own list, and anything unknown is **irreversible** by default |
+| <a id="tool-not-endpoint"></a>**A tool is not an endpoint** | An MCP tool is a job somebody wants done, not a row from your REST API. Three endpoints about orders make one tool — [`DECISION.md`](stages/s04_mcp/DECISION.md) |
 
-## Етап 6 — Platform
+---
 
-| Термін | Що це |
+## Stage 5 — Memory
+
+| Term | What it is |
 |---|---|
-| <a id="guard"></a>**Guard** · воротар | Механізм, що вирішує, чи пускати запит далі. Їх три, і вони **різні**: хто ти, скільки разів, за чий рахунок |
-| <a id="rate-limit"></a>**Rate limit** · ліміт частоти | Скільки запитів за вікно дозволено **одному** клієнту. Спільний на сервіс лічильник робить одного клієнта здатним зупинити всіх |
-| <a id="budget-guard"></a>**Budget guard** · бюджетний запобіжник | Зупинка викликів моделі при досягненні межі витрат. Той, що спрацьовує після витрати, називається звітом |
-| <a id="constant-time"></a>**Constant-time comparison** · стале порівняння | Звірка, час якої не залежить від того, наскільки збіглися значення. Звичайне `==` віддає довжину спільного префікса через час відповіді |
-| <a id="health"></a>**Health** · стан | Чи працює сервіс і **кожна** залежність прямо зараз. «Живий» без переліку — відповідь, після якої монітор мовчить, поки не поскаржиться користувач |
-| <a id="metrics"></a>**Metrics** · метрики | Агрегати за період, розділені за родом. Не відповідають на «чому» — на це відповідає трейс |
-| <a id="worker"></a>**Worker** · воркер | Один процес сервісу. Другий воркер робить неправдою будь-який стан у памʼяті процесу — і робить це мовчки |
-| <a id="process-local"></a>**Process-local state** · стан у памʼяті процесу | Лічильник, кеш або розклад, видимий лише своєму процесу. Головна причина трьох різних вад цього етапу |
-| <a id="reverse-proxy"></a>**Reverse proxy** · зворотний проксі | Єдиний вхід перед сервісом: TLS, перенаправлення, заголовки. Сервіс про HTTPS не знає нічого |
-| <a id="smoke"></a>**Smoke** · смоук | Короткий перелік перевірок проти **живого** сервісу з вердиктом. Той самий перелік проти будь-якої адреси |
-| <a id="runbook"></a>**Runbook** | Що робити, коли впало. Пишеться після справжніх поломок, а не з уяви |
-| <a id="migration"></a>**Migration** · міграція | Зміна схеми пари «вперед/назад». Застосовує **один** процес: два, що змінюють схему одночасно, — це зіпсована база |
+| <a id="short-term"></a>**Short-term memory** | What was said **in this conversation**: the verbatim tail of recent turns plus a summary of what fell out. Lives for one run and should not survive the session |
+| <a id="long-term"></a>**Long-term memory** | What is worth knowing about the person **always**. Extract → store → retrieve; survives a restart. Does not know what was said three turns ago — that is short-term memory's job |
+| <a id="context-rot"></a>**Context rot** | The answer degrading because of irrelevant material in the context. **Not an error** — no check goes red, no log complains; the answer simply gets a little worse, and then a little worse again |
+| <a id="selectivity"></a>**Selectivity** | The ability **not** to fetch what is not needed. Memory's main property: storing a fact is twenty lines, leaving the rest out is the actual work |
+| <a id="fact"></a>**Fact** | A flat record: owner, topic, text, time, TTL, status. Flat deliberately — relationships between facts are a knowledge graph, a separate problem with a separate price |
+| <a id="topic"></a>**Topic** | What a fact is about ("address", "name"). Contradiction is decided by topic rather than by content: comparing content is already inference, and it costs a model call |
+| <a id="fact-status"></a>**Status** | `active` or `replaced`. A replaced record stays in the file and never returns to a result — the history of the replacement is valuable in itself |
+| <a id="ttl"></a>**TTL** | How long a fact stays valid. Checked **on retrieval** rather than by deleting on write — you cannot explain something that has been deleted |
+| <a id="owner-filter"></a>**Owner filter** | Selecting the asker's own facts. Sits **before** the top-k: after it, someone else's fact takes a slot, gets removed, and your own answer disappears with it. Nothing leaked; nothing arrived either |
+| <a id="extraction"></a>**Extraction** | Asking the model "what from this conversation is worth remembering". An empty list is a normal answer, not a failure |
 
-## Етап 7 — Voice
+---
 
-| Термін | Що це |
+## Stage 6 — Platform
+
+| Term | What it is |
 |---|---|
-| <a id="ttfa"></a>**Time-to-first-audio** · час до першого звуку | Від кінця репліки до першого звуку відповіді. **Головне число етапу**: у голосі людина чекає мовчки, і загальна тривалість описує роботу системи, а це — паузу в розмові |
-| <a id="batch-pipeline"></a>**Батчевий конвеєр** | Кожен крок чекає повного завершення попереднього. Час до першого звуку дорівнює сумі всіх кроків |
-| <a id="streaming-pipeline"></a>**Стрімінговий конвеєр** | Перший фрагмент іде далі, не чекаючи решти. Роботи стільки ж — інший лише момент першої віддачі |
-| <a id="overlap"></a>**Перекриття** | Робота, що сталася **раніше**, а не швидше: розпізнавання йде разом із мовленням. Масштабується з довжиною репліки |
-| <a id="barge-in"></a>**Barge-in** | Переривання відповіді голосом співрозмовника. Вирішують **дві** умови — рівень і тривалість, — і жодної окремо не досить |
-| <a id="vad"></a>**VAD** · виявлення мовлення | Тут: поріг за рівнем плюс мінімальна тривалість. Спектральний аналіз — інша дисципліна й окрема залежність |
-| <a id="prefetch"></a>**Prefetch** | Ранній виклик інструмента, до того як стало відомо, чи він потрібен. Купує час за **марну роботу**, і обидва числа мають бути видимі |
-| <a id="p95"></a>**p95** | Значення, гірше за яке лише 5 % прогонів. Те, що відчуває користувач. Береться **найближчим рангом** — `ceil(0.95·n)`, а не округленням: округлення дає ранг на одиницю нижче приблизно на половині розмірів вибірки |
-| <a id="handover"></a>**Віддача споживачеві** · handover | Час, коли керування має не конвеєр, а той, хто забирає фрагменти. Окремий доданок розкладу: приписаний наступному кроку, він робить найдорожчим той крок, після якого думав споживач |
-| <a id="conservation"></a>**Закон збереження розкладу** | `сума кроків + віддача + не приписане = загальний час`, і третій доданок дорівнює нулю. Розклад, що не сходиться, гірший за відсутній; той, що сходиться неправильно, — гірший удвічі |
-| <a id="fake-clock"></a>**Підроблений годинник** | Джерело часу, що рухається лише на прохання й **не спить**. Робить перевірки часу детермінованими, а двадцять прогонів поспіль — безкоштовними |
-| <a id="fake-delay"></a>**Підроблена затримка** | Пауза заданої тривалості замість справжньої роботи моделі. Порядок величини реальний, абсолютні числа — ні |
+| <a id="guard-platform"></a>**Guard** | The mechanism deciding whether a request goes further. There are three, and they are **different**: who you are, how often, on whose budget |
+| <a id="rate-limit"></a>**Rate limit** | How many requests per window **one** client may make. A counter shared across the service lets one client stop everybody |
+| <a id="budget-guard"></a>**Budget guard** | Stopping model calls when the spending limit is reached. The one that fires after the spend is called a report |
+| <a id="constant-time"></a>**Constant-time comparison** | A comparison whose duration does not depend on how far the values matched. Plain `==` leaks the length of the shared prefix through response time |
+| <a id="health"></a>**Health** | Whether the service and **each** dependency are working right now. "Alive" with no list is the answer that keeps the monitor quiet until a user complains |
+| <a id="metrics"></a>**Metrics** | Aggregates over a period, separated by kind. They do not answer "why" — the trace does |
+| <a id="worker"></a>**Worker** | One process of the service. A second worker makes any in-process state untrue — and does it silently |
+| <a id="process-local"></a>**Process-local state** | A counter, cache or schedule visible only to its own process. The root of three different defects at this stage |
+| <a id="reverse-proxy"></a>**Reverse proxy** | The single entrance in front of the service: TLS, redirects, headers. The service knows nothing about HTTPS |
+| <a id="smoke"></a>**Smoke** | A short list of checks against a **live** service, with a verdict. The same list against any address |
+| <a id="runbook"></a>**Runbook** | What to do when it breaks. Written from real breakage, not from imagination |
+| <a id="migration"></a>**Migration** | A schema change as an up/down pair. Applied by **one** process: two changing the schema at once is a corrupted database |
 
-## Етап 8 — Evaluation
+---
 
-| Термін | Що це |
+## Stage 7 — Voice
+
+| Term | What it is |
 |---|---|
-| <a id="trajectory"></a>**Trajectory** · траєкторія | Максимальна множина кроків трейсу, що поділяють **ключ прогону**. Який саме ключ — властивість джерела, не оцінювача: етап 1 групує по трейсу, сервіс етапу 6 — по запиту |
-| <a id="eval-levels"></a>**Три рівні оцінювання** | e2e (про останню відповідь), траєкторія (про послідовність кроків), компонент (про один крок). Три **незалежні** вердикти; зведений бал приховав би саме те, заради чого рівнів три |
-| <a id="llm-as-judge"></a>**LLM-as-judge** · суддя-модель | Модель, що виносить вердикт про якість відповіді. **Вимірювальний прилад**, а не істина: оцінювач, який оголошує його вердикт правдою, повірив числу, не спитавши, звідки воно |
-| <a id="deterministic-evaluator"></a>**Детермінований оцінювач** | Оцінювач, що порівнює, а не судить. Його лічильник викликів судді показує **нуль** — і це перевіряється машинно, а не залишається домовленістю |
-| <a id="position-bias"></a>**Position bias** | Залежність вердикта від **порядку подачі**. Виявляється тією самою парою двічі — AB і BA; нічия при цьому окреме значення, бо перехід «перемогла A» → «нічия» теж переворот |
-| <a id="length-bias"></a>**Length bias** | Перевага довшої відповіді без виграшу в змісті. Порогу тут немає **й бути не може**: якщо друга відповідь — це перша плюс зайвий текст, будь-яка перевага є балом за довжину |
-| <a id="mirror-half"></a>**Дзеркальна половина** | Той самий детектор на приладі з відомо справною поведінкою. Без неї знахідка нічого не варта: детектор, що спрацьовує завжди, не відрізняє упередженого суддю від чесного |
-| <a id="not-evaluated"></a>**Не оцінено** · третій стан | Ані пройдено, ані провалено: дивитись не було на що. Набір, який зливає його з провалом, перестає відрізняти зламану систему від обірваного прогону — і робить це на користь зеленого |
-| <a id="blind-spot"></a>**Сліпий вимір** | Перевірка, якої цей трейс не підтримує. **Не** перетворюється на зауваження: інакше сто відсотків трафіку позначено проблемним через те, чого оцінювач не може побачити |
-| <a id="edge-by-observation"></a>**Крайність за спостереженням** | Ознака кейса, виведена з трейсу — відмова, ліміт, невідомий інструмент, порожня видача, — а не з мітки. Самопроголошена мітка задовольняє вимогу перемиканням прапорця |
-| <a id="online-eval"></a>**Online-оцінювання** | Дешеві детерміновані чеки на всьому трафіку, суддя — на частці. **Поза смугою**: жоден крок не стоїть між запитом і відповіддю, і ціна цього названа — запит, що не дійшов до трасувальника, не оцінюється ніяк |
-| <a id="deterministic-sampling"></a>**Детермінований семплінг** | Відбір за хешем ідентифікатора, а не випадковим числом. Той самий потік завжди дає ту саму частку, і її можна **звірити** із заявленою. Детермінізм при цьому не є коректністю: семплер, що завжди каже «так», теж детермінований |
-| <a id="drift"></a>**Drift** · дрейф | Зміна якості в часі. Потребує **збереженої історії**, тож етап друкує числа, з яких дрейф рахують, і зупиняється на цьому |
+| <a id="ttfa"></a>**Time-to-first-audio** | From the end of the user's turn to the first sound of the reply. **The number of this stage**: in voice a person waits in silence, and total duration describes the system's work while this describes the pause in the conversation |
+| <a id="batch-pipeline"></a>**Batch pipeline** | Each step waits for the previous one to finish completely. Time to first audio equals the sum of every step |
+| <a id="streaming-pipeline"></a>**Streaming pipeline** | The first fragment moves on without waiting for the rest. The same amount of work; only the moment of first delivery differs |
+| <a id="overlap-voice"></a>**Overlap** | Work that happened **earlier**, not faster: recognition runs alongside the speech. Scales with the length of the turn |
+| <a id="barge-in"></a>**Barge-in** | Interrupting the reply with the other person's voice. **Two** conditions decide it — level and duration — and neither is sufficient alone |
+| <a id="vad"></a>**VAD** · voice activity detection | Here: a level threshold plus a minimum duration. Spectral analysis is a different discipline and a separate dependency |
+| <a id="prefetch"></a>**Prefetch** | Calling a tool early, before it is known whether it is needed. Buys time with **wasted work**, and both numbers have to be visible |
+| <a id="p95"></a>**p95** | The value only 5 % of runs are worse than. What the user feels. Taken by **nearest rank** — `ceil(0.95·n)`, not rounding: rounding gives a rank one lower on roughly half of all sample sizes |
+| <a id="handover"></a>**Handover** | The time during which control belongs not to the pipeline but to whoever is consuming the fragments. A separate term in the budget: attributed to the next step, it makes the most expensive step the one the consumer happened to think after |
+| <a id="conservation"></a>**Conservation of the time budget** | `sum of steps + handover + unattributed = total`, with the third term equal to zero. A budget that does not add up is worse than none; one that adds up wrongly is worse still |
+| <a id="fake-clock"></a>**Fake clock** | A time source that moves only when asked and **never sleeps**. Makes timing checks deterministic and twenty consecutive runs free |
+| <a id="fake-delay"></a>**Fake delay** | A pause of a set length instead of real model work. The order of magnitude is real; the absolute numbers are not |
 
-## Етап 9 — Frameworks
+---
 
-| Термін | Що це |
+## Stage 8 — Evaluation
+
+| Term | What it is |
 |---|---|
-| <a id="scaffolding"></a>**Риштування** · scaffolding | Фреймворк із погляду цього етапу: прискорює будівництво й нічого не каже про те, що ти будуєш. Обраний до того, як відома форма будівлі, він **стає** формою |
-| <a id="task-contract"></a>**Контракт задачі** | Вхід, інструменти, модель, умова зупинки, форма результату — спільні для всіх реалізацій і **виконувані**. Описаний прозою, він не ловить відхилення, і порівняння починає міряти вправність автора |
-| <a id="explicit-coordination"></a>**Явна координація** | Наступний крок вирішує **код**: увесь порядок видно в одному місці. Коштує рядків |
-| <a id="implicit-coordination"></a>**Неявна координація** | Наступний крок вирішує **текст**, який прочитала модель. Коштує розуміння: причину доводиться реконструювати з описів рівно тоді, коли вона потрібна найгостріше |
-| <a id="my-lines"></a>**Мої рядки** | Виконувані рядки, які написав і супроводжує автор реалізації. Половина аргументу «менше коду» |
-| <a id="invisible-lines"></a>**Невидимі рядки** | Рядки пакета, що **виконались** під час прогону. Друга половина: код нікуди не подівся, він переїхав туди, де його не видно й не можна виправити. Міряється виконанням, не розміром пакета, і **без разового імпорту** |
-| <a id="overhead-tokens"></a>**Токени понад запит** | Різниця між тим, що пішло, і тим, що прописав контракт. Рахується **на межі провайдера**: лічильник усередині реалізації бачить лише те, що вона попросила, тобто саме надбавки й не бачить |
-| <a id="prose-places"></a>**Місць прози** | Скільки іменованих аргументів описують поведінку текстом (`role`, `goal`, `description`…). Ціна відповіді на питання «чому виконався цей крок», виміряна з **джерела**, а не оголошена числом |
-| <a id="baseline-row"></a>**Базова лінія** | Реалізація без жодного фреймворка в тій самій таблиці. Без неї порівняння відповідає на «який із них», а не на «чи потрібен він тут» |
-| <a id="constraint-to-tool"></a>**Обмеження → інструмент** | Форма висновку замість зведеного бала. Ваги обмежень — це думка про те, чиє обмеження важливіше, вбудована в число, яке ніхто не обговорював |
-| <a id="interpreter-constraint"></a>**Обмеження інтерпретатора** | Найгостріше й найдешевше: чи є версія пакета для твого Python. Вирішує вибір **першим** і не показане в жодному блозі, бо всі вони написані там, де все встановилось |
+| <a id="trajectory"></a>**Trajectory** | The maximal set of trace steps sharing a **run key**. Which key that is belongs to the source rather than the evaluator: stage 1 groups by trace, the stage 6 service by request |
+| <a id="eval-levels"></a>**Three levels of evaluation** | e2e (about the final answer), trajectory (about the sequence of steps), component (about one step). Three **independent** verdicts; a combined score would hide exactly what having three levels is for |
+| <a id="llm-as-judge"></a>**LLM-as-judge** | A model that delivers a verdict on the quality of an answer. **A measuring instrument**, not the truth: an evaluator that declares its verdict to be fact has trusted a number without asking where it came from |
+| <a id="deterministic-evaluator"></a>**Deterministic evaluator** | An evaluator that compares rather than judges. Its judge-call counter reads **zero** — and that is checked by machine rather than left as an understanding |
+| <a id="position-bias"></a>**Position bias** | A verdict depending on the **order of presentation**. Detected by running the same pair twice — AB and BA; a tie counts as its own value, because "A won" → "tie" is a flip as well |
+| <a id="length-bias"></a>**Length bias** | Preferring the longer answer with no gain in content. There is no threshold here **and there cannot be**: if the second answer is the first plus extra text, any preference is a point for length |
+| <a id="mirror-half"></a>**Mirror half** | The same detector run against an instrument known to behave correctly. Without it the finding is worthless: a detector that always fires cannot tell a biased judge from an honest one |
+| <a id="not-evaluated"></a>**Unscored** · the third state | Neither passed nor failed: there was nothing to look at. A suite that merges it into failure stops distinguishing a broken system from an interrupted run — and does so in favour of green |
+| <a id="blind-spot"></a>**Blind measurement** | A check this trace does not support. It does **not** turn into a finding: otherwise a hundred percent of traffic is flagged as problematic because of something the evaluator cannot see |
+| <a id="edge-by-observation"></a>**Edge case by observation** | A case's property derived from the trace — a refusal, a limit, an unknown tool, an empty result — rather than from a label. A self-declared label satisfies the requirement by flipping a flag |
+| <a id="online-eval"></a>**Online evaluation** | Cheap deterministic checks over all traffic, the judge over a fraction. **Out of band**: no step stands between the request and the response, and the price of that is named — a request that never reached the tracer is not evaluated at all |
+| <a id="deterministic-sampling"></a>**Deterministic sampling** | Selection by a hash of the identifier rather than a random number. The same stream always yields the same fraction, and it can be **checked** against the declared one. Determinism is not correctness, though: a sampler that always says yes is deterministic too |
+| <a id="drift"></a>**Drift** | Quality changing over time. Needs **stored history**, so the stage prints the numbers drift is computed from and stops there |
 
-## Етап 10 — Capstone
+---
 
-| Термін | Що це |
+## Stage 9 — Frameworks
+
+| Term | What it is |
 |---|---|
-| <a id="assembly"></a>**Складання** · assembly | Те, що міряє цей етап. Не сервіс і не його відповіді, а **стик**: скільки з кожної частини справді працює і скільки коштувало зшити їх докупи |
-| <a id="imports-vs-uses"></a>**«Імпортує» ≠ «використовує»** | Головна теза етапу, заміряна на власному коді: етап 6 імпортує етап 2 і виконує з нього **нуль** рядків. У переліку імпортів етап присутній; у роботі його немає, і перелік це ховає |
-| <a id="executed-stage-lines"></a>**Виконані рядки етапу** | Доказ замість переліку імпортів: рядки етапу, що **виконались** на запит, згруповані за текою. Інструмент береться з етапу 9 разом із його межами — число описує цей запит і цей потік |
-| <a id="instrument-measuring-itself"></a>**Прилад міряє сам себе** | Етап 9 стояв серед частин і давав рівно одиницю: вимикання трасування у `finally` його ж лічильника. «Міряє» — не те саме, що «використовує», і різниця точно така сама, як між «імпортує» й «використовує». Ловиться прогоном на **порожній роботі** |
-| <a id="declared-part"></a>**Оголошена частина** | Етап, названий частиною складання. Мусить дати ненульове число, інакше червонить набір **із власним іменем**. Етап, свідомо не ввімкнений, стоїть в окремому переліку з причиною: нуль для нього — рішення, а не помилка |
-| <a id="seam"></a>**Шов** · seam | Стик, на якому дві частини не зійшлися, з назвою обох і причиною. Два різні класи `Answer` — не помилка жодного з етапів поодинці; помилка з'являється рівно тоді, коли їх ставлять поруч |
-| <a id="adapter"></a>**Перехідник** · adapter | Код, що існує **тільки** заради шва: перекладає форму й **не вирішує**. Той, що вирішує, є частиною, і їй місце в етапі — з уроком і перевірками |
-| <a id="price-of-assembly"></a>**Ціна складання** | Два числа в **одній одиниці**: виконані рядки перехідників проти виконаних рядків етапів. Порахувати ціну статично означало б поставити «є в коді» проти «працює». Одне число без другого нічого не означає; межа жанру — п'ята частина |
-| <a id="written-versus-executed"></a>**Написано проти виконано** | Різниця, яка не є похибкою: `build_search` має три написані рядки й нуль виконаних, бо працює на старті сервісу, а не на запиті |
-| <a id="mismatch-goes-into-adapter"></a>**Невідповідність іде в перехідник** | Правило, найлегше порушуване: частина, яку довелося змінити, спростовує тезу «частини були зрілі», а зміна зачіпає ще й урок, перевірки, тег і статтю того етапу. Потреба в правці йде **у звіт**, з назвою етапу |
-| <a id="verified-justification"></a>**Перевірене обґрунтування** | `ARCHITECTURE.md` розбирається кодом: етап існує, названий ADR існує. Межа названа прямо — стверджується, що джерело **існує**, а не що воно містить саме це рішення |
-| <a id="unparsed-row"></a>**Нерозібраний рядок** | Рядок таблиці, якого розбирач не зрозумів, — **вада, а не тиша**. Пропущений рядок не відрізняється від відсутнього, і биле посилання зникало разом із ним |
-| <a id="agreed-by-shape"></a>**Домовлені формою, а не іменем** | `Reply` навмисно не зветься `Answer`, але контракту застосунку етапу 6 задовольняє повністю — і саме тому другий деплой коштував нуль перехідників |
-| <a id="what-assembly-revealed"></a>**Що складання виявило** | Розділ звіту, порожнеча якого була б найпідозрілішим результатом етапу. Дев'ять незалежно спроєктованих модулів не стикуються ідеально, і звіт, який каже інакше, звітує не про складання |
-| <a id="warmup"></a>**Прогрів** | Виклик роботи **до** виміру. Без нього в ціну одного запиту їдуть рядки, що трапляються раз на процес: тіла лениво імпортованих модулів. Заміряно у свіжому процесі: 234 проти 166 — сорок один відсоток зайвого, і весь у бік «складання дороге» |
-| <a id="final-state"></a>**Фінальний стан** | Четверте, що звіряє сценарій, після гілки, складу частин і покликаних інструментів: що лишилось у пам'яті. Курс двічі ловив правильну відповідь, отриману хибним шляхом, — і обидва рази текст був бездоганний |
+| <a id="scaffolding"></a>**Scaffolding** | A framework from this stage's point of view: it speeds up construction and says nothing about what you are constructing. Chosen before the shape of the building is known, it **becomes** the shape |
+| <a id="task-contract"></a>**Task contract** | Input, tools, model, stopping condition, result shape — shared by every implementation and **executable**. Written as prose it catches no deviation, and the comparison starts measuring the author's diligence |
+| <a id="explicit-coordination"></a>**Explicit coordination** | **Code** decides the next step: the whole order is visible in one place. Costs lines |
+| <a id="implicit-coordination"></a>**Implicit coordination** | **Text the model read** decides the next step. Costs understanding: the reason has to be reconstructed from descriptions exactly when it is needed most |
+| <a id="my-lines"></a>**My lines** | Executable lines the implementation's author wrote and maintains. Half of the "less code" argument |
+| <a id="invisible-lines"></a>**Invisible lines** | Lines of the package that **executed** during the run. The other half: the code did not go away, it moved somewhere you cannot see it and cannot fix it. Measured by execution rather than package size, and **without the one-off import** |
+| <a id="overhead-tokens"></a>**Tokens above the request** | The difference between what went out and what the contract specified. Counted **at the provider boundary**: a counter inside the implementation sees only what that implementation asked for, which is precisely what misses the overhead |
+| <a id="prose-places"></a>**Prose places** | How many named arguments describe behaviour as text (`role`, `goal`, `description`…). The price of answering "why did this step run", measured **from the source** rather than declared as a number |
+| <a id="baseline-row"></a>**Baseline** | An implementation with no framework at all, in the same table. Without it the comparison answers "which one" rather than "is one needed here" |
+| <a id="constraint-to-tool"></a>**Constraint → tool** | The shape of the conclusion, instead of a combined score. Weights on constraints are an opinion about whose constraint matters more, baked into a number nobody agreed on |
+| <a id="interpreter-constraint"></a>**Interpreter constraint** | The sharpest and cheapest one: whether a version of the package exists for your Python. It decides the choice **first**, and no blog post shows it, because every one of them is written where the install worked |
 
-## Далі
+---
 
-Курс закінчено. Що зібралось погано — у розділі «що складання виявило»
+## Stage 10 — Capstone
+
+| Term | What it is |
+|---|---|
+| <a id="assembly"></a>**Assembly** | What this stage measures. Not the service and not its answers, but the **joint**: how much of each part actually works and what it cost to stitch them together |
+| <a id="imports-vs-uses"></a>**"Imports" ≠ "uses"** | The stage's thesis, measured on its own code: stage 6 imports stage 2 and executes **zero** of its lines. In the import list the stage is present; in the work it is not, and the list hides that |
+| <a id="executed-stage-lines"></a>**Executed stage lines** | Proof instead of an import list: the lines of a stage that **executed** on a request, grouped by directory. The instrument comes from stage 9 together with its limits — the number describes this request and this thread |
+| <a id="instrument-measuring-itself"></a>**The instrument measuring itself** | Stage 9 sat among the parts and reported exactly one line: tracing being switched off in its own counter's `finally`. "Measures" is not "uses", and the distance is the same as between "imports" and "uses". Caught by running the measurement over **empty work** |
+| <a id="declared-part"></a>**Declared part** | A stage named as part of the assembly. It must produce a non-zero number or it reddens the suite **by its own name**. A stage deliberately not wired sits in a separate list with a reason: zero for it is a decision, not a defect |
+| <a id="seam"></a>**Seam** | A joint where two parts did not meet, naming both and the reason. Two different `Answer` classes are not a mistake by either stage alone; the mistake appears exactly when they stand next to each other |
+| <a id="capstone-adapter"></a>**Adapter** | Code that exists **only** for a seam: it translates shape and **does not decide**. Whatever decides is a part, and a part belongs in a stage — with a lesson and checks |
+| <a id="price-of-assembly"></a>**Price of assembly** | Two numbers in **one unit**: executed adapter lines against executed stage lines. Counting the price statically would set "is in the code" against "runs". One number without the other means nothing; the genre's limit is a fifth |
+| <a id="written-versus-executed"></a>**Written against executed** | A difference that is not an error: `build_search` has three written lines and zero executed, because it runs at startup rather than per request |
+| <a id="mismatch-goes-into-adapter"></a>**A mismatch goes into an adapter** | The rule that is easiest to break: a part you had to change disproves "the parts were mature", and the change reaches that stage's lesson, checks, tag and article too. The need for the edit goes **into the report**, naming the stage |
+| <a id="verified-justification"></a>**Verified justification** | `ARCHITECTURE.md` is parsed by code: the stage exists, the named ADR exists. The limit is stated out loud — it asserts the source **exists**, not that it contains this particular decision |
+| <a id="unparsed-row"></a>**Unparsed row** | A table row the parser could not read is a **defect, not silence**. A skipped row is indistinguishable from an absent one, and the dangling citation vanished along with it |
+| <a id="agreed-by-shape"></a>**Agreed by shape, not by name** | `Reply` deliberately is not called `Answer`, yet it satisfies the stage 6 application's contract completely — which is why the second deploy cost no adapters at all |
+| <a id="what-assembly-revealed"></a>**What assembly revealed** | The section of the report whose emptiness would be the most suspicious possible outcome. Nine independently designed modules do not join perfectly, and a report saying otherwise is reporting on something other than the assembly |
+| <a id="warmup"></a>**Warm-up** | Running the work **before** measuring it. Without it, the price of one request carries lines that happen once per process: the bodies of lazily imported modules. Measured in a fresh process: 234 against 166 — forty-one percent of overstatement, all of it in the direction of "assembly is expensive" |
+| <a id="final-state"></a>**Final state** | The fourth thing a scenario checks, after the branch, the parts that took part and the tools called: what is left in memory. The course twice caught a correct answer reached the wrong way — and both times the text was flawless |
+
+---
+
+## After this
+
+The course is finished. What joined badly is in the "what assembly revealed" section of
 [`stages/s10_capstone/ARCHITECTURE.md`](stages/s10_capstone/ARCHITECTURE.md).
