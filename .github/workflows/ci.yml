@@ -111,16 +111,12 @@ jobs:
         run: python scripts/migrate.py up
 
       # Той самий набір, але тепер порівняння двох реалізацій графа справді відбувається.
-      - name: Checks
-        run: python scripts/check_all.py
-
-      # check_all.py друкує рядки «НЕ ПЕРЕВІРЕНО» і для зелених модулів — саме заради
-      # цього кроку. Поки він цього не робив, grep промахувався завжди, і правило
-      # виглядало як правило, нічого не перевіряючи (ADR-0007).
-      - name: Nothing may stay unverified here
-        run: |
-          python scripts/check_all.py 2>&1 | tee checks.log
-          if grep -q "НЕ ПЕРЕВІРЕНО" checks.log; then
-            echo "::error::З установленими extras жодна перевірка не має лишатись невиконаною"
-            exit 1
-          fi
+      #
+      # `--strict-unverified` compares the third states of this run against the register
+      # in scripts/check_all.py. A blunt grep for the marker cannot work here: two of
+      # stage 10's checks stay third-state for ever - a run against a real HTTPS domain
+      # needs a live machine, not a package - so the gate would be unsatisfiable and was.
+      # The register names what may stay silent and why; anything else, in either
+      # direction, fails the build. See docs/adr/0009.
+      - name: Checks, and nothing unverified beyond the register
+        run: python scripts/check_all.py --strict-unverified

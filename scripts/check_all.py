@@ -126,6 +126,81 @@ def _echo_unverified(output: str) -> None:
             print(f"{YELLOW}{line.rstrip()}{OFF}")
 
 
+# Перевірки, яким дозволено лишатись третім станом у повному оточенні, і причина
+# кожної. Порожній словник означав би «третіх станів не буває» — а вони бувають, і
+# частина з них не закривається ніколи: прогін проти справжнього HTTPS-домену потребує
+# живої машини, а не пакета.
+#
+# Числа сюди КОПІЮЮТЬСЯ З ПРОГОНУ, як `expect_failed` у mutations.json. Руками писати
+# їх не можна: запис, вигаданий з голови, стверджує про перевірку, якої ніхто не бачив.
+#
+# Ключ — модуль, значення — {назва перевірки: причина}. Розбіжність в БУДЬ-ЯКИЙ бік
+# валить збірку. Зайвий третій стан — регрес. Запис, який більше не збігається, —
+# теж: перевірка почала проходити, а реєстр досі обіцяє, що вона мовчить.
+#
+# Реєстр описує ОДНЕ оточення — те, що піднімає робота `optional-extras`: її extras,
+# її сервіси, її інтерпретатор. На іншій машині набір буде інший, і це не помилка:
+# перевірка, чиє число зміряне на 3.14, мовчить на 3.13 і навпаки. Тому `--strict-
+# unverified` призначений для тієї роботи, а не для щоденного локального прогону —
+# і саме тому скарга друкує готовий блок, а не просто «не збіглося».
+ALLOWED_UNVERIFIED: dict[str, dict[str, str]] = {}
+
+_UNVERIFIED_HEAD = re.compile(r"\d+ перевірок пройшли, \d+ НЕ ПЕРЕВІРЕНО:")
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def unverified_names(output: str) -> list[str]:
+    """Назви перевірок, що лишились третім станом, із підсумкового блоку модуля.
+
+    Береться саме підсумок, а не рядки по ходу прогону: у підсумку назва чиста, а по
+    ходу до неї дописано причину в дужках, і причина змінюється з оточенням. Ключ, що
+    залежить від оточення, зробив би реєстр нестабільним рівно там, де він потрібен.
+    """
+    names: list[str] = []
+    collecting = False
+    for raw in output.splitlines():
+        line = _ANSI.sub("", raw).rstrip()
+        if _UNVERIFIED_HEAD.search(line):
+            collecting = True
+            continue
+        if not collecting:
+            continue
+        stripped = line.strip()
+        if stripped.startswith("—"):
+            names.append(stripped.lstrip("—").strip())
+        elif stripped:
+            break
+    return names
+
+
+def compare_unverified(actual: dict[str, list[str]]) -> str | None:
+    """Звірити третій стан із реєстром. Повертає скаргу або None, якщо збіглося."""
+    lines: list[str] = []
+    for module in sorted(set(actual) | set(ALLOWED_UNVERIFIED)):
+        allowed = ALLOWED_UNVERIFIED.get(module, {})
+        seen = set(actual.get(module, []))
+        for name in sorted(seen - set(allowed)):
+            lines.append(f"  ЗАЙВИЙ  {module} · {name}")
+        for name in sorted(set(allowed) - seen):
+            lines.append(f"  ЗАСТАРІЛИЙ  {module} · {name}")
+    if not lines:
+        return None
+
+    block = ["", f"{RED}{BOLD}третій стан розійшовся з реєстром{OFF}", *lines, ""]
+    block.append("Готовий до вставки блок за цим прогоном — причину впиши сам:")
+    block.append("ALLOWED_UNVERIFIED = {")
+    for module in sorted(actual):
+        if not actual[module]:
+            continue
+        block.append(f'    "{module}": {{')
+        for name in actual[module]:
+            was = ALLOWED_UNVERIFIED.get(module, {}).get(name, "<причина>")
+            block.append(f'        "{name}": "{was}",')
+        block.append("    },")
+    block.append("}")
+    return "\n".join(block)
+
+
 def lint() -> tuple[bool, str]:
     """Лінт і формат — тими самими командами, що у CI.
 
@@ -159,7 +234,8 @@ def lint() -> tuple[bool, str]:
 
 
 def main(argv: list[str]) -> int:
-    modules = discover(argv)
+    strict = "--strict-unverified" in argv
+    modules = discover([arg for arg in argv if arg != "--strict-unverified"])
     if not modules:
         print(f"{YELLOW}перевірок не знайдено{OFF}")
         print("очікувались shared/check.py і stages/s*_*/check.py")
@@ -176,6 +252,7 @@ def main(argv: list[str]) -> int:
     failed: list[tuple[str, str]] = []
     skipped: list[tuple[str, str]] = []
     unverified: list[str] = []
+    third_states: dict[str, list[str]] = {}
     total = 0.0
     for module in modules:
         ok, took, output = run_one(module)
@@ -203,6 +280,7 @@ BUDGET_SECONDS свідомо — і онови число в NFR тим сам�
             failed.append((module, output))
         elif "НЕ ПЕРЕВІРЕНО" in output:
             unverified.append(output)
+            third_states[module] = unverified_names(output)
 
     print()
     if failed or not clean:
@@ -221,6 +299,12 @@ BUDGET_SECONDS свідомо — і онови число в NFR тим сам�
     if skipped:
         names = ", ".join(f"{module} (немає {package})" for module, package in skipped)
         print(f"{YELLOW}{BOLD}НЕ ПЕРЕВІРЕНО: {names}{OFF}")
+
+    if strict:
+        complaint = compare_unverified(third_states)
+        if complaint:
+            print(complaint)
+            return 1
 
     green = len(modules) - len(skipped)
     print(f"{GREEN}{BOLD}усе зелене{OFF} {DIM}({green} модул(ів), {total:.2f} s){OFF}")
