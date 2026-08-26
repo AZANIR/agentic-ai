@@ -865,13 +865,13 @@ def check_the_lesson_numbers_match_the_suite() -> None:
         assert f"{len(CHECKS)} " in page, f"кількість перевірок ({len(CHECKS)}) не названа"
         assert f"{failures} " in page, f"кількість режимів відмови ({failures}) не названа"
     flat = re.sub(r"\s+", " ", checklist)
-    assert f"перевірок: {len(CHECKS)}, з них на режими відмови: {failures}" in flat, (
+    assert f"{len(CHECKS)} checks, {failures} of them on failure modes" in flat, (
         "чекліст називає інші числа, ніж дає набір"
     )
-    assert f"| Кейсів у наборі / з них крайніх | {len(CASES)} / {edge} |" in lesson, (
+    assert f"| Cases in the set / edge among them | {len(CASES)} / {edge} |" in lesson, (
         f"склад набору у прозі не збігається з набором: {len(CASES)} / {edge}"
     )
-    assert f"| Мутацій у вправах | {len(pinned)} |" in lesson, len(pinned)
+    assert f"| Mutations in the exercises | {len(pinned)} |" in lesson, len(pinned)
 
     # ГОЛОВНІ числа етапу — теж вимір. Без цього доказ лишався єдиним місцем уроку, де
     # числа набрані руками, попри власну доктрину «обчислені, а не написані».
@@ -907,7 +907,7 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
     for name in IMPLEMENTATION:
         require_intact_source(name)
         lines = _executable_lines(name)
-        assert f"`{lines} із {LINE_BUDGET}`" in lesson, (
+        assert f"`{lines} of {LINE_BUDGET}`" in lesson, (
             f"{name} має {lines} виконуваних рядків — урок називає інше число"
         )
         assert f"| {lines} |" in english, f"{name}: карта називає інший розмір, ніж {lines}"
@@ -923,8 +923,8 @@ def check_the_exercises_match_the_pinned_mutations() -> None:
     for mutation in pinned:
         number = int(mutation["name"].split()[1])
         expected = mutation["expect_failed"]
-        assert f"## Вправа {number} ·" in text_of, f"вправи {number} немає в прозі"
-        assert f"**Червоних: {expected}.**" in text_of, number
+        assert f"## Exercise {number} ·" in text_of, f"вправи {number} немає в прозі"
+        assert f"**Red: {expected}.**" in text_of, number
         assert mutation["file"] in text_of, f"вправа {number}: файл не названо"
         for side in ("old", "new"):
             for line in mutation[side].split(NEWLINE):
@@ -933,7 +933,7 @@ def check_the_exercises_match_the_pinned_mutations() -> None:
                     "побачить, ЩО саме міняти"
                 )
 
-    assert text_of.count("## Вправа") == len(pinned), len(pinned)
+    assert text_of.count("## Exercise") == len(pinned), len(pinned)
 
 
 def check_every_reader_file_exists() -> None:

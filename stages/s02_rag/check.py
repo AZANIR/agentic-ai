@@ -344,11 +344,8 @@ def check_lesson_numbers_match_the_suite() -> None:
     """FAILURE · урок: числа в прозі збігаються з тим, що друкує команда"""
     total, failures = len(CHECKS), sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
     here = Path(__file__).parent
-    for name, sentence in (
-        ("README.md", f"{total} перевірок, {failures} із них на режими відмови"),
-        ("CHECKLIST.md", f"{total} зелених перевірок, {failures} із них на режими відмови"),
-        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
-    ):
+    sentence = f"{total} checks, {failures} of them on failure modes"
+    for name in ("README.md", "CHECKLIST.md"):
         page = (here / name).read_text(encoding="utf-8")
         assert sentence in page, (
             f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "

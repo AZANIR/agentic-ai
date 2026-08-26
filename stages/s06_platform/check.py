@@ -386,11 +386,22 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Правки етапу 5 після його теґа, кожна — з ADR, який її ухвалив. Порожній словник
 # означає «жодної»; запис означає рішення, а не виняток.
+ENGLISH_MOVE = "docs/adr/0008-english-is-the-only-language-in-the-repository.md"
+
 RECORDED_EDITS: dict[str, str] = {
     # Переклад репозиторію англійською: маркер `ВІДМОВА ·` став `FAILURE ·` в один прохід,
     # бо його читають `check_runner`, перевірки покриття кожного етапу й `article_check`.
     # Тексту стало інакше, поведінки — ні.
-    "stages/s05_memory/check.py": "docs/adr/0008-english-is-the-only-language-in-the-repository.md",
+    "stages/s05_memory/check.py": ENGLISH_MOVE,
+    # Той самий переїзд, друга хвиля: урок етапу 5 та його супутні документи. `decision.py`
+    # тут не виняток, а наслідок — DECISION.md звіряється з рядками правил дослівно, тож
+    # проза не може стати англійською, поки правила лишаються українськими.
+    "stages/s05_memory/README.md": ENGLISH_MOVE,
+    "stages/s05_memory/CHECKLIST.md": ENGLISH_MOVE,
+    "stages/s05_memory/DECISION.md": ENGLISH_MOVE,
+    "stages/s05_memory/exercises.md": ENGLISH_MOVE,
+    "stages/s05_memory/solutions/README.md": ENGLISH_MOVE,
+    "stages/s05_memory/decision.py": ENGLISH_MOVE,
 }
 
 
@@ -1542,11 +1553,8 @@ def check_the_lesson_numbers_match_the_suite() -> None:
     total = len(CHECKS)
     failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
     here = Path(__file__).parent
-    for name, sentence in (
-        ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("CHECKLIST.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
-    ):
+    sentence = f"{total} checks, {failures} of them on failure modes"
+    for name in ("README.md", "CHECKLIST.md", "README.en.md"):
         page = (here / name).read_text(encoding="utf-8")
         assert sentence in page, (
             f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
@@ -1563,7 +1571,7 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
     for module, budget in (("app", 120), ("guards", 100)):
         require_intact_source(f"{module}.py")
         lines = _executable_lines(f"{module}.py")
-        assert f"`{module}.py` — {lines} із {budget}" in lesson, (
+        assert f"`{module}.py` — {lines} of {budget}" in lesson, (
             f"{module}.py має {lines} виконуваних рядків — урок називає інше число"
         )
         assert f"| {lines} / {budget} |" in english, f"README.en.md відстав: {module}"
@@ -1577,8 +1585,8 @@ def check_the_exercises_are_generated_from_the_pinned_mutations() -> None:
 
     for mutation in pinned:
         number = int(mutation["name"].split()[1])
-        assert f"## Вправа {number} ·" in text_of, f"вправи {number} немає в прозі"
-        assert f"**Червоних: {mutation['expect_failed']}.**" in text_of, (
+        assert f"## Exercise {number} ·" in text_of, f"вправи {number} немає в прозі"
+        assert f"**Reds: {mutation['expect_failed']}.**" in text_of, (
             f"вправа {number}: у прозі не {mutation['expect_failed']} червоних — проза "
             "розійшлася з тим, що закріплено"
         )
@@ -1593,8 +1601,8 @@ def check_the_exercises_are_generated_from_the_pinned_mutations() -> None:
                     f"ЩО саме міняти"
                 )
 
-    assert text_of.count("## Вправа") == len(pinned), (
-        f"вправ у прозі {text_of.count(chr(35) * 2 + ' Вправа')}, мутацій {len(pinned)}"
+    assert text_of.count("## Exercise") == len(pinned), (
+        f"вправ у прозі {text_of.count(chr(35) * 2 + ' Exercise')}, мутацій {len(pinned)}"
     )
 
 

@@ -27,10 +27,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 
-DECISIONS = "## Рішення й джерела"
-OWN = "## Власні рішення капстоуна"
-REVEALED = "## Що складання виявило"
-WRAP = "## Обвіс і його походження"
+DECISIONS = "## Decisions and their sources"
+OWN = "## The capstone's own decisions"
+REVEALED = "## What assembly revealed"
+WRAP = "## Operational wrapping and where it came from"
 
 # Рядок таблиці: `| рішення | джерело |`. Джерело — `sNN` і, за потреби, `ADR-NNNN`.
 ROW = re.compile(r"^\| (?P<what>[^|]+?) \| (?P<source>[^|]+?) \|$")
@@ -49,8 +49,8 @@ class Justification:
 def _section(text: str, title: str) -> str:
     """Тіло розділу до наступного заголовка того ж рівня.
 
-    Заголовок шукається **рядком цілком**. Пошук підрядком ловив би `### Рішення й джерела
-    (чернетка)` як початок розділу другого рівня — і таблиця нижче зникала б із розбору
+    Заголовок шукається **рядком цілком**. Пошук підрядком ловив би `### Decisions and their
+    sources (draft)` як початок розділу другого рівня — і таблиця нижче зникала б із розбору
     мовчки, лишаючи `dangling()` порожнім.
     """
     padded = "\n" + text
@@ -67,7 +67,7 @@ def _table_lines(body: str) -> list[str]:
 
 def _is_header(what: str) -> bool:
     """Заголовок таблиці або роздільник — не рішення."""
-    return set(what) <= {"-"} or what in ("Рішення", "Що", "Пункт")
+    return set(what) <= {"-"} or what in ("Decision", "What", "Item")
 
 
 def _rows(body: str) -> list[tuple[str, str]]:

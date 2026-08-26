@@ -407,14 +407,14 @@ def check_a_dangling_citation_reddens_and_is_named() -> None:
 def check_every_wrap_item_names_its_source_stage() -> None:
     """обвіс: кожен пункт називає етап-джерело (AC-07b)"""
     text = arch.read()
-    body = text.split("## Обвіс і його походження", 1)[1].split(NEWLINE + "## ", 1)[0]
+    body = text.split(arch.WRAP, 1)[1].split(NEWLINE + "## ", 1)[0]
     for wanted in (
-        "Автентифікація",
-        "Ліміт частоти",
-        "Бюджетний",
-        "Метрики",
-        "Трасування",
-        "копія",
+        "authentication",
+        "rate limit",
+        "budget guard",
+        "Metrics",
+        "tracing",
+        "backup",
     ):
         assert wanted in body, f"в обвісі немає пункту {wanted!r}"
     rows = [line for line in body.split(NEWLINE) if line.strip().startswith("|")]
@@ -514,7 +514,7 @@ def check_latency_numbers_are_printed_with_their_conditions() -> None:
 
     # І урок повторює ті самі умови: читач, який не запускав демо, мусить їх бачити.
     lesson = (HERE / "README.md").read_text(encoding="utf-8")
-    for condition in ("підроблен", "локальн", "запит"):
+    for condition in ("fake", "local", "request"):
         assert condition in lesson.lower(), f"урок не називає умову {condition!r}"
 
 
@@ -632,14 +632,14 @@ def check_the_lesson_numbers_come_from_the_run() -> None:
     # написаний `arch.py`. Будь-який рядок, доданий в етапи 1–8, зсуває їх, і саме тут
     # це має почервоніти, а не через рік у читача.
     for label, value in (
-        ("Виконано рядків етапів на прогін", got.worked),
-        ("Рядків перехідників, що виконались", got.adapters),
-        ("Рядків перехідників написано", got.written),
-        ("Частин, що виконуються", len(assemble.PARTS)),
-        ("Свідомо не ввімкнено", len(assemble.NOT_WIRED)),
-        ("Швів названо", len(seams.SEAMS)),
-        ("Сценаріїв", len(scenarios.SCENARIOS)),
-        ("Перевірок", len(CHECKS)),
+        ("Stage lines executed per run", got.worked),
+        ("Adapter lines that executed", got.adapters),
+        ("Adapter lines written", got.written),
+        ("Parts that execute", len(assemble.PARTS)),
+        ("Deliberately not wired", len(assemble.NOT_WIRED)),
+        ("Seams named", len(seams.SEAMS)),
+        ("Scenarios", len(scenarios.SCENARIOS)),
+        ("Checks", len(CHECKS)),
     ):
         row = f"| {label} | {value} |"
         assert row in lesson, f"урок не містить рядка {row!r} — число розійшлося з виміром"

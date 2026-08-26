@@ -209,11 +209,11 @@ history is valuable, and you cannot explain something that has been deleted.
 ## Part 5. What to break
 
 ```bash
-python scripts/mutate.py s05          # all nine mutations
+python scripts/mutate.py s05          # all eleven mutations
 python scripts/mutate.py s05 --expect # and check them against the promised numbers
 ```
 
-Nine exercises in [`exercises.md`](exercises.md). The two most interesting break the code so that
+Eleven exercises in [`exercises.md`](exercises.md). The two most interesting break the code so that
 it **works and stays wrong**: the owner filter after the selection (the answer quietly
 disappears) and rewriting the summary instead of accumulating it (no error whatsoever).
 

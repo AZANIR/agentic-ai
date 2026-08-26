@@ -1,46 +1,46 @@
-# Вправи — етап 3
+# Exercises — stage 3
 
-Роби після того, як прочитав [урок](README.md) і запустив демо.
+Do these after you have read the [lesson](README.md) and run the demo.
 
-**Правило одне: спершу зламай, потім подивись, потім поверни назад.**
+**One rule: break it first, then look, then put it back.**
 
 ```bash
 git checkout stages/s03_router/
 ```
 
-> **Пастка середовища.** Якщо правиш число на число тієї ж довжини й повертаєш назад **за ту
-> саму секунду**, Python може взяти старий `.pyc`. Побачив «впала перевірка, хоча я вже все
-> повернув» — почисти кеш:
+> **An environment trap.** If you replace a number with a number of the same length and put it
+> back **within the same second**, Python may pick up the stale `.pyc`. Seeing "a check failed
+> even though I already reverted everything"? Clear the cache:
 > ```bash
 > find . -name __pycache__ -type d -not -path "./.venv/*" -exec rm -rf {} +
 > ```
 
-Числа нижче **виміряні**, а не вгадані, і закріплені машинно:
+The numbers below are **measured**, not guessed, and pinned by machine:
 
 ```bash
 python scripts/mutate.py s03 --expect
 ```
 
-Скрипт накладає кожну мутацію з цієї сторінки, рахує червоні перевірки й падає, якщо
-число розійшлося з обіцяним тут. Він існує тому, що перша редакція цієї сторінки обіцяла
-«дев'ять червоних» у вправі 3, а насправді їх три: мутацію було виміряно на коді, який не
-компілювався, і дев'ять червоних приходили від зламаного спеціаліста.
+The script applies every mutation on this page, counts the red checks, and fails if the number
+disagrees with what is promised here. It exists because the first edition of this page promised
+"nine red" in exercise 3 when in fact there are three: the mutation had been measured against
+code that did not compile, and the nine red came from a broken specialist.
 
-Заміри зроблено **зі встановленим LangGraph**; без нього вправи 1 і 2 дають на одну
-червону менше — та перевірка позначається `НЕ ПЕРЕВІРЕНО`, а не проходить.
+The measurements were taken **with LangGraph installed**; without it, exercises 1 and 2 produce
+one red fewer — that check is marked `НЕ ПЕРЕВІРЕНО` rather than passing.
 
 ---
 
-## Вправа 1 — Хай граф вірить моделі на слово
+## Exercise 1 — Let the graph take the model at its word
 
-**Складність:** легко · **Час:** 10 хв
+**Difficulty:** easy · **Time:** 10 min
 
-У [`graph.py`](graph.py) заміни `if choice not in SPECIALISTS:` на `if False:`.
+In [`graph.py`](graph.py) replace `if choice not in SPECIALISTS:` with `if False:`.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-Червоніють **п'ять** перевірок (чотири, якщо LangGraph не встановлено):
+**Five** checks go red (four if LangGraph is not installed):
 
 ```
 FAILURE · graph: вигадана моделлю назва вузла не стає маршрутом
@@ -50,67 +50,67 @@ e2e · демо проходить офлайн, показує п'ять сце
 МЕЖА · langgraph: ті самі маршрути
 ```
 
-Перша очевидна. Решта — ні, і в них уся суть: без звірки граф намагається взяти
-`SPECIALISTS["weather"]`, отримує `KeyError`, і прогін **не завершується взагалі**. Ламається
-не той сценарій, який ти зламав, а **інваріант**: «кожен прогін закінчується названою
-причиною».
+The first is obvious. The rest are not, and the whole point is in them: without the validation
+the graph tries to take `SPECIALISTS["weather"]`, gets a `KeyError`, and the run **does not
+finish at all**. What broke is not the scenario you broke but an **invariant**: "every run ends
+with a named reason".
 
-Перевірки на інваріанти ловлять те, чого ти не шукав. Саме тому їхню цінність не видно, поки
-вони не спрацюють.
+Checks on invariants catch what you were not looking for. Which is exactly why their value is
+invisible until they fire.
 </details>
 
 ---
 
-## Вправа 2 — Зніми ліміт ревізій
+## Exercise 2 — Remove the revision limit
 
-**Складність:** легко · **Час:** 10 хв · **Почни з неї**
+**Difficulty:** easy · **Time:** 10 min · **Start with this one**
 
-У [`graph.py`](graph.py) заміни `if state.revisions >= state.revision_limit:` на
-`if state.revisions >= 10_000:` — ліміт формально є, але недосяжний.
+In [`graph.py`](graph.py) replace `if state.revisions >= state.revision_limit:` with
+`if state.revisions >= 10_000:` — the limit formally exists, but it is unreachable.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-**Дві** перевірки (одна без LangGraph):
+**Two** checks (one without LangGraph):
 
 ```
 FAILURE · graph: цикл ревізій зупиняється лімітом, а не крутиться далі
 МЕЖА · langgraph: обидві реалізації однаково зупиняються лімітом ревізій
 ```
 
-Друга варта уваги окремо: цю перевірку додали **після рев'ю**. До неї друга реалізація
-взагалі не мала циклу ревізій — `add_edge("specialist", END)` завершував прогін одразу — а
-урок стверджував, що ребро повернення там є. AC-06 цього не бачив, бо на шести демонстраційних
-запитах ревізій не буває.
+The second is worth noting separately: that check was added **after the review**. Before it, the
+second implementation had no revision loop at all — `add_edge("specialist", END)` ended the run
+immediately — while the lesson claimed the return edge was there. AC-06 did not see it, because
+across the six demo requests no revision ever happens.
 
-А тепер головне. Постав `if False:` замість `if state.revisions >= 10_000:` і подивись, що
-станеться: **набір зависне**. Не впаде — зависне.
+And now the main part. Put `if False:` in place of `if state.revisions >= 10_000:` and watch what
+happens: **the suite hangs**. It does not fail — it hangs.
 
-Запусти розбір і подивись на числа:
+Run the walkthrough and look at the numbers:
 
 ```bash
 python -m stages.s03_router.solutions.exercise_2_revision_cost
 ```
 
-У продакшні цей `if False` не викликав би жодної помилки. Модель радо відповідатиме стільки
-разів, скільки її спитають; жодного винятку, жодного рядка в логах. Єдиний сигнал прийде
-наприкінці місяця, числом.
+In production that `if False` would raise no error at all. The model will happily answer as many
+times as it is asked; no exception, no line in the logs. The only signal arrives at the end of
+the month, as a number.
 </details>
 
 ---
 
-## Вправа 3 — Дай спеціалістові фіксований рівень доступу
+## Exercise 3 — Give the specialist a fixed access level
 
-**Складність:** середньо · **Час:** 20 хв · **Роби обидві половини**
+**Difficulty:** medium · **Time:** 20 min · **Do both halves**
 
-У [`specialists.py`](specialists.py), у `_knowledge`, заміни `access=state.access` на
-літерал `access="public"`. (Саме літерал: константи `PUBLIC` там не імпортовано, і лінтер
-її не залишить, бо ніщо її не використовує.)
+In [`specialists.py`](specialists.py), inside `_knowledge`, replace `access=state.access` with the
+literal `access="public"`. (A literal specifically: the `PUBLIC` constant is not imported there,
+and the linter will not leave it, since nothing uses it.)
 
 <details>
-<summary>Що відбувається — половина перша</summary>
+<summary>What happens — first half</summary>
 
-**Чотири** перевірки:
+**Four** checks:
 
 ```
 graph: оператор тим самим маршрутом ОТРИМУЄ внутрішній документ
@@ -119,21 +119,22 @@ FAILURE · graph: текст запиту не підвищує рівень д�
 e2e · демо проходить офлайн, показує п'ять сцен і пише трейс
 ```
 
-Тепер зупинись і подивись, **чого серед них немає**. Немає жодної перевірки на витік:
-`"public"` — це fail-safe, усі бачать менше, ніж їм можна. Витекти нема чому.
+Now stop and look at **what is not among them**. There is no leak check at all: `"public"` is
+fail-safe, everyone sees less than they are allowed to. There is nothing to leak.
 
-Червоніють дзеркальні: **оператор перестав бачити те, що йому дозволено.** Він так само
-мовчки скаже покупцю неправильну суму повернення, і жоден лог не покаже помилки.
+What goes red is the mirror image: **the operator has stopped seeing what they are permitted to
+see.** They will just as silently quote the wrong refund amount to a shopper, and no log will
+show an error.
 
-Тепер друга половина.
+Now the second half.
 </details>
 
-Заміни `access="public"` на `access="internal"` і прогони ще раз.
+Replace `access="public"` with `access="internal"` and run it again.
 
 <details>
-<summary>Що відбувається — половина друга</summary>
+<summary>What happens — second half</summary>
 
-**П'ять** перевірок, і склад майже не перетинається з першою половиною:
+**Five** checks, and the set barely overlaps with the first half:
 
 ```
 FAILURE · graph: внутрішній документ не доходить до покупця через передачу
@@ -143,82 +144,82 @@ FAILURE · specialists: спеціаліст знань бере рівень д
 FAILURE · specialists: оператор ОТРИМУЄ те, що йому можна
 ```
 
-Ось тепер це витік, і ловлять його інші перевірки.
+Now this is a leak, and different checks catch it.
 
-**Дві мутації одного рядка, дві протилежні вади, два майже неперетинні набори червоного.**
-Жоден із наборів не покриває другий — і саме тому перевірок на права три, а не одна.
+**Two mutations of one line, two opposite flaws, two almost disjoint sets of red.** Neither set
+covers the other — and that is exactly why there are three access checks rather than one.
 </details>
 
 ---
 
-## Вправа 4 — Дозволь писати в рівень доступу
+## Exercise 4 — Allow writes to the access level
 
-**Складність:** легко · **Час:** 10 хв
+**Difficulty:** easy · **Time:** 10 min
 
-У [`state.py`](state.py) зламай незмінність — двома різними способами по черзі:
+In [`state.py`](state.py) break the immutability — in two different ways, one after the other:
 
 ```python
-if False:                # замість  if name in FROZEN:
-FROZEN = frozenset()     # або так: перелік порожній
+if False:                # instead of  if name in FROZEN:
+FROZEN = frozenset()     # or like this: the list is empty
 ```
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-Червоніє **рівно одна**, і за обох способів зламати:
+**Exactly one** goes red, and for both ways of breaking it:
 
 ```
 FAILURE · state: рівень доступу не можна перезаписати з вузла (ADR-0003)
 ```
 
-І цього достатньо, бо жоден вузол зараз у це поле не пише. Саме в цьому суть: перевірка
-охороняє не поточну поведінку, а **можливість** її змінити.
+And that is enough, because right now no node writes to that field. That is the whole point: the
+check guards not the current behaviour but the **possibility** of changing it.
 
-Другий спосіб довго проходив непоміченим. Перша версія цієї перевірки писала
-`for name in sorted(FROZEN)` — тобто ітерувала саму константу, яку охороняла. Спорожни
-`FROZEN`, і тіло циклу не виконається жодного разу: **набір лишається повністю зеленим,
-поки двері стоять відчинені.** Знайшло це незалежне рецензування; тепер склад `FROZEN`
-стверджується окремим рядком.
+The second way went unnoticed for a long time. The first version of this check said
+`for name in sorted(FROZEN)` — that is, it iterated over the very constant it was guarding. Empty
+`FROZEN` and the loop body never runs: **the suite stays entirely green while the door stands
+open.** An independent review found this; the contents of `FROZEN` are now asserted on a line of
+their own.
 
-Тепер зроби наступний крок і напиши цю можливість руками — додай у `run_graph`
-(`graph.py`) рядок, який бере рівень доступу з тексту запиту, і подивись, скільки
-перевірок спіймає вже це. Різниця між «двері не замкнені» і «хтось увійшов» — теж дві
-різні події, і перевірки на них різні.
+Now take the next step and write that possibility out by hand — add a line to `run_graph`
+(`graph.py`) that takes the access level from the text of the query, and see how many checks
+catch that instead. The difference between "the door is unlocked" and "somebody came in" is two
+different events as well, and the checks for them are different.
 </details>
 
 ---
 
-## Вправа 5 — Забери в моделі перелік компетенцій
+## Exercise 5 — Take the list of competences away from the model
 
-**Складність:** легко · **Час:** 10 хв
+**Difficulty:** easy · **Time:** 10 min
 
-У [`graph.py`](graph.py) заміни `catalogue=catalogue()` на `catalogue=""`.
+In [`graph.py`](graph.py) replace `catalogue=catalogue()` with `catalogue=""`.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
 ```
 graph: модель бачить опис КОЖНОЇ компетенції, інакше вибір неможливий
 ```
 
-Одна перевірка — і жодна інша, бо на підробці маршрут записаний сценарієм і від промпту не
-залежить. Це рівно та межа, яку урок називає прямо: **на підробці маршрут правильний за
-побудовою.**
+One check — and no other, because on the fake the route is written into the script and does not
+depend on the prompt. This is exactly the limit the lesson names outright: **on the fake the
+route is right by construction.**
 
-Тепер постав справжній ключ і запусти демо ще раз із порожнім переліком. Ось тепер видно, що
-саме зламалось, — і видно, наскільки перевірка на промпт була не формальністю.
+Now put in a real key and run the demo again with the empty list. Now you can see what actually
+broke — and see how far from a formality the prompt check was.
 </details>
 
 ---
 
-## Вправа 6 — Прибери одну ситуацію з чекліста
+## Exercise 6 — Remove one situation from the checklist
 
-**Складність:** середньо · **Час:** 15 хв
+**Difficulty:** medium · **Time:** 15 min
 
-У [`decision.py`](decision.py) заміни `signals={"many_tools": True}` на `signals={}`.
+In [`decision.py`](decision.py) replace `signals={"many_tools": True}` with `signals={}`.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
 ```
 decision: кожна ситуація має рівно одну відповідь
@@ -227,21 +228,21 @@ FAILURE · decision: склад чекліста закріплено — під
 FAILURE · decision: таблиця в DECISION.md збігається з тим, що дає код
 ```
 
-Червоних чотири, і остання — окрема історія: `DECISION.md` збирається з коду, тож зміна
-в `decision.py` розсинхронізувала прозу тим самим рухом. Друга — та, заради якої все це є. Правило `many_tools` лишилося в переліку, але тепер його не
-вмикає жодна ситуація: друкарська помилка в назві сигналу жила б там вічно й ніколи не
-проявилась.
+Four red, and the last is a story of its own: `DECISION.md` is assembled from the code, so a
+change in `decision.py` desynchronised the prose in the same motion. The second is the one all of
+this is for. The rule `many_tools` stayed in the list, but now no situation switches it on: a
+typo in a signal name would have lived there forever and never surfaced.
 
-На етапі 2 така ж перевірка була додана **після** того, як рев'ю знайшло рівно цю прогалину
-в чеклісті «RAG чи fine-tuning». Тут вона з'явилась одразу — і це, мабуть, найкращий доказ
-того, що рев'ю попереднього етапу окупилось.
+In stage 2 the same check was added **after** a review found exactly this gap in the "RAG or
+fine-tuning" checklist. Here it was there from the start — and that is probably the best proof
+that reviewing the previous stage paid for itself.
 </details>
 
 ---
 
-## Вправа 7 — Постав LangGraph і зламай його версію
+## Exercise 7 — Install LangGraph and break its version
 
-**Складність:** середньо · **Час:** 30 хв
+**Difficulty:** medium · **Time:** 30 min
 
 ```bash
 pip install -e ".[s03]"
@@ -249,44 +250,44 @@ python -m stages.s03_router.check
 ```
 
 <details>
-<summary>Про що тут думати</summary>
+<summary>What to think about</summary>
 
-Спершу переконайся, що з'явився рядок `AC-06 перевірено: 7 маршрутів збіглися з власним
-графом`. До встановлення на його місці був інший — про те, що критерій **не перевірено**.
-Запиши, скільки часу додала ця перевірка до прогону.
+First make sure the line `AC-06 перевірено: 7 маршрутів збіглися з власним графом` has appeared.
+Before installation there was a different one in its place, saying the criterion was **not
+verified**. Write down how much time this check added to the run.
 
-Тепер зламай одну з реалізацій — наприклад, у `langgraph_impl.py` перестань записувати
-`state.visit(choice)` — і подивись, як перевірка називає розбіжність маршрутів.
+Now break one of the implementations — stop recording `state.visit(choice)` in
+`langgraph_impl.py`, say — and see how the check names the route divergence.
 
-Головне питання вправи: **навіщо взагалі тримати дві реалізації?** Відповідь у ADR-0001, і
-вона чесно називає ціну: два коди можуть розійтися. Перевірка існує саме тому, що покладатись
-на дисципліну автора тут не можна.
+The main question of the exercise: **why keep two implementations at all?** The answer is in
+ADR-0001, and it names the price honestly: two bodies of code can drift apart. The check exists
+precisely because relying on the author's discipline here is not an option.
 </details>
 
 ---
 
-## Вправа 8 — Додай четвертого спеціаліста
+## Exercise 8 — Add a fourth specialist
 
-**Складність:** складно · **Час:** 45 хв
+**Difficulty:** hard · **Time:** 45 min
 
-Додай спеціаліста — наприклад, для доставки — і **не змінюй нічого іншого**.
+Add a specialist — for shipping, say — and **change nothing else**.
 
 <details>
-<summary>Про що тут думати</summary>
+<summary>What to think about</summary>
 
-Ця вправа перевіряє тезу етапу на практиці: якщо supervisor — це агент, у якого інструменти
-є агентами, то додати компетенцію має коштувати рівно стільки ж, скільки коштувало додати
-інструмент на етапі 1.
+This exercise tests the stage's thesis in practice: if a supervisor is an agent whose tools are
+agents, then adding a competence should cost exactly what adding a tool cost in stage 1.
 
-Що варто зміряти, а не вгадати:
+What is worth measuring rather than guessing:
 
-- скільки рядків довелося змінити поза `specialists.py`;
-- скільки перевірок стало червоними одразу після додавання (і чи серед них є ті, що
-  закріплюють кількість — це нормально, вони для того й існують);
-- **чи довелося щось передавати новому спеціалістові руками.** Якщо ні — ADR-0003 щойно
-  окупився на твоїх очах: рівень доступу вже був у стані;
-- як змінився маршрут решти шести запитів на справжній моделі, коли компетенцій стало чотири.
+- how many lines you had to change outside `specialists.py`;
+- how many checks went red immediately after the addition (and whether any of them are the ones
+  pinning counts — that is normal, that is what they are for);
+- **whether you had to pass anything to the new specialist by hand.** If not, ADR-0003 just paid
+  for itself in front of you: the access level was already in the state;
+- how the route for the other six requests changed on a real model once there were four
+  competences.
 
-Останній пункт — найцікавіший і найменш очевидний. Новий опис компетенції змінює вибір не
-лише для своїх запитів.
+The last point is the most interesting and the least obvious. A new competence description
+changes the choice for more than its own requests.
 </details>

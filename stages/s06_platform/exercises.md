@@ -1,13 +1,13 @@
-# Вправи етапу 6 — зламай і подивись, що почервоніє
+# Stage 6 exercises — break it and see what goes red
 
-Перед кожною вправою прогони набір і переконайся, що він зелений:
+Before every exercise, run the suite and make sure it is green:
 
 ```bash
 python -m stages.s06_platform.check
 ```
 
-Числа заміряні **з піднятою базою**. Без неї шість перевірок стають `НЕ ПЕРЕВІРЕНО`, а не
-червоними, і кількість червоних падає — третій стан не дорівнює зеленому:
+The numbers were measured **with the database up**. Without it six checks become `NOT VERIFIED`
+rather than red, and the count of reds drops — a third state does not equal a green:
 
 ```bash
 docker compose -f deploy/docker-compose.yml up -d --wait
@@ -15,409 +15,417 @@ python scripts/migrate.py up
 python scripts/mutate.py s06 --expect
 ```
 
-**Читай не кількість, а назви.** Мутація, спіймана випадковою перевіркою, — це гірше, ніж
-спіймана тією, яка про неї стверджує.
+**Read the names, not the count.** A mutation caught by an incidental check is worse than one
+caught by the check that claims to be about it.
 
 ---
 
 
-## Вправа 1 · Лічильник у спільному сховищі стає процесо-локальним
+## Exercise 1 · The counter in the shared store becomes process-local
 
 `shared/counters.py`:
 
 ```python
-# було
+# before
     if client is not None:
         return Shared(client)
 
-# стало
+# after
     if client is not None:
         return InMemory()
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Найважливіша з шістнадцяти. Лічильник стає процесо-локальним — і **все далі працює**:
-запити проходять, відмови приходять, метрики рахуються. Просто межа означає інше.
+The most important of the sixteen. The counter becomes process-local — and **everything keeps
+working**: requests go through, refusals arrive, metrics get counted. The boundary simply means
+something else.
 
-Червоніє рівно та перевірка, що стверджує спільність: два незалежні екземпляри бачать
-одне число. Її не замінює жодна перевірка ліміту — на одному екземплярі ліміт правильний.
+What goes red is exactly the check that claims sharedness: two independent instances see one
+number. No rate-limit check replaces it — on a single instance the limit is correct.
 
 ---
 
-## Вправа 2 · Член множини знову складається з часу й суми
+## Exercise 2 · The set member is made of time and amount again
 
 `shared/counters.py`:
 
 ```python
-# було
+# before
         member = f"{now:.6f}:{uuid4().hex[:8]}:{amount}"
 
-# стало
+# after
         member = f"{now:.6f}:0:{amount}"
 ```
 
-**Червоних: 3.**
+**Reds: 3.**
 
-Член множини знову складається з часу й суми. Дві події тієї самої миті з тією самою
-вартістю стають одним членом, бо множина не тримає дублікатів.
+The set member is made of time and amount again. Two events at the same instant with the same
+cost become one member, because a set does not hold duplicates.
 
-Вада однобічна: лічильник **недо**раховує. Шість запитів за мить проходять при межі три.
-Знайшлася вона не з червоного, а з дзеркальної перевірки — фікстура контракту щоразу
-збільшувала час і тому ніколи не показувала випадку, який розрізняє дві реалізації.
+The defect is one-sided: the counter **under**counts. Six requests in one instant pass with a
+limit of three. It was found not through a red but through a mirrored check — the contract fixture
+advanced time every step and therefore never produced the case that tells the two implementations
+apart.
 
 ---
 
-## Вправа 3 · Читання лічильника знову чистить сховище
+## Exercise 3 · Reading the counter cleans the store again
 
 `shared/counters.py`:
 
 ```python
-# було
+# before
         return sum(value for at, value in self._events.get(key, []) if now - at < window)
 
-# стало
+# after
         return sum(value for _, value in self._prune(key, now=now, window=window))
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Читання лічильника знову чистить сховище. Питання про вікно, що вже минуло, стирає подію
-назавжди — наступний запит у межах вікна бачить нуль.
+Reading the counter cleans the store again. A question about a window that has already passed
+erases the event for good — the next request inside the window sees zero.
 
-Метод із назвою «скільки» не має права видаляти.
+A method called "how much" has no right to delete.
 
 ---
 
-## Вправа 4 · Порівняння ключа стає звичайним рівнянням
+## Exercise 4 · The key comparison becomes a plain equality
 
 `stages/s06_platform/guards.py`:
 
 ```python
-# було
+# before
     known = any(hmac.compare_digest(given, candidate.encode()) for candidate in settings.api_keys)
 
-# стало
+# after
     known = any(key == candidate for candidate in settings.api_keys)
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Стале порівняння стає звичайним `==`. Функціонально **нічого не змінюється**: ключі
-звіряються, чужі відхиляються, свої проходять.
+The constant-time comparison becomes a plain `==`. Functionally **nothing changes**: keys are
+compared, foreign ones are rejected, ours pass.
 
-Змінюється лише те, що час відповіді починає розповідати довжину спільного префікса.
+The only thing that changes is that the response time starts telling you the length of the shared
+prefix.
 
-> **Ця вправа спершу давала нуль червоних.** Властивість була правильною й нічим не
-> тримана — тобто жила рівно до наступного рефакторингу. Перевірку довелось дописати:
-> структурне твердження про наявність `compare_digest`, а не замір часу.
+> **This exercise gave zero reds at first.** The property was correct and held by nothing — that
+> is, it lived exactly until the next refactoring. A check had to be written: a structural claim
+> about the presence of `compare_digest`, not a timing measurement.
 
 ---
 
-## Вправа 5 · Ліміт рахується на сервіс, а не на власника
+## Exercise 5 · The limit is counted per service rather than per owner
 
 `stages/s06_platform/guards.py`:
 
 ```python
-# було
+# before
     seen = counters.add(f"rate:{owner}", 1, now=now, window=MINUTE)
 
-# стало
+# after
     seen = counters.add("rate:everyone", 1, now=now, window=MINUTE)
 ```
 
-**Червоних: 4.**
+**Reds: 4.**
 
-Ліміт рахується на сервіс, а не на власника. Один клієнт вичерпує квоту для всіх.
+The limit is counted per service rather than per owner. One client exhausts the quota for
+everybody.
 
-Найбільше червоних із шістнадцяти — і це **не** робить вправу найважливішою: ліміт стоїть
-поруч з усім, тож зачіпає багато перевірок. Вправа 1 дає одну червону й гірша.
+The most reds of the sixteen — and that does **not** make the exercise the most important one: the
+limit sits next to everything, so it touches many checks. Exercise 1 gives one red and is worse.
 
 ---
 
-## Вправа 6 · Бюджет перевіряється раніше за ліміт
+## Exercise 6 · The budget is checked before the rate limit
 
 `stages/s06_platform/guards.py`:
 
 ```python
-# було
+# before
     for gate in (within_rate, within_budget):
 
-# стало
+# after
     for gate in (within_budget, within_rate):
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Бюджет перевіряється раніше за ліміт. Сервіс починає рахувати витрати тих, кого однаково
-відхилить, і порядок воротарів перестає бути рішенням.
+The budget is checked before the rate limit. The service starts counting the spend of those it is
+going to reject anyway, and the order of the gates stops being a decision.
 
 ---
 
-## Вправа 7 · Ключ іде у трейс замість похідного власника
+## Exercise 7 · The key goes into the trace instead of the derived owner
 
 `stages/s06_platform/guards.py`:
 
 ```python
-# було
+# before
     return hashlib.sha256(f"{salt}:{key}".encode()).hexdigest()[:16]
 
-# стало
+# after
     return key
 ```
 
-**Червоних: 5.**
+**Reds: 5.**
 
-У трейс іде сам ключ замість похідного ідентифікатора. Ключ у трейсі — це ключ у файлі,
-який читає той, хто налагоджує; і в базі, і в метриках, і в логах збірки.
+The key itself goes into the trace instead of the derived identifier. A key in a trace is a key in
+a file read by whoever is debugging; and in the database, and in the metrics, and in the build
+logs.
 
 ---
 
-## Вправа 8 · Витрати не записуються
+## Exercise 8 · The spend is not recorded
 
 `stages/s06_platform/guards.py`:
 
 ```python
-# було
+# before
     return counters.add(f"spend:{owner}", amount, now=now, window=DAY)
 
-# стало
+# after
     return counters.total(f"spend:{owner}", now=now, window=DAY)
 ```
 
-**Червоних: 4.**
+**Reds: 4.**
 
-Витрати не записуються. Запобіжник лишається на місці й **не спрацьовує ніколи**: він
-щоразу питає про нуль.
+The spend is not recorded. The breaker stays in place and **never fires**: every time it asks
+about zero.
 
-Дзеркальна половина: перевірка «бюджет відхиляє» зелена й на цій мутації, бо її фікстура
-нараховує витрати сама.
+The mirrored half: the check "the budget rejects" is green under this mutation too, because its
+fixture accrues the spend itself.
 
 ---
 
-## Вправа 9 · Фільтр власника прибрано зі сховища на базі
+## Exercise 9 · The owner filter is removed from the database store
 
 `shared/factstore.py`:
 
 ```python
-# було
+# before
             " WHERE owner = %s ORDER BY stored_at",
             (owner,),
 
-# стало
+# after
             " ORDER BY stored_at",
             (),
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Фільтр власника зникає із запиту до бази. Чужі рядки повертаються зі сховища — і саме
-тому ізоляція перевіряється **на обох** реалізаціях, а не лише на файловій.
+The owner filter disappears from the query to the database. Somebody else's rows come back from
+the store — and that is exactly why isolation is checked against **both** implementations, not
+only the file one.
 
 ---
 
-## Вправа 10 · Невдалий запит більше не відкочує транзакцію
+## Exercise 10 · A failed query no longer rolls the transaction back
 
 `shared/factstore.py`:
 
 ```python
-# було
+# before
             self._connection.rollback()
             raise
 
     def _execute
 
-# стало
+# after
             raise
 
     def _execute
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Невдалий запит більше не відкочує транзакцію. Наступні падають **навіть коли причина
-зникла** — сервіс лишається мертвим після виправлення.
+A failed query no longer rolls the transaction back. The next ones fail **even once the cause is
+gone** — the service stays dead after the fix.
 
-Знайдено справжнім розгортанням: таблиці не було, і після її появи нічого не полагодилось.
+Found by a real deploy: the table was not there, and after it appeared nothing got better.
 
 ---
 
-## Вправа 11 · Стан рапортує «живий» незалежно від залежностей
+## Exercise 11 · Health reports "alive" regardless of its dependencies
 
 `stages/s06_platform/observe.py`:
 
 ```python
-# було
+# before
             "status": UP if all(d["status"] == UP for d in seen.values()) else DOWN,
 
-# стало
+# after
             "status": UP,
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Стан рапортує «живий» незалежно від залежностей. Монітор мовчить, поки не поскаржиться
-користувач.
+Health reports "alive" regardless of its dependencies. The monitor stays quiet until a user
+complains.
 
 ---
 
-## Вправа 12 · Причина у стані стає текстом помилки, а не типом
+## Exercise 12 · The reason in health becomes the error's text rather than its type
 
 `stages/s06_platform/observe.py`:
 
 ```python
-# було
+# before
             return DOWN, type(error).__name__
 
-# стало
+# after
             return DOWN, str(error)
 ```
 
-**Червоних: 3.**
+**Reds: 3.**
 
-Причина у стані стає текстом помилки замість типу. Текст драйвера бази несе адресу,
-користувача й порт — а стан читає той, у кого ключа немає.
+The reason in health becomes the error's text instead of its type. The database driver's text
+carries the address, the user and the port — and health is read by somebody who has no key.
 
 ---
 
-## Вправа 13 · Метрики перестають розрізняти роди відмов
+## Exercise 13 · Metrics stop telling failure kinds apart
 
 `stages/s06_platform/observe.py`:
 
 ```python
-# було
+# before
         self.requests[kind] += 1
 
-# стало
+# after
         self.requests["all"] += 1
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Метрики перестають розрізняти роди відмов. «3 % відхилено» однаково описує зламану
-автентифікацію, зловживання й вичерпаний бюджет — три різні дії оператора.
+Metrics stop telling failure kinds apart. "3 % rejected" describes broken authentication, abuse
+and an exhausted budget equally well — three different operator actions.
 
 ---
 
-## Вправа 14 · Планувальник повертається всередину застосунку
+## Exercise 14 · The scheduler moves back inside the application
 
 `stages/s06_platform/jobs.py`:
 
 ```python
-# було
+# before
         if self.mode != INSIDE or now < due_at:
 
-# стало
+# after
         if now < due_at:
 ```
 
-**Червоних: 3.**
+**Reds: 3.**
 
-Планувальник повертається всередину застосунку. Задача виконується двічі за інтервал.
+The scheduler moves back inside the application. The job runs twice per interval.
 
-Це половина, яку **видно** в логах. Друга — вправа 1.
+This is the half that **is** visible in the logs. The other one is exercise 1.
 
 ---
 
-## Вправа 15 · Сервіс падає разом із недоступною залежністю
+## Exercise 15 · The service dies together with an unreachable dependency
 
 `stages/s06_platform/app.py`:
 
 ```python
-# було
+# before
         except Exception as error:  # noqa: BLE001 — межа сервісу: далі летіти нікуди
 
-# стало
+# after
         except KeyboardInterrupt as error:
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Сервіс перестає ловити помилки залежностей. Недоступне сховище забирає із собою процес:
-один запит гірший за всі запити.
+The service stops catching dependency errors. An unreachable store takes the process with it: one
+request is worse than all requests.
 
 ---
 
-## Вправа 16 · Профіль prod стартує з підробкою без жодного дозволу
+## Exercise 16 · The prod profile starts with a fake and no permission at all
 
 `shared/config.py`:
 
 ```python
-# було
+# before
         if not self.has_real_llm and not self.allow_fake_llm:
 
-# стало
+# after
         if False:
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Профіль `prod` стартує з підробкою без жодного дозволу. Сервіс обслуговує справжніх
-користувачів вигадками, і ніщо про це не каже.
+The `prod` profile starts with a fake and no permission at all. The service serves real users
+inventions, and nothing says a word about it.
 
 ---
 
-## Вправа 17 · Сервіс перевіряє одне правило чекліста замість шести
+## Exercise 17 · The service checks one rule of the checklist instead of six
 
 `stages/s06_platform/app.py`:
 
 ```python
-# було
+# before
         decision = decide(_looks_like(question))
 
-# стало
+# after
         decision = decide(Situation(text=question, asked=True))
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Сервіс перевіряє **одне** правило чекліста замість шести — те, з якого починалась перша
-редакція. Пароль зберігається в памʼяті й потрапляє у трейс разом із причиною відкидання.
+The service checks **one** rule of the checklist instead of six — the one the first draft started
+from. The password is stored in memory and lands in the trace together with the reason for
+discarding it.
 
-Етап 5 навмисно поставив секрет **перед** проханням, бо «запамʼятай мій пароль»
-задовольняє обидва правила. Пропустити перші три означає навчити читача чеклісту й самому
-ним не скористатись.
+Stage 5 deliberately put the secret **before** the request, because "remember my password"
+satisfies both rules. Skipping the first three means teaching the reader a checklist and not using
+it yourself.
 
 ---
 
-## Вправа 18 · Похідний власник знову несолений
+## Exercise 18 · The derived owner is unsalted again
 
 `stages/s06_platform/guards.py`:
 
 ```python
-# було
+# before
     return hashlib.sha256(f"{salt}:{key}".encode()).hexdigest()[:16]
 
-# стало
+# after
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Похідний ідентифікатор власника знову несолений. Обіцянка «ключ із нього не
-відновлюється» перестає бути правдою: ключі короткі, `sha256` детермінований між усіма
-розгортаннями, і словник відновлює `change-me-too` за кілька спроб.
+The derived owner identifier is unsalted again. The promise "the key cannot be recovered from it"
+stops being true: keys are short, `sha256` is deterministic across every deployment, and a
+dictionary recovers `change-me-too` in a few attempts.
 
-Той, хто дістав трейс — а урок наполягає, що трейси читають при налагодженні, — дістав
-і ключ.
+Whoever got hold of a trace — and the lesson insists that traces are read while debugging — got
+the key as well.
 
 ---
 
-## Що робити далі
+## What to do next
 
-Спробуй **свою** мутацію: зламай щось і подивись, чи хтось помітить. Якщо набір лишився
-зеленим — ти знайшов дірку в перевірках, і це цінніше за будь-яку з вісімнадцяти вище.
+Try **your own** mutation: break something and see whether anybody notices. If the suite stayed
+green — you have found a hole in the checks, and that is worth more than any of the eighteen
+above.
 
-Так знайшлися вправи 4, 17 і 18: перша давала нуль червоних, а дві останні зʼявились після
-того, як незалежне рев'ю спитало про кожну перевірку — **що саме має зламатись, щоб вона
-почервоніла?**
+That is how exercises 4, 17 and 18 were found: the first gave zero reds, and the last two appeared
+after an independent review asked about every check — **what exactly has to break for it to go
+red?**
 
-І окремо — зламай **розгортання**:
+And separately — break the **deployment**:
 
 ```bash
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod stop postgres
 curl -k https://localhost/healthz | python -m json.tool
 ```
 
-Стан має сказати `down` і назвати саме `store`. Якщо він каже `up` — знайшов вправу 11 у
-живому сервісі.
+Health has to say `down` and name `store` by name. If it says `up` — you have found exercise 11 in
+a live service.

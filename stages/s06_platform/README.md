@@ -145,7 +145,7 @@ process.
 ## Part 7. What to break
 
 ```bash
-python scripts/mutate.py s06          # all sixteen mutations
+python scripts/mutate.py s06          # all eighteen mutations
 python scripts/mutate.py s06 --expect # and check them against the promised numbers
 ```
 

@@ -32,7 +32,7 @@ too:
 | 1 | The model has no reason whatsoever to call this | **DO NOT EXPOSE** |
 | 2 | An irreversible action with no way to confirm | **DO NOT EXPOSE** |
 | 3 | This is a job of its own, not a variant of another | **SEPARATE TOOL** |
-| 4 | It needs different permissions from the action next to it | **SEPARATE TOOL** |
+| 4 | It needs different permissions from the action beside it | **SEPARATE TOOL** |
 | 5 | The same job, a different volume or filter | **PARAMETER** |
 | 6 | One of many endpoints of a single entity | **PARAMETER** |
 | — | No signal fired | **PARAMETER** |

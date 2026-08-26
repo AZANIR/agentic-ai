@@ -56,7 +56,7 @@ RULES = [
     Rule("no_reason_to_call", HIDE, "The model has no reason whatsoever to call this"),
     Rule("irreversible_without_confirm", HIDE, "An irreversible action with no way to confirm"),
     Rule("distinct_task", TOOL, "This is a job of its own, not a variant of another"),
-    Rule("different_permissions", TOOL, "It needs different permissions from the action next to it"),
+    Rule("different_permissions", TOOL, "It needs different permissions from the action beside it"),
     Rule("same_task_other_shape", PARAMETER, "The same job, a different volume or filter"),
     Rule("one_of_many_endpoints", PARAMETER, "One of many endpoints of a single entity"),
 ]

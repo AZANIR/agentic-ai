@@ -1,142 +1,145 @@
-# Чекліст: що міряти в оцінюванні агента
+# Checklist: what to measure when evaluating an agent
 
-Не «які метрики зібрати». Кожен пункт тут відповідає на питання, яке хтось поставить після
-першого «а звідки ви взяли, що воно працює».
+Not "which metrics to collect". Every item here answers a question somebody will ask after the
+first "and where did you get the idea that it works?"
 
-## 1. Три рівні окремо — а не один бал
+## 1. Three levels separately — not one score
 
-**Питання:** де зламалось, а не чи зламалось?
+**The question:** where did it break, not whether it broke?
 
-Зведений бал відповідає на питання «чи», і на цьому зупиняється. Три вердикти відповідають на
-«де»:
+A combined score answers "whether", and stops there. Three verdicts answer "where":
 
 ```
-e2e         про ОСТАННЮ відповідь і ні про що інше
-траєкторія  про ПОСЛІДОВНІСТЬ кроків: порядок, кількість, зайві виклики
-компонент   про ОДИН крок і його власний результат
+e2e         about the LAST answer and about nothing else
+траєкторія  about the SEQUENCE of steps: order, count, redundant calls
+компонент   about ONE step and its own result
 ```
 
-Правило приписування має бути **однозначним**, інакше той самий дефект щоразу потрапляє в
-інший рядок і жоден рівень не має історії.
+The rule of attribution has to be **unambiguous**, otherwise the same defect lands in a
+different row every time and no level has a history.
 
-Зважена сума трьох рівнів — не компроміс, а приховане рішення: будь-які ваги є думкою про те,
-який рівень важливіший, вбудованою в число, яке ніхто не обговорював.
+A weighted sum of three levels is not a compromise but a hidden decision: any weights are an
+opinion about which level matters more, built into a number nobody discussed.
 
-## 2. «Не оцінено» — третій стан, а не сірий відтінок другого
+## 2. "Unscored" is a third state, not a grey shade of the second
 
-**Питання:** чи ми це перевіряли?
+**The question:** did we check this at all?
 
-«Зламано» і «не перевіряли» — різні події. Набір, який їх зливає, перестає розрізняти зламану
-систему й обірваний прогін, і робить це **на користь зеленого**: відсутність даних природно
-зараховується як «нічого поганого не бачили».
+"Broken" and "not checked" are different events. A suite that merges them stops distinguishing
+a broken system from an interrupted run, and does so **in favour of green**: missing data is
+naturally scored as "we saw nothing bad".
 
-Дві сторони одного правила, і обидві потрібні:
+Two sides of one rule, and both are needed:
 
-- Порожній рівень — **не пройдено**. Інакше що бідніший трейс, то кращий звіт.
-- Сліпий вимір — **не зауваження**. Інакше сто відсотків трафіку позначено проблемним через
-  те, чого оцінювач не може побачити.
+- An empty level is **not passed**. Otherwise the poorer the trace, the better the report.
+- A blind measurement is **not a finding**. Otherwise a hundred percent of traffic is marked
+  problematic because of something the evaluator cannot see.
 
-І дзеркальна половина: прогін, у якому **все** опинилось у третьому стані, не є успішним.
-Порожня зелень — не результат, і звіт має сказати це словами.
+And the mirror half: a run in which **everything** ended up in the third state is not a
+success. Empty green is not a result, and the report has to say so in words.
 
-## 3. Знаменник — усі кейси, а не оцінені
+## 3. The denominator is every case, not the evaluated ones
 
-**Питання:** скільки ми зважили, коли рахували цей відсоток?
+**The question:** how much did we weigh when we counted that percentage?
 
-Частка, порахована від оцінених, ламається двома різними способами, і жоден не помітний із
-самого числа:
+A share counted from the evaluated breaks in two different ways, and neither is visible from
+the number itself:
 
-| Як падає прилад | Що робить число |
+| How the instrument fails | What the number does |
 |---|---|
-| відмови рівномірні | **стоїть на місці**, поки покриття валиться |
-| відмови корельовані з тим, що прилад ламає | **росте** — тим вище, чим гірше насправді |
+| failures are uniform | **stands still** while coverage collapses |
+| failures correlate with what breaks the instrument | **climbs** — the higher, the worse things really are |
 
-Перший випадок знаходять, коли хтось питає «а скільки ми взагалі оцінили». Другий не
-знаходять ніколи: він приходить із доброю новиною.
+The first case gets found when somebody asks how much we evaluated at all. The second never
+does: it arrives with good news.
 
-Тому «не оцінено» стоїть **окремою колонкою**, а ділиться на все. Число покриття поруч із
-числом якості — не надлишок: перше робить друге читабельним.
+So "unscored" stands in a **column of its own**, and the division is by everything. The
+coverage number next to the quality number is not redundancy: the first is what makes the
+second readable.
 
-## 4. Вид оцінювача — поле, а не домовленість
+## 4. The kind of evaluator is a field, not an understanding
 
-**Питання:** це порівняли чи це судили?
+**The question:** was this compared, or was it judged?
 
-Детермінований оцінювач і суддя-модель мають різну ціну, різну відтворюваність і різні режими
-відмови. Якщо цього не видно у звіті, «суддя лише там, де потрібне судження» лишається
-побажанням, а не властивістю.
+A deterministic evaluator and a model judge have different costs, different reproducibility and
+different failure modes. If that is not visible in the report, "the judge only where judgement
+is needed" stays a wish rather than a property.
 
-Перевіряється воно **машинно**: лічильник викликів судді показує нуль для кожного
-детермінованого оцінювача, а сума викликів за прогін дорівнює кількості оцінювачів, що судять.
-Домовленість, яку не рахують, за півроку перестає бути правдою.
+It is verified **by machine**: the judge-call counter reads zero for every deterministic
+evaluator, and the total calls per run equal the number of judging evaluators. An understanding
+that nobody counts stops being true within six months.
 
-## 5. Біас судді — частина набору, а не окрема ініціатива
+## 5. Judge bias is part of the suite, not a separate initiative
 
-**Питання:** а прилад ми калібрували?
+**The question:** and did we calibrate the instrument?
 
-Суддя-модель — вимірювальний прилад. Прилад, який ніхто не перевіряв, дає числа, у які вірять
-рівно доти, доки хтось не переставить два стовпці місцями.
+A model judge is a measuring instrument. An instrument nobody has checked gives numbers that
+are believed exactly until somebody swaps two columns around.
 
-Мінімум, який має бути в наборі:
+The minimum a suite has to hold:
 
-- **Position bias** — та сама пара двічі, у порядку AB і BA. Нічия — окреме значення: перехід
-  «перемогла A» → «нічия» теж переворот, бо вердикт змінився від подачі.
-- **Length bias** — коротка правильна відповідь і **вона ж** плюс правдивий зайвий текст.
-  Порогу тут немає й бути не може: обидві правильні, тож будь-яка перевага довшої — це бал за
-  довжину.
-- **Дзеркальна половина** — той самий детектор на судді з відомо стабільною поведінкою. Без
-  неї нуль знахідок не відрізняється від зламаного детектора.
+- **Position bias** — the same pair twice, in AB and BA order. A tie is a value of its own: the
+  transition "A won" → "tie" is a flip too, because the verdict changed with the presentation.
+- **Length bias** — a short correct answer and **the same one** plus truthful extra text. There
+  is no threshold here and there cannot be: both are correct, so any preference for the longer
+  one is a point for length.
+- **The mirror half** — the same detector against a judge known to behave steadily. Without it,
+  zero findings is indistinguishable from a broken detector.
 
-Детектор стоїть **над** суддею. Суддя, який сам себе перевіряє на упередженість, перевіряє
-власне уявлення про упередженість.
+The detector sits **above** the judge. A judge that checks itself for bias is checking its own
+idea of bias.
 
-## 6. Крайні випадки — за спостережною властивістю, а не за міткою
+## 6. Edge cases by observable property, not by label
 
-**Питання:** що саме робить цей кейс крайнім?
+**The question:** what exactly makes this case an edge one?
 
-Мітка `edge: true` задовольняє будь-яку вимогу про частку крайніх **перемиканням прапорця**, і
-набір із двадцяти щасливих шляхів лишається зеленим.
+An `edge: true` label satisfies any requirement about the share of edge cases **by flipping a
+flag**, and a set of twenty happy paths stays green.
 
-Крайність має читатись із того, що в трейсі **видно**: крок відмови, відхилення аргументів,
-вичерпаний ліміт, порожня видача, невідомий інструмент. Тоді вимога про частку не задовольниться
-редагуванням метаданих.
+Edge has to be readable from what is **visible** in the trace: a refusal step, rejected
+arguments, an exhausted limit, an empty result, an unknown tool. Then the requirement about the
+share cannot be satisfied by editing metadata.
 
-## 7. Онлайн: дешеві чеки на всьому, суддя на частці — і обидва числа названі
+## 7. Online: cheap checks on everything, the judge on a share — and both numbers named
 
-**Питання:** скільки трафіку ми справді бачили?
+**The question:** how much traffic did we actually see?
 
-Три властивості, кожна з причиною:
+Three properties, each with its reason:
 
-- **Поза смугою.** Жоден крок оцінювання не стоїть між запитом і відповіддю. Сервіс, чию
-  затримку міряли цілим етапом, не отримує невиміряного доданка.
-- **Відбір детермінований.** Випадкове число проти порога робить перевірку мигтливою, а допуск
-  доводиться розширити настільки, що він перестає розрізняти десять відсотків і один.
-- **Частка звіряється числом.** Семплер, що завжди каже «так», теж детермінований і теж
-  «збігається із заявленою часткою». Рахунок за цю помилку приходить не з перевірок, а від
-  провайдера.
+- **Out of band.** No evaluation step stands between the request and the response. The service
+  whose latency was measured over a whole stage does not get an unmeasured term added to it.
+- **The selection is deterministic.** A random number against a threshold makes the check
+  flicker, and the tolerance has to be widened so far that it stops distinguishing ten percent
+  from one.
+- **The share is reconciled against a number.** A sampler that always says "yes" is
+  deterministic too, and it also "matches the declared share". The bill for that mistake comes
+  not from the checks but from the provider.
 
-І ціна названа прямо: **запит, який до трасувальника не дійшов, не оцінюється ніяк.** Інлайнові
-чеки зловили б і його — за рахунок затримки на кожному запиті. Це компроміс, а не недогляд, і
-його треба вимовити вголос.
+And the price is named directly: **a request that never reached the tracer is not evaluated at
+all.** Inline checks would have caught it too — at the cost of latency on every request. That
+is a trade-off, not an oversight, and it has to be said out loud.
 
-## 8. Звіт читається назад
+## 8. The report is read back
 
-**Питання:** ці підсумки й ці рядки — з одного джерела чи з двох?
+**The question:** are these totals and these rows from one source or from two?
 
-Рівність, обчислена з одного джерела, — тотожність: вона зійдеться завжди, зокрема й тоді,
-коли кейс до звіту взагалі не доїхав. Розбір **записаного файлу** — єдиний спосіб це спіймати.
+An equality computed from one source is an identity: it will always reconcile, including when a
+case never made it into the report at all. Parsing the **written file** is the only way to
+catch that.
 
-Той самий принцип ширший за звіт: збіг двох незалежних механізмів щось означає, збіг механізму
-з самим собою — ні.
+The same principle is broader than the report: agreement between two independent mechanisms
+means something, agreement of a mechanism with itself does not.
 
-## Чого в цьому чеклісті свідомо немає
+## What this checklist deliberately leaves out
 
-**Статистичної значущості.** Двадцять кейсів не дають довірчих інтервалів, і вдавати
-протилежне гірше, ніж не рахувати їх узагалі. Якщо потрібна значущість — потрібен інший
-порядок обсягу й інша дисципліна.
+**Statistical significance.** Twenty cases give no confidence intervals, and pretending
+otherwise is worse than not counting them at all. If significance is needed, so is a different
+order of volume and a different discipline.
 
-**Дрейфу в часі.** Він потребує **збереженої історії** результатів, а це вже платформа
-оцінювання, а не набір. Числа, з яких дрейф рахують, назвати треба; порівнювати вікна —
-окреме рішення з окремою ціною.
+**Drift over time.** It needs **stored history** of results, and that is an evaluation platform
+rather than a suite. The numbers drift is computed from do have to be named; comparing windows
+is a separate decision with a separate price.
 
-**Якості моделі-провайдера.** Оцінюють **агента** — його рішення й шлях, — а не те, хто пише
-кращий текст. Плутати одне з іншим означає оптимізувати вибір вендора замість власної системи.
+**The quality of the provider's model.** What is evaluated is the **agent** — its decisions and
+its path — not who writes the better text. Confusing the two means optimising your choice of
+vendor instead of your own system.
