@@ -288,7 +288,7 @@ def compute(how: str, *, tag: str, stage: str, file: str = "") -> int | None:
         found = _checks_in(source)
         if how == "checks":
             return len(found)
-        return sum(1 for f in found if (ast.get_docstring(f) or "").startswith("ВІДМОВА"))
+        return sum(1 for f in found if (ast.get_docstring(f) or "").startswith("FAILURE"))
     if how == "executable_lines":
         source = at_tag(tag, f"{folder}/{file}")
         return None if source is None else _executable_lines(source)

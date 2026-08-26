@@ -301,17 +301,17 @@ e2e-перевірки, яка проганяє демо цілком. Друг�
 | AC | Тест | Рівень | Що доводить |
 |---|---|---|---|
 | AC-01 | `list_tools returns every tool with a usable schema` | integration | Три інструменти, схеми придатні для `tools=` без перетворень |
-| AC-01b | `no field is lost crossing the process boundary` | integration | **ВІДМОВА.** Схема на клієнті побайтово збігається з оголошеною на сервері |
+| AC-01b | `no field is lost crossing the process boundary` | integration | **FAILURE.** Схема на клієнті побайтово збігається з оголошеною на сервері |
 | AC-02 | `calling a tool returns the same shape as the local function` | integration | Значення тієї ж форми, що й у етапів 1–3 |
-| AC-03 | `narration around the payload is ignored` | unit | **ВІДМОВА.** Дані дістаються з відповіді, обгорнутої прозою |
-| AC-03b | `a response with no payload is named, not guessed` | unit | **ВІДМОВА.** Відсутність даних ≠ порожній результат |
-| AC-04 | `a server that fails to start is named` | integration | **ВІДМОВА.** Названа причина, без зависання |
-| AC-04b | `a server that dies mid-call is named` | integration | **ВІДМОВА.** Фаза відмови видима у стані |
+| AC-03 | `narration around the payload is ignored` | unit | **FAILURE.** Дані дістаються з відповіді, обгорнутої прозою |
+| AC-03b | `a response with no payload is named, not guessed` | unit | **FAILURE.** Відсутність даних ≠ порожній результат |
+| AC-04 | `a server that fails to start is named` | integration | **FAILURE.** Названа причина, без зависання |
+| AC-04b | `a server that dies mid-call is named` | integration | **FAILURE.** Фаза відмови видима у стані |
 | AC-05 | `the stage 3 routes are identical over MCP` | e2e | Шість маршрутів збігаються; граф не змінено |
-| AC-06 | `a hostile tool description changes nothing` | unit | **ВІДМОВА.** Реєстр, незворотність і доступ лишаються за клієнтом |
+| AC-06 | `a hostile tool description changes nothing` | unit | **FAILURE.** Реєстр, незворотність і доступ лишаються за клієнтом |
 | AC-07 | `the tool-or-endpoint checklist answers every situation` | unit | Кожна ситуація — одна відповідь; кожне правило — своя ситуація |
 | AC-08 | `checks pass without the MCP package installed` | e2e | Залежні позначені `НЕ ПЕРЕВІРЕНО`, а не пройденими |
-| AC-08b | `every MCP call leaves a trace record` | integration | **ВІДМОВА.** Виклик без сліду не існує |
+| AC-08b | `every MCP call leaves a trace record` | integration | **FAILURE.** Виклик без сліду не існує |
 
 ### Чого цей план свідомо не доводить
 

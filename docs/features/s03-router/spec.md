@@ -273,16 +273,16 @@ NFR-5 — не зручність, а вимога курсу: читач має
 |---|---|---|---|
 | AC-01 | `six queries reach their expected specialists` | e2e | Шість запитів, шість очікуваних маршрутів, видимих у трейсі |
 | AC-02 | `state carries the handoff counter and the visited path` | unit | Стан несе лічильник, шлях і причину завершення |
-| AC-02b | `no node reads a field absent from the state schema` | unit | **ВІДМОВА.** Вузол, що читає невідоме поле, падає названо, а не мовчки дає `None` |
-| AC-03 | `revision loop stops at the limit` | unit | **ВІДМОВА.** Ліміт спрацював, ревізії полічені, результат позначений незавершеним |
-| AC-04 | `query with no specialist is refused honestly` | unit | **ВІДМОВА.** Жодного спеціаліста не викликано; назва вузла не вигадана |
-| AC-05 | `access level survives the handoff` | unit | **ВІДМОВА.** Внутрішній документ не дійшов до покупця |
-| AC-05b | `permitted answer also survives the handoff` | unit | **ВІДМОВА.** Дзеркальна: передача не перетворила «є права» на «не знайдено» |
-| AC-05c | `request text cannot raise the access level` | unit | **ВІДМОВА.** Абʼюз-кейс §6.1: рівень доступу приходить із виклику, не з тексту |
+| AC-02b | `no node reads a field absent from the state schema` | unit | **FAILURE.** Вузол, що читає невідоме поле, падає названо, а не мовчки дає `None` |
+| AC-03 | `revision loop stops at the limit` | unit | **FAILURE.** Ліміт спрацював, ревізії полічені, результат позначений незавершеним |
+| AC-04 | `query with no specialist is refused honestly` | unit | **FAILURE.** Жодного спеціаліста не викликано; назва вузла не вигадана |
+| AC-05 | `access level survives the handoff` | unit | **FAILURE.** Внутрішній документ не дійшов до покупця |
+| AC-05b | `permitted answer also survives the handoff` | unit | **FAILURE.** Дзеркальна: передача не перетворила «є права» на «не знайдено» |
+| AC-05c | `request text cannot raise the access level` | unit | **FAILURE.** Абʼюз-кейс §6.1: рівень доступу приходить із виклику, не з тексту |
 | AC-06 | `langgraph route matches the hand-rolled one` | e2e | Ті самі шість запитів, ті самі маршрути; пропускається, якщо LangGraph не встановлено |
 | AC-07 | `supervisor checklist answers every situation` | unit | Кожна ситуація має одну відповідь; кожне правило має ситуацію |
 | AC-08 | `checks run offline and cover failure modes` | e2e | Прогін офлайн; частка відмов ≥ 1/3 |
-| AC-08b | `a specialist that raises does not kill the graph` | unit | **ВІДМОВА.** Вузол названо, помилка у стані й у трейсі |
+| AC-08b | `a specialist that raises does not kill the graph` | unit | **FAILURE.** Вузол названо, помилка у стані й у трейсі |
 
 Кожен критерій відмови й авторизації має **власний рядок**.
 

@@ -191,7 +191,7 @@ def check_one_case_yields_three_verdicts_and_three_evaluator_kinds() -> None:
 
 
 def check_the_written_report_parses_back_to_the_same_totals() -> None:
-    """ВІДМОВА · звіт: розібраний файл дає ті самі числа, що й лічильники (AC-01b)"""
+    """FAILURE · звіт: розібраний файл дає ті самі числа, що й лічильники (AC-01b)"""
     report, text = _report()
 
     counted = parse(text)
@@ -282,7 +282,7 @@ def check_same_answer_different_paths_different_verdicts() -> None:
 
 
 def check_a_failed_step_is_named_by_its_kind_and_ordinal() -> None:
-    """ВІДМОВА · компонент: названо крок — його вид і номер, а не лише кейс (AC-03c)"""
+    """FAILURE · компонент: названо крок — його вид і номер, а не лише кейс (AC-03c)"""
     report, _ = _report()
     broken = [row for row in report.rows if row.by_level(COMPONENT).state == FAILED]
     assert broken, "жоден кейс не провалив компонентний рівень — набір без відмов"
@@ -296,7 +296,7 @@ def check_a_failed_step_is_named_by_its_kind_and_ordinal() -> None:
 
 
 def check_a_trace_without_steps_of_that_kind_is_not_evaluated() -> None:
-    """ВІДМОВА · компонент: кроків немає — «не оцінено», а не «пройдено» (AC-03d)"""
+    """FAILURE · компонент: кроків немає — «не оцінено», а не «пройдено» (AC-03d)"""
     report, text = _report()
     empty = next(row for row in report.rows if row.case.name == "прогін без жодного кроку")
 
@@ -356,7 +356,7 @@ def check_deterministic_evaluators_call_the_judge_zero_times() -> None:
 
 
 def check_swapping_the_order_flips_the_winner() -> None:
-    """ВІДМОВА · position bias: перестановка міняє вердикт (AC-05)"""
+    """FAILURE · position bias: перестановка міняє вердикт (AC-05)"""
     found = position_sweep(BiasedJudge(), POSITION_PAIRS)
 
     assert found.checked == len(POSITION_PAIRS), found
@@ -395,7 +395,7 @@ def check_a_stable_judge_yields_zero_flips() -> None:
 
 
 def check_padding_a_correct_answer_raises_its_score() -> None:
-    """ВІДМОВА · length bias: зайвий текст додає балів без виграшу в змісті (AC-06)"""
+    """FAILURE · length bias: зайвий текст додає балів без виграшу в змісті (AC-06)"""
     judge = BiasedJudge()
     found = length_sweep(judge, LENGTH_PAIRS)
 
@@ -419,7 +419,7 @@ def check_padding_a_correct_answer_raises_its_score() -> None:
 
 
 def check_an_unavailable_judge_yields_not_evaluated_never_a_failure() -> None:
-    """ВІДМОВА · третій стан: недоступний суддя дає «не оцінено» (AC-08)"""
+    """FAILURE · третій стан: недоступний суддя дає «не оцінено» (AC-08)"""
     report, text = _report(judge=_MuteJudge())
 
     assert report.count(E2E, UNSCORED) == report.total, (
@@ -517,7 +517,7 @@ def check_cheap_checks_cover_every_trajectory_the_judge_only_a_share() -> None:
 
 
 def check_neither_request_nor_answer_text_reaches_the_report_or_the_trace() -> None:
-    """ВІДМОВА · приватність: тексту запиту й відповіді немає в матеріалах (AC-07b)"""
+    """FAILURE · приватність: тексту запиту й відповіді немає в матеріалах (AC-07b)"""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "service.jsonl"
         _service_trace(path, secret=True)
@@ -642,7 +642,7 @@ def check_stage_traces_are_read_exactly_as_the_stages_wrote_them() -> None:
 
 
 def check_the_input_trace_file_is_byte_identical_after_a_run() -> None:
-    """ВІДМОВА · оцінювання читає й не пише в те, що оцінює (AC-02b)"""
+    """FAILURE · оцінювання читає й не пише в те, що оцінює (AC-02b)"""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "service.jsonl"
         _service_trace(path, requests=4)
@@ -746,7 +746,7 @@ def check_what_the_traces_lack_is_counted_not_assumed() -> None:
 
 
 def check_the_step_order_is_restored_from_the_sequence_number() -> None:
-    """ВІДМОВА · траєкторія: порядок кроків береться з `seq`, а не з порядку в файлі"""
+    """FAILURE · траєкторія: порядок кроків береться з `seq`, а не з порядку в файлі"""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "shuffled.jsonl"
 
@@ -786,7 +786,7 @@ def check_the_step_order_is_restored_from_the_sequence_number() -> None:
 
 
 def check_the_real_judge_refuses_an_unreadable_verdict() -> None:
-    """ВІДМОВА · суддя-модель: вердикт розбирається точно або не розбирається (AC-05, AC-08)
+    """FAILURE · суддя-модель: вердикт розбирається точно або не розбирається (AC-05, AC-08)
 
     Ця перевірка існує тому, що `ModelJudge` не виконувався **жодного разу**: обидва
     підроблені судді кидають `Unavailable` самі, а справжнього не було навіть у списку
@@ -841,7 +841,7 @@ def check_the_lesson_fits_the_reading_budget() -> None:
 
 
 def check_the_lesson_numbers_match_the_suite() -> None:
-    """ВІДМОВА · урок: числа складу набору обчислені, а не набрані руками"""
+    """FAILURE · урок: числа складу набору обчислені, а не набрані руками"""
     import json
 
     # Числа уроку виводяться з УСІХ модулів реалізації, тож під час мутації будь-якого з
@@ -857,7 +857,7 @@ def check_the_lesson_numbers_match_the_suite() -> None:
     pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
 
     failures = sum(
-        1 for check in CHECKS if (check.__doc__ or "").split(NEWLINE)[0].startswith("ВІДМОВА")
+        1 for check in CHECKS if (check.__doc__ or "").split(NEWLINE)[0].startswith("FAILURE")
     )
     edge = sum(1 for case in CASES if case.edge)
 
@@ -900,7 +900,7 @@ def check_the_lesson_numbers_match_the_suite() -> None:
 
 
 def check_the_lesson_line_counts_match_the_modules() -> None:
-    """ВІДМОВА · урок: розміри модулів у прозі — обчислені (NFR-1)"""
+    """FAILURE · урок: розміри модулів у прозі — обчислені (NFR-1)"""
     lesson = (HERE / "README.md").read_text(encoding="utf-8")
     english = (HERE / "README.en.md").read_text(encoding="utf-8")
 
@@ -914,7 +914,7 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
 
 
 def check_the_exercises_match_the_pinned_mutations() -> None:
-    """ВІДМОВА · вправи: диф і числа беруться з mutations.json, а не пишуться"""
+    """FAILURE · вправи: диф і числа беруться з mutations.json, а не пишуться"""
     import json
 
     pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
@@ -995,7 +995,7 @@ def check_at_least_a_third_of_the_case_set_is_edge_by_observation() -> None:
 
 
 def check_a_broken_level_reddens_the_check_that_asserts_about_that_level() -> None:
-    """ВІДМОВА · зуби: зламаний рівень червонить саме свою перевірку (AC-09)"""
+    """FAILURE · зуби: зламаний рівень червонить саме свою перевірку (AC-09)"""
     healthy = levels.path
 
     def always_passes(case, trajectory):
@@ -1023,7 +1023,7 @@ def check_a_broken_level_reddens_the_check_that_asserts_about_that_level() -> No
 
 
 def check_the_report_is_deterministic_across_twenty_runs() -> None:
-    """ВІДМОВА · детермінізм: двадцять прогонів дають ті самі вердикти (NFR-6)"""
+    """FAILURE · детермінізм: двадцять прогонів дають ті самі вердикти (NFR-6)"""
     from shared.config import settings  # noqa: PLC0415
 
     if settings.has_real_llm:
@@ -1098,7 +1098,7 @@ def check_the_demo_shows_every_scene_offline_within_its_budget() -> None:
 def check_the_failure_modes_are_at_least_a_third() -> None:
     """перевірки: режимів відмови не менше третини (NFR-4)"""
     labels = [(check.__doc__ or "").split(NEWLINE)[0] for check in CHECKS]
-    failures = [label for label in labels if label.startswith("ВІДМОВА")]
+    failures = [label for label in labels if label.startswith("FAILURE")]
     assert len(failures) * 3 >= len(CHECKS), (
         f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини"
     )

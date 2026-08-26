@@ -378,23 +378,23 @@ feature_size: "L"
 |---|---|---|---|
 | AC-01 | `one command answers and names the parts that took part` | integration | Гілка, інструменти, памʼять, воротар — у відповіді |
 | AC-02 | `every named part executes a non-zero number of its own lines` | integration | «Імпортує» відділено від «використовує» |
-| AC-02b | `a part with zero executed lines reddens and is named` | integration | **ВІДМОВА.** Рядок `import` не є складанням |
+| AC-02b | `a part with zero executed lines reddens and is named` | integration | **FAILURE.** Рядок `import` не є складанням |
 | AC-03 | `the price of assembly is two numbers in one unit` | unit | Перехідники проти виконаного |
-| AC-03b | `adapters stay under a fifth of what executed` | unit | **ВІДМОВА.** Межа жанру: понад — це переписування |
+| AC-03b | `adapters stay under a fifth of what executed` | unit | **FAILURE.** Межа жанру: понад — це переписування |
 | AC-04 | `every adapter names the seam it closes` | unit | Дві різні частини в кожному шві |
-| AC-04b | `an adapter that decides is refused` | unit | **ВІДМОВА.** Той, що вирішує, є частиною |
+| AC-04b | `an adapter that decides is refused` | unit | **FAILURE.** Той, що вирішує, є частиною |
 | AC-05 | `five scenarios check the branch and the final state` | e2e | Не «щось відповіло», а слід лишився правильний |
-| AC-05b | `a failing part leaves the service alive and named` | e2e | **ВІДМОВА.** Відмова частини ≠ падіння системи |
+| AC-05b | `a failing part leaves the service alive and named` | e2e | **FAILURE.** Відмова частини ≠ падіння системи |
 | AC-06 | `every decision cites a stage that exists` | contract | Посилання звіряється з репозиторієм |
-| AC-06b | `a dangling citation reddens and is named` | contract | **ВІДМОВА.** Бібліографія без звірки старіє мовчки |
-| AC-07 | `a request without credentials is refused by the imported guard` | integration | **ВІДМОВА.** Той самий код, не переписаний |
+| AC-06b | `a dangling citation reddens and is named` | contract | **FAILURE.** Бібліографія без звірки старіє мовчки |
+| AC-07 | `a request without credentials is refused by the imported guard` | integration | **FAILURE.** Той самий код, не переписаний |
 | AC-07b | `every wrap item names its source stage` | contract | Доступ, ліміти, бюджет, метрики, трейс, копія |
 | AC-08 | `latency numbers are printed with their conditions` | load | Число без умов не є виміром |
-| AC-08b | `a missing load tool yields not-evaluated, never a failure` | load | **ВІДМОВА.** Третій стан із названою причиною |
+| AC-08b | `a missing load tool yields not-evaluated, never a failure` | load | **FAILURE.** Третій стан із названою причиною |
 | AC-09 | `the stage 8 evaluator judges the capstone unchanged` | cross-context | Інструмент працює на системі, якої тоді не було |
 | AC-10 | `the assembly report is not empty` | contract | Порожній розділ — найпідозріліший результат |
-| AC-11 | `all five scenarios run with no key and no network` | integration | **ВІДМОВА.** Правило дев'яти етапів не зламано десятим |
-| AC-12 | `a broken adapter reddens the check about that seam` | unit | **ВІДМОВА.** Мутація влучає точно |
+| AC-11 | `all five scenarios run with no key and no network` | integration | **FAILURE.** Правило дев'яти етапів не зламано десятим |
+| AC-12 | `a broken adapter reddens the check about that seam` | unit | **FAILURE.** Мутація влучає точно |
 
 **Стратегія інтеграційних тестів.** Справжня залежність тут — **самі етапи**, і вони не
 ефемерні: вони в репозиторії. Тому підробленого етапу немає ніде: перехідник, перевірений

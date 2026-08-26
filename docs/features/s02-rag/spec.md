@@ -344,15 +344,15 @@ RAG — спосіб покласти потрібний документ у к�
 | AC-01 | `literal question ranks the right document first` | unit | Питання словами документа дає топ-1 = політика повернень, з видимими оцінками |
 | AC-01b | `synonym question fails to find it` | unit | **МЕЖА.** Те саме питання синонімами не знаходить — розрив зафіксовано числом |
 | AC-02 | `every answer names its source` | unit | Джерело є в кожній виданій відповіді, і воно з переліку знайденого |
-| AC-02b | `model cannot inject a source of its own` | unit | **ВІДМОВА.** Модель написала посилання в тексті — у відповідь іде джерело системи, не її |
+| AC-02b | `model cannot inject a source of its own` | unit | **FAILURE.** Модель написала посилання в тексті — у відповідь іде джерело системи, не її |
 | AC-03 | `chunk size changes what is retrieved` | unit | Дві нарізки дають різний склад або порядок топ-k на тому самому запиті |
-| AC-04 | `below threshold yields no answer` | unit | **ВІДМОВА.** Нічого не досягло порога — відповіді немає, названо поріг і найближчі оцінки |
-| AC-05 | `internal document never reaches a shopper` | unit | **ВІДМОВА.** Внутрішній документ найближчий — і не потрапляє ні у відповідь, ні в перелік |
-| AC-05b | `permitted document is not displaced by a filtered one` | unit | **ВІДМОВА.** Дозволений документ лишається у видачі — доводить, що фільтр стоїть ДО відбору |
+| AC-04 | `below threshold yields no answer` | unit | **FAILURE.** Нічого не досягло порога — відповіді немає, названо поріг і найближчі оцінки |
+| AC-05 | `internal document never reaches a shopper` | unit | **FAILURE.** Внутрішній документ найближчий — і не потрапляє ні у відповідь, ні в перелік |
+| AC-05b | `permitted document is not displaced by a filtered one` | unit | **FAILURE.** Дозволений документ лишається у видачі — доводить, що фільтр стоїть ДО відбору |
 | AC-06 | `configured provider is used and named` | unit | З підробленим оточенням фабрика дає справжній ембеддер; банер називає його |
 | AC-07 | `decision checklist answers all six situations` | unit | Шість описаних ситуацій, для кожної рівно одна відповідь |
 | AC-08 | `checks run offline and cover three failure modes` | e2e | Прогін офлайн; ≥3 перевірки позначені як відмови |
-| AC-08b | `a broken document does not break the index` | unit | **ВІДМОВА.** Порожній і надто короткий файл названі, решта бази шукається |
+| AC-08b | `a broken document does not break the index` | unit | **FAILURE.** Порожній і надто короткий файл названі, решта бази шукається |
 | AC-09 | `the stage 1 agent picks the search tool by itself` | e2e | Агент обирає інструмент пошуку без підказки; цикл етапу 1 не змінено |
 
 Кожен критерій відмови й авторизації має **власний рядок**.

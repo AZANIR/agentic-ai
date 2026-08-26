@@ -130,7 +130,7 @@ def check_one_command_yields_a_row_per_implementation() -> None:
 
 
 def check_the_written_table_parses_back_to_the_same_numbers() -> None:
-    """ВІДМОВА · таблиця: розібраний файл дає ті самі числа, що й прогін (AC-01b)"""
+    """FAILURE · таблиця: розібраний файл дає ті самі числа, що й прогін (AC-01b)"""
     with _table() as (rows, _, text):
         parsed = compare.parse(text)
         assert set(parsed) == {row.name for row in rows}, (sorted(parsed), len(rows))
@@ -184,7 +184,7 @@ def check_all_implementations_honour_the_same_task_contract() -> None:
 
 
 def check_an_implementation_that_breaks_the_contract_gets_no_numbers() -> None:
-    """ВІДМОВА · контракт: порушник лишається в таблиці, але без чисел (AC-02b)"""
+    """FAILURE · контракт: порушник лишається в таблиці, але без чисел (AC-02b)"""
     good = contract.Result(
         name="ціла",
         asked=contract.QUESTION,
@@ -244,7 +244,7 @@ def check_my_lines_and_invisible_lines_are_two_separate_numbers() -> None:
 
 
 def check_framework_lines_never_count_as_mine() -> None:
-    """ВІДМОВА · рядки: код фреймворка не рахується моїм (AC-03b)"""
+    """FAILURE · рядки: код фреймворка не рахується моїм (AC-03b)"""
     for name in IMPLEMENTATION:
         mine = compare.executable_lines(name)
         assert mine == _executable_lines(name), name
@@ -315,7 +315,7 @@ def check_the_overhead_counter_is_proven_at_both_ends() -> None:
 
 
 def check_twenty_offline_runs_give_the_same_table() -> None:
-    """ВІДМОВА · детермінізм: двадцять прогонів дають ту саму таблицю (NFR-6, AC-04c)"""
+    """FAILURE · детермінізм: двадцять прогонів дають ту саму таблицю (NFR-6, AC-04c)"""
 
     def fingerprint() -> tuple:
         with _table() as (rows, _, _text):
@@ -359,7 +359,7 @@ def check_twenty_offline_runs_give_the_same_table() -> None:
 
 
 def check_the_invisible_line_count_excludes_the_one_off_import() -> None:
-    """ВІДМОВА · невидимі рядки: разовий імпорт не входить у ціну прогону (AC-03)"""
+    """FAILURE · невидимі рядки: разовий імпорт не входить у ціну прогону (AC-03)"""
     if not via_langgraph.available():
         raise NotVerified("langgraph не встановлено — невидимі рядки нема де взяти")
 
@@ -398,7 +398,7 @@ def check_each_implementation_answers_why_a_step_ran_and_names_the_source() -> N
 
 
 def check_implicit_coordination_names_the_price_of_that_answer() -> None:
-    """ВІДМОВА · координація: ціна відповіді названа числом, а не твердженням (AC-06b)"""
+    """FAILURE · координація: ціна відповіді названа числом, а не твердженням (AC-06b)"""
     places = {name: compare.behaviour_prose(name) for name in IMPLEMENTATION}
 
     # Явна координація — нуль місць прози: наступний крок вирішує код.
@@ -473,7 +473,7 @@ def check_a_missing_package_yields_not_evaluated_never_a_failure() -> None:
 
 
 def check_the_flag_on_without_credentials_fails_loudly() -> None:
-    """ВІДМОВА · прапорець: увімкнений ADK без креденшелів падає гучно (AC-07b)"""
+    """FAILURE · прапорець: увімкнений ADK без креденшелів падає гучно (AC-07b)"""
     if via_adk.available():
         raise NotVerified("ADK доступний — гілку «просили й не змогли» не відтворити")
 
@@ -513,7 +513,7 @@ def check_the_flag_on_without_credentials_fails_loudly() -> None:
 
 
 def check_a_changed_framework_api_reddens_that_implementations_smoke() -> None:
-    """ВІДМОВА · смоук: розрив API ловиться тут, а не на прогоні читача (AC-08, NFR-8)"""
+    """FAILURE · смоук: розрив API ловиться тут, а не на прогоні читача (AC-08, NFR-8)"""
     # Смоук — це ВИКОНАННЯ, а не імпорт: зникла точка входу має червоніти тут. І по ВСІХ
     # доступних реалізаціях: перевірка, названа за AC-08, знала одну, тож на машині з
     # CrewAI без LangGraph «смоук кожної реалізації» давав би НЕ ПЕРЕВІРЕНО для всіх.
@@ -581,7 +581,7 @@ def check_every_rule_of_choice_cites_a_column_of_the_table() -> None:
 
 
 def check_a_broken_implementation_reddens_the_check_that_asserts_about_it() -> None:
-    """ВІДМОВА · зуби: зламана реалізація червонить саме свою перевірку (AC-10)"""
+    """FAILURE · зуби: зламана реалізація червонить саме свою перевірку (AC-10)"""
     healthy = baseline.ask
 
     class _Mute:
@@ -616,7 +616,7 @@ def check_a_broken_implementation_reddens_the_check_that_asserts_about_it() -> N
 
 
 def check_no_implementation_reaches_the_network_without_a_key() -> None:
-    """ВІДМОВА · межа: жодна реалізація не створює власного клієнта (AC-11)"""
+    """FAILURE · межа: жодна реалізація не створює власного клієнта (AC-11)"""
     # Шукається **конструювання клієнта**, а не слово. `code_mentions` бачить `Name.id` та
     # `Attribute.attr` окремо, тож `"openai.openai"` не збігався ніколи — ассерт був
     # зеленим на джерелі, що дослівно містить `openai.OpenAI(...)`. А пошук самих слів дає
@@ -702,7 +702,7 @@ def check_the_lesson_fits_the_reading_budget() -> None:
 
 
 def check_the_lesson_numbers_match_the_bench() -> None:
-    """ВІДМОВА · урок: числа таблиці обчислені, а не набрані руками"""
+    """FAILURE · урок: числа таблиці обчислені, а не набрані руками"""
     import json  # noqa: PLC0415
 
     # Числа уроку виводяться з УСІХ модулів реалізації **і з демо**, яке вирішує, що
@@ -718,7 +718,7 @@ def check_the_lesson_numbers_match_the_bench() -> None:
     pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
 
     failures = sum(
-        1 for check in CHECKS if (check.__doc__ or "").split(NEWLINE)[0].startswith("ВІДМОВА")
+        1 for check in CHECKS if (check.__doc__ or "").split(NEWLINE)[0].startswith("FAILURE")
     )
     flat = re.sub(r"\s+", " ", checklist)
     assert f"перевірок: {len(CHECKS)}, з них на режими відмови: {failures}" in flat, (
@@ -760,7 +760,7 @@ def check_the_lesson_numbers_match_the_bench() -> None:
 
 
 def check_the_exercises_match_the_pinned_mutations() -> None:
-    """ВІДМОВА · вправи: диф і числа беруться з mutations.json, а не пишуться"""
+    """FAILURE · вправи: диф і числа беруться з mutations.json, а не пишуться"""
     import json  # noqa: PLC0415
 
     pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
@@ -843,7 +843,7 @@ def check_the_demo_shows_every_scene_offline_within_its_budget() -> None:
 def check_the_failure_modes_are_at_least_a_third() -> None:
     """перевірки: режимів відмови не менше третини (NFR-4)"""
     labels = [(check.__doc__ or "").split(NEWLINE)[0] for check in CHECKS]
-    failures = [label for label in labels if label.startswith("ВІДМОВА")]
+    failures = [label for label in labels if label.startswith("FAILURE")]
     assert len(failures) * 3 >= len(CHECKS), (
         f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини"
     )

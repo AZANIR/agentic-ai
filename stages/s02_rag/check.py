@@ -66,7 +66,7 @@ _BROKEN = {
 
 
 def check_broken_frontmatter_does_not_make_a_document_public() -> None:
-    """ВІДМОВА · documents: зіпсовані метадані не роблять документ публічним"""
+    """FAILURE · documents: зіпсовані метадані не роблять документ публічним"""
     with tempfile.TemporaryDirectory() as tmp:
         directory = Path(tmp)
         for name, raw in _BROKEN.items():
@@ -84,7 +84,7 @@ def check_broken_frontmatter_does_not_make_a_document_public() -> None:
 
 
 def check_unknown_access_value_is_not_trusted() -> None:
-    """ВІДМОВА · documents: невідоме значення access не пропускається як є"""
+    """FAILURE · documents: невідоме значення access не пропускається як є"""
     with tempfile.TemporaryDirectory() as tmp:
         directory = Path(tmp)
         (directory / "typo-value.md").write_text(
@@ -113,7 +113,7 @@ def check_good_documents_still_load_with_their_declared_access() -> None:
 
 
 def check_unknown_asker_cannot_become_full_access() -> None:
-    """ВІДМОВА · store: None як рівень доступу — помилка, а не «показати все»"""
+    """FAILURE · store: None як рівень доступу — помилка, а не «показати все»"""
     base = _base()
     try:
         base.search(INTERNAL_BAIT, access=None, top_k=3)
@@ -136,7 +136,7 @@ def check_full_access_is_an_explicit_named_choice() -> None:
 
 
 def check_reindexing_does_not_duplicate_the_base() -> None:
-    """ВІДМОВА · store: повторна індексація не подвоює базу"""
+    """FAILURE · store: повторна індексація не подвоює базу"""
     base = _base()
     first = len(base.fragments)
     report = base.index(load_documents(), size=SMALL, overlap=10)
@@ -151,7 +151,7 @@ def check_reindexing_does_not_duplicate_the_base() -> None:
 
 
 def check_negative_overlap_is_rejected_not_silently_dropped() -> None:
-    """ВІДМОВА · chunk: від'ємне перекриття — помилка, а не мовчазна втрата тексту"""
+    """FAILURE · chunk: від'ємне перекриття — помилка, а не мовчазна втрата тексту"""
     try:
         split("а б в г д", source="doc", size=2, overlap=-3)
     except ValueError as error:
@@ -161,7 +161,7 @@ def check_negative_overlap_is_rejected_not_silently_dropped() -> None:
 
 
 def check_negative_top_k_is_rejected() -> None:
-    """ВІДМОВА · store: від'ємний top_k — помилка, а не «майже все»"""
+    """FAILURE · store: від'ємний top_k — помилка, а не «майже все»"""
     try:
         _base().search(RETURNS_QUESTION, access=PUBLIC, top_k=-1)
     except ValueError as error:
@@ -171,7 +171,7 @@ def check_negative_top_k_is_rejected() -> None:
 
 
 def check_answer_survives_a_model_that_returned_nothing() -> None:
-    """ВІДМОВА · answer: порожня відповідь моделі не валить прогін"""
+    """FAILURE · answer: порожня відповідь моделі не валить прогін"""
     result = _base().search(RETURNS_QUESTION, access=PUBLIC, top_k=2)
     answer = build_answer(RETURNS_QUESTION, result, model_text=None)
     assert answer.text == "", answer.text
@@ -187,7 +187,7 @@ def check_no_answer_text_is_a_readable_sentence() -> None:
 
 
 def check_tool_does_not_report_a_similarity_it_never_measured() -> None:
-    """ВІДМОВА · tools: «найближче 0.00» не видається за виміряну близькість"""
+    """FAILURE · tools: «найближче 0.00» не видається за виміряну близькість"""
     with tempfile.TemporaryDirectory() as tmp:
         base = KnowledgeBase(embedder=get_embedder(), threshold=0.2)
         base.index(load_documents(Path(tmp)), size=SMALL)
@@ -201,7 +201,7 @@ def check_tool_does_not_report_a_similarity_it_never_measured() -> None:
 
 
 def check_retrieved_text_is_fenced_off_from_the_instructions() -> None:
-    """ВІДМОВА · answer: огорожа блоку ДАНІ існує, а не просто слово «ДАНІ» у промпті"""
+    """FAILURE · answer: огорожа блоку ДАНІ існує, а не просто слово «ДАНІ» у промпті"""
     result = _base().search(RETURNS_QUESTION, access=PUBLIC, top_k=2)
     prompt = build_answer(RETURNS_QUESTION, result, model_text="").prompt
 
@@ -220,7 +220,7 @@ def check_retrieved_text_is_fenced_off_from_the_instructions() -> None:
 
 
 def check_provider_choice_actually_reads_the_configuration() -> None:
-    """ВІДМОВА · embeddings: фабрика читає конфігурацію, а не повертає дефолт завжди"""
+    """FAILURE · embeddings: фабрика читає конфігурацію, а не повертає дефолт завжди"""
     configured = get_embedder(
         Settings.load(
             source={
@@ -239,7 +239,7 @@ def check_provider_choice_actually_reads_the_configuration() -> None:
 
 
 def check_unusable_embedder_configuration_is_refused_at_startup() -> None:
-    """ВІДМОВА · embeddings: непридатна конфігурація падає на старті, а не при першому запиті"""
+    """FAILURE · embeddings: непридатна конфігурація падає на старті, а не при першому запиті"""
     for source, expect in (
         ({"EMBEDDINGS_PROVIDER": "нісенітниця"}, "нісенітниця"),
         ({"EMBEDDINGS_PROVIDER": "openai"}, "LLM_BASE_URL"),
@@ -253,7 +253,7 @@ def check_unusable_embedder_configuration_is_refused_at_startup() -> None:
 
 
 def check_overlap_does_not_produce_a_fragment_inside_another() -> None:
-    """ВІДМОВА · chunk: перекриття не плодить фрагмент, цілком вкладений у попередній"""
+    """FAILURE · chunk: перекриття не плодить фрагмент, цілком вкладений у попередній"""
     fragments = split(" ".join(f"с{i}" for i in range(50)), source="doc", size=20, overlap=10)
     assert len(fragments) == 4, [f.label for f in fragments]
     assert fragments[-1].text not in fragments[-2].text, (
@@ -267,7 +267,7 @@ def check_overlap_does_not_produce_a_fragment_inside_another() -> None:
 
 
 def check_decision_checklist_keeps_the_six_situations_it_documents() -> None:
-    """ВІДМОВА · decision: склад чекліста закріплено — заміна ситуацій не проходить тихо"""
+    """FAILURE · decision: склад чекліста закріплено — заміна ситуацій не проходить тихо"""
     names = [s.name for s in SITUATIONS]
     assert len(names) == len(set(names)) == 7, f"склад чекліста змінився: {names}"
 
@@ -341,8 +341,8 @@ def check_agent_answer_carries_a_source_from_the_transcript() -> None:
 
 
 def check_lesson_numbers_match_the_suite() -> None:
-    """ВІДМОВА · урок: числа в прозі збігаються з тим, що друкує команда"""
-    total, failures = len(CHECKS), sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
+    """FAILURE · урок: числа в прозі збігаються з тим, що друкує команда"""
+    total, failures = len(CHECKS), sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
     here = Path(__file__).parent
     for name, sentence in (
         ("README.md", f"{total} перевірок, {failures} із них на режими відмови"),
@@ -379,7 +379,7 @@ def check_chunking_overlap_keeps_the_seam() -> None:
 
 
 def check_chunking_survives_degenerate_documents() -> None:
-    """ВІДМОВА · chunk: порожній і надто короткий документи не кидають винятку"""
+    """FAILURE · chunk: порожній і надто короткий документи не кидають винятку"""
     assert split("", source="empty", size=40) == []
     assert split("   \n  ", source="blank", size=40) == []
     tiny = split("Гарантія рік.", source="tiny", size=40)
@@ -387,7 +387,7 @@ def check_chunking_survives_degenerate_documents() -> None:
 
 
 def check_chunking_rejects_impossible_overlap() -> None:
-    """ВІДМОВА · chunk: перекриття не менше за розмір — це помилка програміста"""
+    """FAILURE · chunk: перекриття не менше за розмір — це помилка програміста"""
     try:
         split("а б в", source="x", size=10, overlap=10)
     except ValueError as exc:
@@ -449,7 +449,7 @@ def check_synonym_question_fails_to_find_it() -> None:
 
 
 def check_below_threshold_yields_nothing() -> None:
-    """ВІДМОВА · store: нічого вище порога — порожньо, з названим порогом"""
+    """FAILURE · store: нічого вище порога — порожньо, з названим порогом"""
     result = _base(threshold=0.9).search(RETURNS_QUESTION, access=PUBLIC, top_k=3)
     assert not result.hits, "поріг 0.9 не мав пропустити нічого"
     assert result.below_threshold, "прогін має знати, що спрацював саме поріг"
@@ -459,7 +459,7 @@ def check_below_threshold_yields_nothing() -> None:
 
 
 def check_internal_document_never_reaches_a_shopper() -> None:
-    """ВІДМОВА · store: внутрішній документ не потрапляє у видачу покупцю"""
+    """FAILURE · store: внутрішній документ не потрапляє у видачу покупцю"""
     result = _base(threshold=0.0).search(INTERNAL_BAIT, access=PUBLIC, top_k=3)
     sources = {hit.fragment.source for hit in result.hits}
     assert not any(s.startswith("internal") for s in sources), f"витік: {sources}"
@@ -467,7 +467,7 @@ def check_internal_document_never_reaches_a_shopper() -> None:
 
 
 def check_permitted_document_is_not_displaced_by_a_filtered_one() -> None:
-    """ВІДМОВА · store: дозволений документ не зник — фільтр стоїть ДО відбору"""
+    """FAILURE · store: дозволений документ не зник — фільтр стоїть ДО відбору"""
     # Найважливіша перевірка етапу. На цьому запиті два внутрішні фрагменти обходять
     # дозволений за близькістю. Якщо фільтрувати ПІСЛЯ відбору top-k=2, обидва слоти
     # займуть внутрішні, їх приберуть — і покупець отримає порожньо замість правильної
@@ -481,7 +481,7 @@ def check_permitted_document_is_not_displaced_by_a_filtered_one() -> None:
 
 
 def check_broken_documents_do_not_break_the_index() -> None:
-    """ВІДМОВА · store: порожній документ названо, база лишається робочою"""
+    """FAILURE · store: порожній документ названо, база лишається робочою"""
     base = _base()
     assert "empty" in base.report.skipped, base.report.skipped
     assert base.report.indexed >= 5, base.report.indexed
@@ -533,7 +533,7 @@ def check_every_answer_names_its_source() -> None:
 
 
 def check_model_cannot_inject_a_source_of_its_own() -> None:
-    """ВІДМОВА · answer: посилання, вигадане моделлю, не стає джерелом відповіді"""
+    """FAILURE · answer: посилання, вигадане моделлю, не стає джерелом відповіді"""
     result = _base().search(RETURNS_QUESTION, access=PUBLIC, top_k=2)
     answer = build_answer(
         RETURNS_QUESTION,
@@ -547,7 +547,7 @@ def check_model_cannot_inject_a_source_of_its_own() -> None:
 
 
 def check_nothing_above_threshold_yields_no_answer() -> None:
-    """ВІДМОВА · answer: нічого вище порога — відповіді немає, названо поріг"""
+    """FAILURE · answer: нічого вище порога — відповіді немає, названо поріг"""
     result = _base(threshold=0.9).search(RETURNS_QUESTION, access=PUBLIC, top_k=3)
     answer = build_answer(RETURNS_QUESTION, result, model_text="Щось напевно є.")
 
@@ -598,7 +598,7 @@ def check_search_tool_returns_text_with_a_source() -> None:
 
 
 def check_search_tool_says_not_found_instead_of_serving_noise() -> None:
-    """ВІДМОВА · tools: питання не по темі дає чесне «не знайдено», а не найближчий шум"""
+    """FAILURE · tools: питання не по темі дає чесне «не знайдено», а не найближчий шум"""
     output = search_knowledge_base(query="яка погода в Києві завтра", access=PUBLIC)
     assert NO_ANSWER in output, (
         f"інструмент віддав агенту найближчий шум замість відмови: {output[:120]}"
@@ -607,7 +607,7 @@ def check_search_tool_says_not_found_instead_of_serving_noise() -> None:
 
 
 def check_search_tool_does_not_leak_internal_documents() -> None:
-    """ВІДМОВА · tools: через інструмент внутрішні документи теж не витікають"""
+    """FAILURE · tools: через інструмент внутрішні документи теж не витікають"""
     output = search_knowledge_base(query=INTERNAL_BAIT, access=PUBLIC)
     assert "internal-refund-thresholds" not in output, output[:200]
     assert "1500" not in output, "суму з внутрішнього документа видно покупцю"
@@ -705,7 +705,7 @@ def check_checks_run_offline_and_cover_failure_modes() -> None:
         "з порожнім оточенням провайдера бути не може — інакше набір мовчки пішов би в мережу"
     )
     labels = [(c.__doc__ or "") for c in CHECKS]
-    failures = [d for d in labels if d.startswith("ВІДМОВА")]
+    failures = [d for d in labels if d.startswith("FAILURE")]
     assert len(failures) >= 3, f"режимів відмови лише {len(failures)} — етап учить не тому"
     assert all(labels), "перевірка без опису не читається у виводі"
     assert get_embedder().name == "hash-words", (

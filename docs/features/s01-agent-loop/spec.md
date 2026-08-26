@@ -9,7 +9,7 @@ feature_size: "S"
 # Spec — s01-agent-loop
 
 > **Glossary:** [CONTEXT](../../../CONTEXT.md) (ролі + доменні об'єкти), [GLOSSARY](../../../GLOSSARY.md) (терміни курсу)
-> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §5, §9 (s01), §11 · `docs/architecture-map.md` · `docs/adr/0002`, `0003`, `0005`, `0006` · стаття-джерело [статтю #1](https://blog.gopenai.com/what-is-an-ai-agent-the-simplest-explanation-youll-find-e7b176a31c44)
+> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §5, §9 (s01), §11 · `docs/architecture-map.md` · `docs/adr/0002`, `0003`, `0005`, `0006`
 
 ## 1. Context
 
@@ -294,10 +294,10 @@ ChatGPT, який уміє в інтернет» або «це автономн�
 | AC | Тест | Рівень | Що саме доводить |
 |---|---|---|---|
 | AC-01 | `demo runs four scenarios offline` | e2e | Демо відпрацьовує чотири сценарії підряд, банер називає підробку, мережевих звернень нема, трейс записано |
-| AC-02 | `step limit stops a runaway loop` | unit | **ВІДМОВА.** Підробка, що завжди просить інструмент, зупиняється рівно на ліміті; підсумкової відповіді не вигадано |
-| AC-03 | `invalid arguments never reach the tool` | unit | **ВІДМОВА.** Відсутнє поле, зайве поле, невірний тип — інструмент не отримує керування в жодному з трьох випадків |
-| AC-03b | `rejection is returned to the model as a step result` | unit | **ВІДМОВА.** Відмова валідації — не виняток: пояснення йде моделі, цикл продовжується |
-| AC-04 | `irreversible tool needs an explicit confirmation` | unit | **ВІДМОВА.** Без підтвердження незворотний інструмент не виконується; прогін описує наслідок |
+| AC-02 | `step limit stops a runaway loop` | unit | **FAILURE.** Підробка, що завжди просить інструмент, зупиняється рівно на ліміті; підсумкової відповіді не вигадано |
+| AC-03 | `invalid arguments never reach the tool` | unit | **FAILURE.** Відсутнє поле, зайве поле, невірний тип — інструмент не отримує керування в жодному з трьох випадків |
+| AC-03b | `rejection is returned to the model as a step result` | unit | **FAILURE.** Відмова валідації — не виняток: пояснення йде моделі, цикл продовжується |
+| AC-04 | `irreversible tool needs an explicit confirmation` | unit | **FAILURE.** Без підтвердження незворотний інструмент не виконується; прогін описує наслідок |
 | AC-04b | `confirmed run executes the irreversible tool` | unit | Зворотний бік гейта: з підтвердженням інструмент таки виконується — гейт не глухий |
 | AC-05 | `configured provider yields a real client and a naming banner` | unit | З підробленим оточенням фабрика повертає справжній клієнт із заданим базовим URL, банер називає провайдера. **Мережі не торкаємось** — див. нижче |
 | AC-06 | `stage checks run offline and cover three failure modes` | e2e | Прогін перевірок офлайн, перелік із призначеннями, ≥3 позначені як відмови |

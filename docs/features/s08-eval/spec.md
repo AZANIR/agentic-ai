@@ -361,22 +361,22 @@ ADR-0009 етапу), і виконуються **виміряно**, а не з
 | AC | Тест | Рівень | Що доводить |
 |---|---|---|---|
 | AC-01 | `one case yields three verdicts and three evaluator kinds` | unit | Три рівні поруч, вид оцінювача біля кожного |
-| AC-01b | `the written report parses back to the same totals` | unit | **ВІДМОВА.** Два незалежні джерела; знаменник — усі кейси |
+| AC-01b | `the written report parses back to the same totals` | unit | **FAILURE.** Два незалежні джерела; знаменник — усі кейси |
 | AC-02 | `stage traces are read exactly as the stages wrote them` | integration | Жодної правки в етапах 1–7 |
-| AC-02b | `the input trace file is byte-identical after a run` | integration | **ВІДМОВА.** Оцінювач не пише в те, що оцінює |
+| AC-02b | `the input trace file is byte-identical after a run` | integration | **FAILURE.** Оцінювач не пише в те, що оцінює |
 | AC-03 | `same answer, different paths, different verdicts` | unit | e2e збігається, траєкторія — ні |
 | AC-03b | `a case passes one level and fails another in the same row` | unit | Вердикти незалежні; зведеного бала немає |
-| AC-03c | `a failed step is named by its kind and ordinal` | unit | **ВІДМОВА.** Названо крок, а не лише кейс |
-| AC-03d | `a trace without steps of that kind is not evaluated` | unit | **ВІДМОВА.** Третій стан замість мовчазного «пройдено» |
+| AC-03c | `a failed step is named by its kind and ordinal` | unit | **FAILURE.** Названо крок, а не лише кейс |
+| AC-03d | `a trace without steps of that kind is not evaluated` | unit | **FAILURE.** Третій стан замість мовчазного «пройдено» |
 | AC-04 | `deterministic evaluators call the judge zero times` | unit | Лічильник викликів, а не домовленість |
-| AC-05 | `swapping the order flips the winner` | unit | **ВІДМОВА.** Position bias — знахідка про прилад |
+| AC-05 | `swapping the order flips the winner` | unit | **FAILURE.** Position bias — знахідка про прилад |
 | AC-05b | `a stable judge yields zero flips` | unit | Дзеркальна половина: детектор, що спрацьовує завжди, не детектор |
-| AC-06 | `padding a correct answer raises its score` | unit | **ВІДМОВА.** Length bias числом; порога немає й бути не може |
+| AC-06 | `padding a correct answer raises its score` | unit | **FAILURE.** Length bias числом; порога немає й бути не може |
 | AC-07 | `cheap checks cover every trajectory, the judge only a share` | integration | Обидва числа названі; усе поза смугою |
-| AC-07b | `neither request nor answer text reaches the report or the trace` | unit | **ВІДМОВА.** Матеріали оцінювання без тексту користувача |
+| AC-07b | `neither request nor answer text reaches the report or the trace` | unit | **FAILURE.** Матеріали оцінювання без тексту користувача |
 | AC-07c | `the sampled share matches the declared one within the stated margin` | unit | Відбір детермінований; межа зі специфікації, не з харнеса |
-| AC-08 | `an unavailable judge yields not-evaluated, never a failure` | unit | **ВІДМОВА.** Закритий перелік причин; суцільне «не оцінено» не є успіхом |
-| AC-09 | `a broken level reddens the check that asserts about that level` | unit | **ВІДМОВА.** Мутація влучає точно, а не абикуди |
+| AC-08 | `an unavailable judge yields not-evaluated, never a failure` | unit | **FAILURE.** Закритий перелік причин; суцільне «не оцінено» не є успіхом |
+| AC-09 | `a broken level reddens the check that asserts about that level` | unit | **FAILURE.** Мутація влучає точно, а не абикуди |
 | AC-10 | `at least a third of the case set is edge by observation` | unit | Крайність виводиться зі спостережної властивості, не з мітки |
 | AC-11 | `one grouping-key parameter serves both stage 1 and the stage 6 service` | integration | Дзеркальна половина: на сервісі траєкторій більше за одну |
 | AC-12 | `what the traces lack is counted, not assumed` | integration | Чотири різні поля прогону, два етапи без жодного |

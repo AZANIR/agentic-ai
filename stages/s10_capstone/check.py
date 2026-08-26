@@ -125,7 +125,7 @@ def check_five_scenarios_check_the_branch_and_the_final_state() -> None:
 
 
 def check_a_failing_part_leaves_the_service_alive_and_named() -> None:
-    """ВІДМОВА · відмова частини не є падінням системи (AC-05b)"""
+    """FAILURE · відмова частини не є падінням системи (AC-05b)"""
 
     with tempfile.TemporaryDirectory() as tmp:
         traces = Path(tmp) / "s10.jsonl"
@@ -143,7 +143,7 @@ def check_a_failing_part_leaves_the_service_alive_and_named() -> None:
 
 
 def check_a_request_without_credentials_is_refused_by_the_imported_guard() -> None:
-    """ВІДМОВА · воротар етапу 6 відмовляє, і це ТОЙ САМИЙ код (AC-07)"""
+    """FAILURE · воротар етапу 6 відмовляє, і це ТОЙ САМИЙ код (AC-07)"""
     with _running() as (service, _tmp, traces):
         reply = service.ask("not-a-key", "Скільки днів на повернення?", now=scenarios.NOW)
         steps = _steps(traces)
@@ -160,7 +160,7 @@ def check_a_request_without_credentials_is_refused_by_the_imported_guard() -> No
 
 
 def check_all_five_scenarios_run_with_no_key_and_no_network() -> None:
-    """ВІДМОВА · офлайн: правило девʼяти етапів не зламано десятим (AC-11)"""
+    """FAILURE · офлайн: правило девʼяти етапів не зламано десятим (AC-11)"""
     from shared.config import settings  # noqa: PLC0415
 
     if settings.has_real_llm:
@@ -194,7 +194,7 @@ def check_every_named_part_executes_a_non_zero_number_of_its_own_lines() -> None
 
 
 def check_a_part_with_zero_executed_lines_reddens_and_is_named() -> None:
-    """ВІДМОВА · складання: етап без жодного виконаного рядка названо (AC-02b)"""
+    """FAILURE · складання: етап без жодного виконаного рядка названо (AC-02b)"""
     empty = assemble.Assembly(executed=dict.fromkeys(assemble.PARTS, 0), adapters=1)
     assert empty.silent == sorted(assemble.PARTS), empty.silent
     assert "s01" in empty.line(), empty.line()
@@ -248,7 +248,7 @@ def check_the_price_of_assembly_is_two_numbers_in_one_unit() -> None:
 
 
 def check_adapters_stay_under_a_fifth_of_what_executed() -> None:
-    """ВІДМОВА · межа жанру: перехідники ≤ 1/5 виконаного (AC-03b, NFR-7)"""
+    """FAILURE · межа жанру: перехідники ≤ 1/5 виконаного (AC-03b, NFR-7)"""
     got = _assembly()
     assert got.ratio <= 0.2, (
         f"перехідники {got.adapters} на {got.worked} виконаних ({got.ratio:.0%}) — "
@@ -260,7 +260,7 @@ def check_adapters_stay_under_a_fifth_of_what_executed() -> None:
 
 
 def check_the_warmup_runs_before_the_measured_pass() -> None:
-    """ВІДМОВА · прогрів: імпорт не входить у ціну прогону (NFR-10)"""
+    """FAILURE · прогрів: імпорт не входить у ціну прогону (NFR-10)"""
     calls: list[int] = []
     assemble.measure(lambda: calls.append(1))
     assert len(calls) == 2, (
@@ -300,7 +300,7 @@ def _branching(node: ast.AST) -> list[ast.AST]:
 
 
 def check_an_adapter_that_decides_is_refused() -> None:
-    """ВІДМОВА · перехідник, що вирішує, є частиною (AC-04b)"""
+    """FAILURE · перехідник, що вирішує, є частиною (AC-04b)"""
     tree = ast.parse((HERE / "seams.py").read_text(encoding="utf-8"))
     wanted = {function.__name__ for function in seams.ADAPTERS.values()}
     for node in ast.walk(tree):
@@ -362,7 +362,7 @@ def check_every_decision_cites_a_stage_that_exists() -> None:
 
 
 def check_a_dangling_citation_reddens_and_is_named() -> None:
-    """ВІДМОВА · обґрунтування: биле посилання названо (AC-06b)"""
+    """FAILURE · обґрунтування: биле посилання названо (AC-06b)"""
     good = arch.read()
     assert not arch.dangling(good), arch.dangling(good)
 
@@ -519,7 +519,7 @@ def check_latency_numbers_are_printed_with_their_conditions() -> None:
 
 
 def check_one_request_is_counted_once_and_in_one_bucket() -> None:
-    """ВІДМОВА · метрики: відмова частини не додає ще й успіху (AC-01c)"""
+    """FAILURE · метрики: відмова частини не додає ще й успіху (AC-01c)"""
     with tempfile.TemporaryDirectory() as tmp:
         traces = Path(tmp) / "s10.jsonl"
         with trace_run("check", path=traces, stage="s10", case="metrics") as tracer:
@@ -570,7 +570,7 @@ def _kinds(service: Any, times: int) -> list[str]:
 
 
 def check_the_found_text_travels_behind_the_stage_2_fence() -> None:
-    """ВІДМОВА · чужий текст іде в модель за огорожею блоку даних (AC-01d)"""
+    """FAILURE · чужий текст іде в модель за огорожею блоку даних (AC-01d)"""
     from stages.s02_rag.answer import CLOSE_DATA, OPEN_DATA  # noqa: PLC0415
 
     with _running() as (service, _tmp, _traces):
@@ -596,7 +596,7 @@ def check_the_found_text_travels_behind_the_stage_2_fence() -> None:
 
 
 def check_the_budget_guard_has_a_witness() -> None:
-    """ВІДМОВА · бюджет: вичерпана межа зупиняє запити, і без списання це червоніє (AC-07c)"""
+    """FAILURE · бюджет: вичерпана межа зупиняє запити, і без списання це червоніє (AC-07c)"""
     allowed = 2
     with _asking(allowed * COST_PER_REQUEST) as service:
         kinds = _kinds(service, allowed + 1)
@@ -653,7 +653,7 @@ def check_the_lesson_fits_the_word_budget() -> None:
 
 
 def check_a_missing_load_tool_yields_not_evaluated_never_a_failure() -> None:
-    """ВІДМОВА · навантаження: без інструмента — третій стан (AC-08b)"""
+    """FAILURE · навантаження: без інструмента — третій стан (AC-08b)"""
     from importlib.util import find_spec  # noqa: PLC0415
 
     if find_spec("locust") is None:
@@ -665,7 +665,7 @@ def check_a_missing_load_tool_yields_not_evaluated_never_a_failure() -> None:
 
 
 def check_a_broken_adapter_reddens_the_check_about_that_seam() -> None:
-    """ВІДМОВА · зуби: зламаний перехідник червонить перевірку про свій шов (AC-12)"""
+    """FAILURE · зуби: зламаний перехідник червонить перевірку про свій шов (AC-12)"""
     healthy = seams.from_agent
 
     def silent(task: str, *, client: Any, tracer: Any) -> Any:
@@ -714,7 +714,7 @@ def check_the_http_layer_is_stage_6_and_not_a_second_one() -> None:
 
 
 def check_the_assembled_service_answers_over_http_unchanged() -> None:
-    """ВІДМОВА · деплой: чужий застосунок відмовляє без ключа й відповідає з ним (AC-13b)"""
+    """FAILURE · деплой: чужий застосунок відмовляє без ключа й відповідає з ним (AC-13b)"""
     # Спроба імпорту, а не `find_spec`: симуляція чистої установки блокує пакет
     # хуком, який КИДАЄ, і `find_spec` падає замість того, щоб повернути `None`.
     try:
@@ -754,7 +754,7 @@ def check_the_assembled_service_answers_over_http_unchanged() -> None:
 
 
 def check_the_live_deploy_stays_not_evaluated() -> None:
-    """ВІДМОВА · деплой: прогін проти справжнього HTTPS — третій стан (AC-13c)"""
+    """FAILURE · деплой: прогін проти справжнього HTTPS — третій стан (AC-13c)"""
     smoke = REPO_ROOT / "deploy" / "smoke.sh"
     assert smoke.exists(), "переліку для живого сервісу немає взагалі"
     assert "s10" in (REPO_ROOT / "deploy" / "RUNBOOK.md").read_text(encoding="utf-8"), (
@@ -799,7 +799,7 @@ def check_the_demo_shows_every_scene_offline_within_its_budget() -> None:
 
 
 def check_twenty_runs_give_the_same_branches_and_states() -> None:
-    """ВІДМОВА · детермінізм: двадцять прогонів дають ті самі гілки й стани (NFR-6)"""
+    """FAILURE · детермінізм: двадцять прогонів дають ті самі гілки й стани (NFR-6)"""
 
     def fingerprint() -> tuple:
         with _running() as (_service, tmp, _traces):
@@ -814,7 +814,7 @@ def check_twenty_runs_give_the_same_branches_and_states() -> None:
 def check_the_failure_modes_are_at_least_a_third() -> None:
     """перевірки: режимів відмови не менше третини (NFR-4)"""
     labels = [(check.__doc__ or "").split(NEWLINE)[0] for check in CHECKS]
-    failures = [label for label in labels if label.startswith("ВІДМОВА")]
+    failures = [label for label in labels if label.startswith("FAILURE")]
     assert len(failures) * 3 >= len(CHECKS), (
         f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини"
     )

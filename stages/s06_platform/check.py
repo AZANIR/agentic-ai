@@ -127,7 +127,7 @@ def check_the_window_forgets_what_fell_out_of_it() -> None:
 
 
 def check_two_instances_on_one_store_see_one_number() -> None:
-    """ВІДМОВА · головна перевірка етапу: два екземпляри бачать ОДИН лічильник"""
+    """FAILURE · головна перевірка етапу: два екземпляри бачать ОДИН лічильник"""
     first, second = _shared_pair()
 
     first.add("client", 1, now=NOW, window=MINUTE)
@@ -145,7 +145,7 @@ def check_two_instances_on_one_store_see_one_number() -> None:
 
 
 def check_two_in_memory_counters_do_not_see_each_other() -> None:
-    """ВІДМОВА · дзеркальна: процесо-локальний лічильник НЕ спільний — і це вправа, не вада"""
+    """FAILURE · дзеркальна: процесо-локальний лічильник НЕ спільний — і це вправа, не вада"""
     first, second = InMemory(), InMemory()
     first.add("client", 1, now=NOW, window=MINUTE)
 
@@ -162,7 +162,7 @@ def check_two_in_memory_counters_do_not_see_each_other() -> None:
 
 
 def check_time_is_passed_in_never_read_from_the_clock() -> None:
-    """ВІДМОВА · counters: рішення про вікно не залежить від системного годинника"""
+    """FAILURE · counters: рішення про вікно не залежить від системного годинника"""
     import ast
     import inspect
 
@@ -189,7 +189,7 @@ def check_time_is_passed_in_never_read_from_the_clock() -> None:
 
 
 def check_the_factory_branches_on_profile_and_nothing_else() -> None:
-    """ВІДМОВА · фабрика: розгалуження за профілем живе тут і більше ніде"""
+    """FAILURE · фабрика: розгалуження за профілем живе тут і більше ніде"""
     local = get_counters(Settings(profile=LOCAL))
     assert isinstance(local, InMemory), type(local)
 
@@ -272,7 +272,7 @@ def _both_stores(connection, tmp: str) -> list:
 
 
 def check_both_fact_stores_answer_the_same_way() -> None:
-    """ВІДМОВА · сховище: файл і база дають однакову відповідь на однакових даних"""
+    """FAILURE · сховище: файл і база дають однакову відповідь на однакових даних"""
     with _database() as connection, tempfile.TemporaryDirectory() as tmp:
         _fresh(connection)
         for store in _both_stores(connection, tmp):
@@ -288,7 +288,7 @@ def check_both_fact_stores_answer_the_same_way() -> None:
 
 
 def check_the_owner_filter_is_a_query_condition_in_the_database() -> None:
-    """ВІДМОВА · сховище: чужий рядок не залишає бази — фільтр у запиті, не в памʼяті"""
+    """FAILURE · сховище: чужий рядок не залишає бази — фільтр у запиті, не в памʼяті"""
     with _database() as connection:
         _fresh(connection)
         store = DatabaseStore(connection)
@@ -308,7 +308,7 @@ def check_the_owner_filter_is_a_query_condition_in_the_database() -> None:
 
 
 def check_neither_store_leaks_and_both_still_answer() -> None:
-    """ВІДМОВА · дзеркальна: чуже не дійшло І своє дійшло — на ОБОХ реалізаціях"""
+    """FAILURE · дзеркальна: чуже не дійшло І своє дійшло — на ОБОХ реалізаціях"""
     with _database() as connection, tempfile.TemporaryDirectory() as tmp:
         _fresh(connection)
         for store in _both_stores(connection, tmp):
@@ -330,7 +330,7 @@ def check_neither_store_leaks_and_both_still_answer() -> None:
 
 
 def check_the_database_refuses_two_active_facts_on_one_topic() -> None:
-    """ВІДМОВА · міграція: правило «один активний факт на тему» тримає сховище, не код"""
+    """FAILURE · міграція: правило «один активний факт на тему» тримає сховище, не код"""
     with _database() as connection:
         _fresh(connection)
         with connection.cursor() as cursor:
@@ -361,7 +361,7 @@ def check_the_database_refuses_two_active_facts_on_one_topic() -> None:
 
 
 def check_the_database_refuses_a_replaced_fact_without_a_time() -> None:
-    """ВІДМОВА · міграція: статус `replaced` без часу заміни відхиляється сховищем"""
+    """FAILURE · міграція: статус `replaced` без часу заміни відхиляється сховищем"""
     with _database() as connection:
         _fresh(connection)
         try:
@@ -382,8 +382,20 @@ def check_the_database_refuses_a_replaced_fact_without_a_time() -> None:
             )
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Правки етапу 5 після його теґа, кожна — з ADR, який її ухвалив. Порожній словник
+# означає «жодної»; запис означає рішення, а не виняток.
+RECORDED_EDITS: dict[str, str] = {
+    # Переклад репозиторію англійською: маркер `ВІДМОВА ·` став `FAILURE ·` в один прохід,
+    # бо його читають `check_runner`, перевірки покриття кожного етапу й `article_check`.
+    # Тексту стало інакше, поведінки — ні.
+    "stages/s05_memory/check.py": "docs/adr/0008-english-is-the-only-language-in-the-repository.md",
+}
+
+
 def check_stage_five_is_untouched_by_the_move() -> None:
-    """ВІДМОВА · переїзд не змінив жодного рядка етапу 5"""
+    """FAILURE · переїзд не змінив жодного рядка етапу 5"""
     import subprocess
 
     result = subprocess.run(
@@ -397,11 +409,19 @@ def check_stage_five_is_untouched_by_the_move() -> None:
         raise NotVerified(f"теґ stage-05 недоступний: {result.stderr.strip()}")
 
     changed = [line for line in result.stdout.splitlines() if line.strip()]
-    assert not changed, (
-        f"етап 5 змінено: {changed}. C-1 забороняє правки без ADR, а ADR-0004 обіцяв, що "
+    unrecorded = [name for name in changed if name not in RECORDED_EDITS]
+    assert not unrecorded, (
+        f"етап 5 змінено: {unrecorded}. C-1 забороняє правки без ADR, а ADR-0004 обіцяв, що "
         "переїзд обійдеться без них. Якщо правка справді потрібна — це не деталь переїзду, "
         "а спростування тези етапу 5, і воно потребує запису"
     )
+
+    # Дозвіл видає не список, а ADR: файл, названий тут, мусить мати рішення, яке існує.
+    # Інакше «записано» вироджується в «вписано в список», і перевірка втрачає зуби.
+    for name, adr in RECORDED_EDITS.items():
+        if name not in changed:
+            continue
+        assert (REPO_ROOT / adr).exists(), f"{name}: ADR {adr} не існує"
 
 
 # --- три воротарі -----------------------------------------------------------------------
@@ -416,7 +436,7 @@ def _settings(**kwargs) -> Settings:
 
 
 def check_an_unknown_key_is_refused_before_anything_else() -> None:
-    """ВІДМОВА · воротар: невпізнаний ключ відхиляється й не доходить до лічильників"""
+    """FAILURE · воротар: невпізнаний ключ відхиляється й не доходить до лічильників"""
     counters = InMemory()
     verdict = admit("не той ключ", counters, _settings(), now=NOW)
 
@@ -428,7 +448,7 @@ def check_an_unknown_key_is_refused_before_anything_else() -> None:
 
 
 def check_a_known_key_gets_through_and_carries_its_owner() -> None:
-    """ВІДМОВА · дзеркальна: впізнаний ключ ДОХОДИТЬ — воротар не глухий"""
+    """FAILURE · дзеркальна: впізнаний ключ ДОХОДИТЬ — воротар не глухий"""
     verdict = admit(KEY, InMemory(), _settings(), now=NOW)
 
     assert verdict.allowed and verdict.kind == OK, verdict
@@ -438,7 +458,7 @@ def check_a_known_key_gets_through_and_carries_its_owner() -> None:
 
 
 def check_the_key_never_appears_in_what_is_written_down() -> None:
-    """ВІДМОВА · воротар: ключ не трапляється ні у вердикті, ні в ідентифікаторі власника"""
+    """FAILURE · воротар: ключ не трапляється ні у вердикті, ні в ідентифікаторі власника"""
     verdict = admit(KEY, InMemory(), _settings(), now=NOW)
     written = f"{verdict.owner} {verdict.reason} {verdict.kind}"
 
@@ -452,7 +472,7 @@ def check_the_key_never_appears_in_what_is_written_down() -> None:
 
 
 def check_the_refusal_does_not_say_whether_the_key_exists() -> None:
-    """ВІДМОВА · воротар: відмова однакова для невідомого й для відкликаного ключа"""
+    """FAILURE · воротар: відмова однакова для невідомого й для відкликаного ключа"""
     empty = admit(KEY, InMemory(), _settings(api_keys=[]), now=NOW)
     unknown = admit("зовсім інший", InMemory(), _settings(), now=NOW)
 
@@ -463,7 +483,7 @@ def check_the_refusal_does_not_say_whether_the_key_exists() -> None:
 
 
 def check_the_key_is_compared_in_constant_time() -> None:
-    """ВІДМОВА · воротар: ключ звіряється сталим порівнянням, а не `==`"""
+    """FAILURE · воротар: ключ звіряється сталим порівнянням, а не `==`"""
     import ast
     import inspect
 
@@ -495,7 +515,7 @@ def check_the_key_is_compared_in_constant_time() -> None:
 
 
 def check_the_rate_limit_refuses_before_the_model() -> None:
-    """ВІДМОВА · воротар: понад ліміт — відмова з часом повтору, і вона не про автентифікацію"""
+    """FAILURE · воротар: понад ліміт — відмова з часом повтору, і вона не про автентифікацію"""
     counters = InMemory()
     settings = _settings()
     for _ in range(settings.rate_limit_per_minute):
@@ -511,7 +531,7 @@ def check_the_rate_limit_refuses_before_the_model() -> None:
 
 
 def check_one_clients_limit_does_not_stop_another() -> None:
-    """ВІДМОВА · воротар: лічильник на власника, а не на сервіс"""
+    """FAILURE · воротар: лічильник на власника, а не на сервіс"""
     counters = InMemory()
     settings = _settings()
     for _ in range(settings.rate_limit_per_minute + 1):
@@ -524,7 +544,7 @@ def check_one_clients_limit_does_not_stop_another() -> None:
 
 
 def check_an_exhausted_budget_stops_the_call_and_says_so() -> None:
-    """ВІДМОВА · воротар: вичерпаний бюджет — окрема відмова, не ліміт і не автентифікація"""
+    """FAILURE · воротар: вичерпаний бюджет — окрема відмова, не ліміт і не автентифікація"""
     counters = InMemory()
     settings = _settings()
     charge(owner_of(KEY), counters, settings.budget_usd_per_day, now=NOW)
@@ -540,7 +560,7 @@ def check_an_exhausted_budget_stops_the_call_and_says_so() -> None:
 
 
 def check_spending_is_counted_or_the_guard_never_fires() -> None:
-    """ВІДМОВА · дзеркальна: витрати зростають — запобіжник, що не рахує, не спрацює"""
+    """FAILURE · дзеркальна: витрати зростають — запобіжник, що не рахує, не спрацює"""
     counters = InMemory()
     owner = owner_of(KEY)
 
@@ -554,7 +574,7 @@ def check_spending_is_counted_or_the_guard_never_fires() -> None:
 
 
 def check_the_guards_run_in_the_declared_order() -> None:
-    """ВІДМОВА · воротар: порядок «хто -> скільки -> за чий рахунок» і є механізмом"""
+    """FAILURE · воротар: порядок «хто -> скільки -> за чий рахунок» і є механізмом"""
     counters = InMemory()
     settings = _settings()
     # Вичерпані і ліміт, і бюджет — але ключ невідомий. Має перемогти автентифікація.
@@ -625,7 +645,7 @@ def check_a_wordy_answer_still_classifies() -> None:
 
 
 def check_an_unrecognised_answer_falls_back_to_the_safest_branch() -> None:
-    """ВІДМОВА · intent: невпізнана відповідь — запасна гілка, а не виняток"""
+    """FAILURE · intent: невпізнана відповідь — запасна гілка, а не виняток"""
     intent = classify("щось геть інше", client=FakeLLM(script=[text("гадки не маю")]))
 
     assert intent.branch == KNOWLEDGE, intent
@@ -637,7 +657,7 @@ def check_an_unrecognised_answer_falls_back_to_the_safest_branch() -> None:
 
 
 def check_the_mixed_question_limit_is_a_measured_number() -> None:
-    """ВІДМОВА · intent: межа класифікатора названа числом, а не словами"""
+    """FAILURE · intent: межа класифікатора названа числом, а не словами"""
     # Модель відповідає першою з двох доречних гілок — саме так поводиться справжня:
     # вона обирає одну, бо її про одну й питали.
     missed = 0
@@ -658,7 +678,7 @@ def check_the_mixed_question_limit_is_a_measured_number() -> None:
 
 
 def check_there_is_no_fallback_when_the_budget_is_gone() -> None:
-    """ВІДМОВА · intent: вичерпаний бюджет не вмикає класифікації без моделі"""
+    """FAILURE · intent: вичерпаний бюджет не вмикає класифікації без моделі"""
     import inspect
 
     from stages.s06_platform import intent as module
@@ -765,7 +785,7 @@ def check_the_trace_names_every_step_and_its_reason() -> None:
 
 
 def check_a_refused_request_leaves_only_its_refusal() -> None:
-    """ВІДМОВА · integration · відхилений запит не лишає у трейсі нічого, крім відмови"""
+    """FAILURE · integration · відхилений запит не лишає у трейсі нічого, крім відмови"""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "t.jsonl"
         with trace_run("s06", path=path, stage="s06") as tracer:
@@ -783,7 +803,7 @@ def check_a_refused_request_leaves_only_its_refusal() -> None:
 
 
 def check_the_key_never_reaches_the_trace_or_the_answer() -> None:
-    """ВІДМОВА · integration · ключ не трапляється ні у трейсі, ні у відповіді"""
+    """FAILURE · integration · ключ не трапляється ні у трейсі, ні у відповіді"""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "t.jsonl"
         with trace_run("s06", path=path, stage="s06") as tracer:
@@ -800,7 +820,7 @@ def check_the_key_never_reaches_the_trace_or_the_answer() -> None:
 
 
 def check_two_owners_do_not_see_each_others_memory_through_the_service() -> None:
-    """ВІДМОВА · integration · два ключі — дві памʼяті; і кожна своя доходить"""
+    """FAILURE · integration · два ключі — дві памʼяті; і кожна своя доходить"""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "t.jsonl"
         store = FileStore(Path(tmp) / "m.jsonl")
@@ -830,7 +850,7 @@ def check_two_owners_do_not_see_each_others_memory_through_the_service() -> None
 
 
 def check_health_names_each_dependency_separately() -> None:
-    """ВІДМОВА · стан: несправна залежність названа, і сервіс не рапортує «живий»"""
+    """FAILURE · стан: несправна залежність названа, і сервіс не рапортує «живий»"""
 
     def broken() -> None:
         raise ConnectionError("postgresql://agentic:agentic@10.0.0.1:5432/agentic")
@@ -857,7 +877,7 @@ def check_health_names_each_dependency_separately() -> None:
 
 
 def check_a_healthy_service_reports_healthy() -> None:
-    """ВІДМОВА · дзеркальна: справний сервіс каже «живий» — монітор не кричить завжди"""
+    """FAILURE · дзеркальна: справний сервіс каже «живий» — монітор не кричить завжди"""
     health = Health(
         dependencies=[
             Dependency(name="store", probe=lambda: None),
@@ -874,7 +894,7 @@ def check_a_healthy_service_reports_healthy() -> None:
 
 
 def check_metrics_tell_the_failure_kinds_apart() -> None:
-    """ВІДМОВА · метрики: типи відмов розрізняються, і успішні звіряються з трейсами"""
+    """FAILURE · метрики: типи відмов розрізняються, і успішні звіряються з трейсами"""
     metrics = Metrics()
     for kind in (OK, OK, UNAUTHENTICATED, RATE_LIMITED, BUDGET_EXHAUSTED):
         metrics.request(kind)
@@ -896,7 +916,7 @@ def check_metrics_tell_the_failure_kinds_apart() -> None:
 
 
 def check_the_service_survives_a_dependency_that_is_gone() -> None:
-    """ВІДМОВА · integration · недоступна залежність дає названу помилку, а не падіння"""
+    """FAILURE · integration · недоступна залежність дає названу помилку, а не падіння"""
 
     class Exploding:
         name = "exploding"
@@ -941,7 +961,7 @@ def _workers(mode: str, ledger: Ledger, count: int = 2) -> list:
 
 
 def check_two_workers_run_the_job_twice() -> None:
-    """ВІДМОВА · пастка: планувальник усередині застосунку виконує задачу ДВІЧІ"""
+    """FAILURE · пастка: планувальник усередині застосунку виконує задачу ДВІЧІ"""
     ledger = Ledger()
     ran = run_interval(_workers(INSIDE, ledger), None, now=DUE, due_at=DUE)
 
@@ -953,7 +973,7 @@ def check_two_workers_run_the_job_twice() -> None:
 
 
 def check_one_scheduler_runs_the_job_once() -> None:
-    """ВІДМОВА · дзеркальна: винесений планувальник — один раз за тих самих двох воркерів"""
+    """FAILURE · дзеркальна: винесений планувальник — один раз за тих самих двох воркерів"""
     ledger = Ledger()
     workers = _workers(SEPARATE, ledger)
     ran = run_interval(workers, Scheduler(ledger=ledger), now=DUE, due_at=DUE)
@@ -971,7 +991,7 @@ def check_one_scheduler_runs_the_job_once() -> None:
 
 
 def check_the_job_does_not_run_before_its_time() -> None:
-    """ВІДМОВА · пастка: до настання часу не виконує ніхто — інакше перевірки нічого не значать"""
+    """FAILURE · пастка: до настання часу не виконує ніхто — інакше перевірки нічого не значать"""
     ledger = Ledger()
     run_interval(_workers(INSIDE, ledger), Scheduler(ledger=ledger), now=DUE - 1, due_at=DUE)
 
@@ -982,7 +1002,7 @@ def check_the_job_does_not_run_before_its_time() -> None:
 
 
 def check_the_doubled_rate_limit_is_the_half_nobody_sees() -> None:
-    """ВІДМОВА · пастка: другий воркер подвоює ЛІМІТ — і цього не видно ніде"""
+    """FAILURE · пастка: другий воркер подвоює ЛІМІТ — і цього не видно ніде"""
     settings = _settings()
     limit = settings.rate_limit_per_minute
 
@@ -1002,7 +1022,7 @@ def check_the_doubled_rate_limit_is_the_half_nobody_sees() -> None:
 
 
 def check_the_shared_store_fixes_the_half_nobody_sees() -> None:
-    """ВІДМОВА · дзеркальна: спільне сховище повертає лімітові його значення"""
+    """FAILURE · дзеркальна: спільне сховище повертає лімітові його значення"""
     settings = _settings()
     limit = settings.rate_limit_per_minute
     first, second = _shared_pair()
@@ -1020,7 +1040,7 @@ def check_the_shared_store_fixes_the_half_nobody_sees() -> None:
 
 
 def check_the_scheduled_job_reports_what_actually_expired() -> None:
-    """ВІДМОВА · задача: число у звіті змінюється разом із протуханням, а не константа"""
+    """FAILURE · задача: число у звіті змінюється разом із протуханням, а не константа"""
     with tempfile.TemporaryDirectory() as tmp:
         store = FileStore(Path(tmp) / "m.jsonl")
         store.remember(_fact("olena", "promo", "Діє знижка", ttl=DAY))
@@ -1039,7 +1059,7 @@ def check_the_scheduled_job_reports_what_actually_expired() -> None:
 
 
 def check_the_scheduled_job_deletes_nothing() -> None:
-    """ВІДМОВА · задача читає, а не видаляє — інакше вона суперечить ADR-0003 етапу 5"""
+    """FAILURE · задача читає, а не видаляє — інакше вона суперечить ADR-0003 етапу 5"""
     with tempfile.TemporaryDirectory() as tmp:
         store = FileStore(Path(tmp) / "m.jsonl")
         store.remember(_fact("olena", "promo", "Діє знижка", ttl=DAY))
@@ -1078,7 +1098,7 @@ def _compose() -> dict:
 
 
 def check_a_failed_query_does_not_poison_the_connection() -> None:
-    """ВІДМОВА · сховище: невдалий запит не лишає зʼєднання в аварійному стані"""
+    """FAILURE · сховище: невдалий запит не лишає зʼєднання в аварійному стані"""
     with _database() as connection:
         store = DatabaseStore(connection)
         try:
@@ -1095,7 +1115,7 @@ def check_a_failed_query_does_not_poison_the_connection() -> None:
 
 
 def check_the_prod_profile_refuses_a_fake_provider_by_default() -> None:
-    """ВІДМОВА · конфігурація: prod без справжнього провайдера не стартує"""
+    """FAILURE · конфігурація: prod без справжнього провайдера не стартує"""
     base = {
         "APP_PROFILE": "prod",
         "API_KEYS": "k",
@@ -1118,7 +1138,7 @@ def check_the_prod_profile_refuses_a_fake_provider_by_default() -> None:
 
 
 def check_the_explicit_flag_lets_it_start_and_shows_up_in_health() -> None:
-    """ВІДМОВА · дзеркальна: явний дозвіл працює, і його ВИДНО у стані"""
+    """FAILURE · дзеркальна: явний дозвіл працює, і його ВИДНО у стані"""
     settings = Settings.load(
         source={
             "APP_PROFILE": "prod",
@@ -1139,7 +1159,7 @@ def check_the_explicit_flag_lets_it_start_and_shows_up_in_health() -> None:
 
 
 def check_the_fake_answers_a_prompt_nobody_scripted() -> None:
-    """ВІДМОВА · підробка з auto_reply відповідає на будь-який промпт, а не падає"""
+    """FAILURE · підробка з auto_reply відповідає на будь-який промпт, а не падає"""
     client = FakeLLM(auto_reply=True)
 
     reply = client.chat.completions.create(
@@ -1168,7 +1188,7 @@ def check_the_fake_answers_a_prompt_nobody_scripted() -> None:
 
 
 def check_the_deployment_files_exist_and_say_what_they_do() -> None:
-    """ВІДМОВА · розгортання: усі файли на місці, і смоук СПРАВДІ виконуваний"""
+    """FAILURE · розгортання: усі файли на місці, і смоук СПРАВДІ виконуваний"""
     for name in (
         "Dockerfile",
         "Caddyfile",
@@ -1201,7 +1221,7 @@ def check_the_deployment_files_exist_and_say_what_they_do() -> None:
 
 
 def check_the_smoke_script_runs_one_list_against_both_targets() -> None:
-    """ВІДМОВА · смоук: перелік перевірок не залежить від того, куди він дивиться"""
+    """FAILURE · смоук: перелік перевірок не залежить від того, куди він дивиться"""
     source = (DEPLOY / "smoke.sh").read_text(encoding="utf-8")
 
     # Дві гілки з різними переліками означали б, що локальний прогін доводить не те, що
@@ -1233,7 +1253,7 @@ def check_the_smoke_script_runs_one_list_against_both_targets() -> None:
 
 
 def check_the_migration_runs_once_not_per_worker() -> None:
-    """ВІДМОВА · розгортання: міграції — окремий контейнер, а не крок у старті сервісу"""
+    """FAILURE · розгортання: міграції — окремий контейнер, а не крок у старті сервісу"""
     # Розбір структури, а не пошук підрядків. Попередня редакція стверджувала
     # `"migrate:" in compose` і `"service_completed_successfully" in compose` — тож
     # перенесення залежності з `api` у `caddy` давало рівно ту поломку, яку вона
@@ -1261,7 +1281,7 @@ def check_the_migration_runs_once_not_per_worker() -> None:
 
 
 def check_the_service_waits_until_it_can_answer() -> None:
-    """ВІДМОВА · розгортання: проксі чекає на готовність сервісу, а не на «running»"""
+    """FAILURE · розгортання: проксі чекає на готовність сервісу, а не на «running»"""
     api = _compose()["services"]["api"]
     assert "healthcheck" in api, (
         "у `api` немає healthcheck. Тоді `caddy` стартує, щойно контейнер «running» — тобто до "
@@ -1271,7 +1291,7 @@ def check_the_service_waits_until_it_can_answer() -> None:
 
 
 def check_the_domain_is_required_not_defaulted() -> None:
-    """ВІДМОВА · розгортання: домен обовʼязковий — дефолт мовчки ламає сертифікат"""
+    """FAILURE · розгортання: домен обовʼязковий — дефолт мовчки ламає сертифікат"""
     raw = (DEPLOY / "docker-compose.prod.yml").read_text(encoding="utf-8")
     assert "SITE_ADDRESS: ${SITE_ADDRESS:?}" in raw, (
         "SITE_ADDRESS має дефолт. Забутий у .env.prod, він видає внутрішній сертифікат на "
@@ -1332,7 +1352,7 @@ def check_the_demo_shows_seven_scenes_and_leaves_a_trace() -> None:
 
 
 def check_the_demo_needs_no_key_no_network_and_no_container() -> None:
-    """ВІДМОВА · демо: жодного справжнього провайдера, жодного контейнера"""
+    """FAILURE · демо: жодного справжнього провайдера, жодного контейнера"""
     import inspect
 
     from stages.s06_platform import run as module
@@ -1349,7 +1369,7 @@ def check_the_demo_needs_no_key_no_network_and_no_container() -> None:
 
 
 def check_a_secret_is_neither_stored_nor_traced() -> None:
-    """ВІДМОВА · сервіс проходить чекліст етапу 5 цілком, а не одне правило з шести"""
+    """FAILURE · сервіс проходить чекліст етапу 5 цілком, а не одне правило з шести"""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "t.jsonl"
         store_path = Path(tmp) / "m.jsonl"
@@ -1381,7 +1401,7 @@ def check_a_secret_is_neither_stored_nor_traced() -> None:
 
 
 def check_the_apostrophe_does_not_decide_what_is_remembered() -> None:
-    """ВІДМОВА · три форми апострофа розпізнаються однаково"""
+    """FAILURE · три форми апострофа розпізнаються однаково"""
     seen = []
     for word in ("запамʼятай", "запам'ятай", "запам’ятай"):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1404,7 +1424,7 @@ def check_the_apostrophe_does_not_decide_what_is_remembered() -> None:
 
 
 def check_the_rate_limit_is_one_atomic_call() -> None:
-    """ВІДМОВА · ліміт рахується одним викликом, а не парою читання-запис"""
+    """FAILURE · ліміт рахується одним викликом, а не парою читання-запис"""
     import ast
     import inspect
 
@@ -1424,7 +1444,7 @@ def check_the_rate_limit_is_one_atomic_call() -> None:
 
 
 def check_the_health_probe_reads_no_data() -> None:
-    """ВІДМОВА · проба стану не читає таблиці — ендпоінт відкритий без ключа"""
+    """FAILURE · проба стану не читає таблиці — ендпоінт відкритий без ключа"""
     import ast
 
     # Джерело читається файлом, а не імпортом: `serve.py` тягне веб-фреймворк, тож
@@ -1455,7 +1475,7 @@ def check_the_health_probe_reads_no_data() -> None:
 
 
 def check_traces_are_a_named_dependency() -> None:
-    """ВІДМОВА · стан знає про трейси — інакше їхня відмова валить кожен запит мовчки"""
+    """FAILURE · стан знає про трейси — інакше їхня відмова валить кожен запит мовчки"""
     # Той самий привід читати файлом, а не імпортом: інакше базова установка дає
     # червоне там, де має бути «не перевірено».
     source = (Path(__file__).parent / "serve.py").read_text(encoding="utf-8")
@@ -1466,7 +1486,7 @@ def check_traces_are_a_named_dependency() -> None:
 
 
 def check_the_owner_id_is_salted() -> None:
-    """ВІДМОВА · похідний власник солиться — слабкий ключ не відновлюється з трейсу"""
+    """FAILURE · похідний власник солиться — слабкий ключ не відновлюється з трейсу"""
     plain = owner_of("change-me-too", salt="")
     salted = owner_of("change-me-too", salt="deployment-salt")
 
@@ -1479,7 +1499,7 @@ def check_the_owner_id_is_salted() -> None:
 
 
 def check_a_zero_limit_is_refused_at_startup() -> None:
-    """ВІДМОВА · нуль і відʼємне в межах — помилка старту, а не «без ліміту»"""
+    """FAILURE · нуль і відʼємне в межах — помилка старту, а не «без ліміту»"""
     for key, value in (
         ("RATE_LIMIT_PER_MINUTE", "0"),
         ("RATE_LIMIT_PER_MINUTE", "-1"),
@@ -1505,7 +1525,7 @@ def check_a_zero_limit_is_refused_at_startup() -> None:
 def check_the_failure_modes_are_at_least_a_third() -> None:
     """перевірки: режимів відмови не менше третини (NFR-4)"""
     labels = [(c.__doc__ or "").split(NEWLINE)[0] for c in CHECKS]
-    failures = [d for d in labels if d.startswith("ВІДМОВА")]
+    failures = [d for d in labels if d.startswith("FAILURE")]
     assert len(failures) * 3 >= len(CHECKS), (
         f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини"
     )
@@ -1518,9 +1538,9 @@ def check_the_lesson_fits_the_reading_budget() -> None:
 
 
 def check_the_lesson_numbers_match_the_suite() -> None:
-    """ВІДМОВА · урок: числа в прозі збігаються з тим, що друкує команда"""
+    """FAILURE · урок: числа в прозі збігаються з тим, що друкує команда"""
     total = len(CHECKS)
-    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
+    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
     here = Path(__file__).parent
     for name, sentence in (
         ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
@@ -1535,7 +1555,7 @@ def check_the_lesson_numbers_match_the_suite() -> None:
 
 
 def check_the_lesson_line_counts_match_the_modules() -> None:
-    """ВІДМОВА · урок: розміри модулів у прозі — обчислені, а не переписані"""
+    """FAILURE · урок: розміри модулів у прозі — обчислені, а не переписані"""
     here = Path(__file__).parent
     lesson = (here / "README.md").read_text(encoding="utf-8")
     english = (here / "README.en.md").read_text(encoding="utf-8")
@@ -1550,7 +1570,7 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
 
 
 def check_the_exercises_are_generated_from_the_pinned_mutations() -> None:
-    """ВІДМОВА · вправи: числа червоних беруться з mutations.json, а не пишуться"""
+    """FAILURE · вправи: числа червоних беруться з mutations.json, а не пишуться"""
     here = Path(__file__).parent
     pinned = json.loads((here / "mutations.json").read_text(encoding="utf-8"))["mutations"]
     text_of = (here / "exercises.md").read_text(encoding="utf-8")

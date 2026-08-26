@@ -275,18 +275,18 @@ feature_size: "S"
 | AC | Тест | Рівень | Що доводить |
 |---|---|---|---|
 | AC-01 | `window keeps the tail verbatim and summarises the rest` | unit | Обидва стани поруч, кількість стиснутого названа числом |
-| AC-01b | `summarising twice does not summarise the summary` | unit | **ВІДМОВА.** Підсумок не стискається повторно до безглуздя |
+| AC-01b | `summarising twice does not summarise the summary` | unit | **FAILURE.** Підсумок не стискається повторно до безглуздя |
 | AC-02 | `a fact from the first session reaches the second` | e2e | Друга сесія читає записане, а не спільний обʼєкт |
-| AC-03 | `an irrelevant fact does not reach the context` | unit | **ВІДМОВА.** Головна перевірка етапу: селективність, не збереження |
-| AC-04 | `a contradicting fact retires the old one` | unit | **ВІДМОВА.** Дві правди одночасно не існують як стан |
-| AC-05 | `an expired fact is skipped and an eternal one is not` | unit | **ВІДМОВА.** Протухання видиме як причина |
-| AC-06 | `another owner's facts never reach the context` | unit | **ВІДМОВА.** Витік пам'яті |
-| AC-06b | `the owner's own facts still arrive` | unit | **ВІДМОВА.** Дзеркальна: фільтр не звузив видачу до порожньої |
-| AC-06c | `a fact cannot raise its own priority by its text` | unit | **ВІДМОВА.** Абʼюз-кейс §6.1 |
+| AC-03 | `an irrelevant fact does not reach the context` | unit | **FAILURE.** Головна перевірка етапу: селективність, не збереження |
+| AC-04 | `a contradicting fact retires the old one` | unit | **FAILURE.** Дві правди одночасно не існують як стан |
+| AC-05 | `an expired fact is skipped and an eternal one is not` | unit | **FAILURE.** Протухання видиме як причина |
+| AC-06 | `another owner's facts never reach the context` | unit | **FAILURE.** Витік пам'яті |
+| AC-06b | `the owner's own facts still arrive` | unit | **FAILURE.** Дзеркальна: фільтр не звузив видачу до порожньої |
+| AC-06c | `a fact cannot raise its own priority by its text` | unit | **FAILURE.** Абʼюз-кейс §6.1 |
 | AC-07 | `dictionary and semantic retrieval share one interface` | unit | Різниця показана числами; названо факт, який знайшла лише одна |
 | AC-08 | `the what-to-remember checklist answers every situation` | unit | Кожна ситуація — одна відповідь; кожне правило — своя ситуація |
 | AC-09 | `checks run offline and cover failure modes` | e2e | Прогін офлайн; частка відмов ≥ 1/3 |
-| AC-09b | `a corrupted memory file does not break retrieval` | unit | **ВІДМОВА.** Зіпсовані записи названі, решта працює |
+| AC-09b | `a corrupted memory file does not break retrieval` | unit | **FAILURE.** Зіпсовані записи названі, решта працює |
 
 **NFR-4 писався двічі, і перший раз — неправильно.** Стояло «≤ 5 с», заміряно 0.25 —
 чесне число, яке **нічого не тримало**: стелю перевіряє константа `BUDGET_SECONDS` у

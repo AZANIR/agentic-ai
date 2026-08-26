@@ -349,24 +349,24 @@ feature_size: "M"
 | AC | Тест | Рівень | Що доводить |
 |---|---|---|---|
 | AC-01 | `one command yields a row per implementation` | integration | Чотири рядки, шість колонок, файл записано |
-| AC-01b | `the written table parses back to the same numbers` | unit | **ВІДМОВА.** Два незалежні джерела; жодного зведеного бала |
+| AC-01b | `the written table parses back to the same numbers` | unit | **FAILURE.** Два незалежні джерела; жодного зведеного бала |
 | AC-02 | `all implementations honour the same task contract` | contract | Контракт виконується, а не оглядається |
-| AC-02b | `an implementation that breaks the contract gets no numbers` | contract | **ВІДМОВА.** Названо порушений елемент, рядок без чисел |
+| AC-02b | `an implementation that breaks the contract gets no numbers` | contract | **FAILURE.** Названо порушений елемент, рядок без чисел |
 | AC-03 | `my lines and invisible lines are two separate numbers` | unit | Одне число без другого — половина аргументу |
-| AC-03b | `framework lines never count as mine` | unit | **ВІДМОВА.** Базова лінія не отримує безпідставної переваги |
+| AC-03b | `framework lines never count as mine` | unit | **FAILURE.** Базова лінія не отримує безпідставної переваги |
 | AC-04 | `tokens are counted at the provider boundary, both numbers` | integration | Просив автор / пішло насправді |
 | AC-04b | `the overhead counter is proven at both ends` | unit | Строго додатна на чужому тексті, нуль на контрактному |
-| AC-04c | `twenty offline runs give the same table` | unit | **ВІДМОВА.** Мигтливі числа неможливо порівняти з учорашніми |
+| AC-04c | `twenty offline runs give the same table` | unit | **FAILURE.** Мигтливі числа неможливо порівняти з учорашніми |
 | AC-05 | `exactly one row carries no framework` | unit | Питання «чи потрібен», а не «який» |
 | AC-06 | `each implementation answers why a step ran, and names the source` | integration | З мого коду, з трейсу чи з логів фреймворка |
-| AC-06b | `implicit coordination names the price of that answer` | integration | **ВІДМОВА.** Число замість твердження «дешевше» |
+| AC-06b | `implicit coordination names the price of that answer` | integration | **FAILURE.** Число замість твердження «дешевше» |
 | AC-07 | `a missing package yields not-evaluated, never a failure` | integration | Третій стан має власний рядок таблиці |
-| AC-07b | `the flag on without credentials fails loudly` | integration | **ВІДМОВА.** Мовчазний прапорець гірший за його відсутність |
-| AC-08 | `a changed framework API reddens that implementation's smoke` | contract | **ВІДМОВА.** Названо виклик, якого більше немає |
+| AC-07b | `the flag on without credentials fails loudly` | integration | **FAILURE.** Мовчазний прапорець гірший за його відсутність |
+| AC-08 | `a changed framework API reddens that implementation's smoke` | contract | **FAILURE.** Названо виклик, якого більше немає |
 | AC-09 | `the table carries no aggregate score and no winner` | unit | Ваги обмежень — думка, а не вимір |
 | AC-09b | `every rule of choice cites a column of the table` | unit | Правило застосовне поза цією таблицею |
-| AC-10 | `a broken implementation reddens the check that asserts about it` | unit | **ВІДМОВА.** Мутація влучає точно |
-| AC-11 | `no implementation reaches the network without a key` | integration | **ВІДМОВА.** Доводиться виконанням, не оглядом імпортів |
+| AC-10 | `a broken implementation reddens the check that asserts about it` | unit | **FAILURE.** Мутація влучає точно |
+| AC-11 | `no implementation reaches the network without a key` | integration | **FAILURE.** Доводиться виконанням, не оглядом імпортів |
 | AC-12 | `the stage 8 evaluator extracts more than one trajectory` | cross-context | Ключ прогону з першого рядка — виміряна вимога вжита |
 
 **Стратегія інтеграційних тестів.** Справжня залежність тут — **пакет фреймворка**, і вона

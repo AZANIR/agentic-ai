@@ -66,11 +66,11 @@ with trace_run("демо етапу 1", stage="s01") as tr:
 один рядок; цей рядок читач бачить у виводі.
 
 **Серед перевірок етапу обов'язково є щонайменше одна на режим відмови.** Позначай її
-префіксом `ВІДМОВА ·` у docstring.
+префіксом `FAILURE ·` у docstring.
 
 ```python
 def check_step_limit_stops_runaway() -> None:
-    """ВІДМОВА · агент зупиняється лімітом, а не крутиться вічно"""
+    """FAILURE · агент зупиняється лімітом, а не крутиться вічно"""
     client = FakeLLM.always_calling("search_web")
     ...
 ```
@@ -106,15 +106,27 @@ Postgres 16 + `pgvector` — єдине сховище. Redis — лише лі�
 **Таблиці створює той етап, якому вони потрібні.** Схема «наперед, про всяк випадок»
 застаріває швидше, ніж її встигають використати.
 
-## Мова
+## Language
 
-| Що | Мова |
+**Everything published to this repository is written in English.** Documentation, lesson text,
+docstrings, comments, reader-facing messages, commit messages — all of it. A repository read by
+people who do not share one language is read in English or not at all.
+
+| What | Language |
 |---|---|
-| Уроки, README, глосарій, коментарі-пояснення | українська |
-| Імена змінних, функцій, файлів, пакетів | англійська |
-| Docstrings | українська (пояснюють «чому»), терміни — англійською |
-| Повідомлення про помилки для читача | українська |
-| Комміти | англійська |
+| Lessons, READMEs, glossary, specs, ADRs, review records | English |
+| Identifiers: variables, functions, files, packages | English |
+| Docstrings and explanatory comments | English |
+| Reader-facing messages, including check failures | English |
+| Commit messages, PR titles and descriptions | English |
+
+This replaces the earlier rule, which kept prose in Ukrainian. The change is repository-wide
+and applies to files that already exist: a half-translated repository is worse than either
+whole, because a reader cannot tell which half is current.
+
+**Ukrainian is not forbidden — it is simply not what gets committed.** Drafts, working notes
+and anything under `sources/` stay in whatever language suits their author; `sources/` is
+gitignored precisely so that choice costs nothing.
 
 ## Стиль коду
 

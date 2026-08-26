@@ -1,6 +1,6 @@
 # Етап 1 — Цикл агента
 
-> Джерело ідей: [What is an AI Agent?](https://blog.gopenai.com/what-is-an-ai-agent-the-simplest-explanation-youll-find-e7b176a31c44)
+> Стаття етапу: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/01-three_guards_every_agent_loop_needs)
 > · [English summary](README.en.md) · [Вправи](exercises.md) · [Чекліст](CHECKLIST.md)
 
 ## Що ти зможеш після цього етапу

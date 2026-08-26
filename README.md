@@ -1,7 +1,10 @@
 # Agentic AI: від нуля до продакшену
 
-Практикум із 10 етапів за [однойменною серією статей](docs/readme.md) Sai Bhargav Rallapalli.
-Не переказ — репозиторій, у якому кожну ідею серії треба **побудувати, зламати й виміряти**.
+Практикум із 10 етапів про побудову агентних систем. Не огляд — репозиторій, у якому кожну
+ідею треба **побудувати, зламати й виміряти**.
+
+До кожного етапу є [стаття](docs/readme.md), і числа в ній перераховуються проти коду на теґу
+того етапу, а не набираються руками.
 
 [English](README.en.md) · [Програма](CURRICULUM.md) · [Встановлення](SETUP.md) · [Глосарій](GLOSSARY.md)
 
@@ -41,16 +44,16 @@ tool-call, state graph, MCP, barge-in чи LLM-as-judge — і саме тому
 
 | # | Етап | Що будуєш | Стаття |
 |---|------|-----------|--------|
-| 1 ✅ | [Agent loop](stages/s01_agent_loop/README.md) | ReAct-цикл з нуля, без фреймворку | [#1](https://blog.gopenai.com/what-is-an-ai-agent-the-simplest-explanation-youll-find-e7b176a31c44) |
-| 2 | RAG | embed → cosine → top-k → відповідь із цитатою | [#2](https://blog.gopenai.com/rag-vs-fine-tuning-which-one-actually-solves-your-problem-06df08b5dc40) |
-| 3 | Router | Свій міні-граф, потім LangGraph | [#3](https://blog.gopenai.com/build-a-multi-agent-router-with-langgraph-in-30-minutes-8ee979116b53) |
-| 4 | MCP | FastMCP-сервер і клієнт | [#4](https://blog.gopenai.com/mcp-protocol-explained-the-new-standard-every-ai-developer-needs-to-know-0e3e56aee2aa) |
-| 5 | Memory | extract → store → retrieve, семантичний пошук | [#5](https://blog.gopenai.com/memory-in-ai-agents-why-your-agent-forgets-everything-and-how-to-fix-it-250150317ff1) |
-| 6 | Platform | **Перший деплой:** FastAPI + HTTPS + метрики | [#6](https://blog.gopenai.com/i-built-a-multi-connector-ai-platform-on-a-single-vm-heres-the-real-architecture-656c9c3f3044) |
-| 7 | Voice | Батч проти стріму, barge-in, вимірювання | [#7](https://blog.gopenai.com/voice-agents-at-scale-what-breaks-when-millions-of-people-talk-to-your-ai-87750cc78054) |
-| 8 | Evaluation | Оцінка на 3 рівнях поверх трейсів | [#8](https://blog.gopenai.com/agent-evaluation-how-do-you-know-your-agent-actually-works-1c6b7cef5461) |
-| 9 | Frameworks | Один таск трьома фреймворками | [#9](https://blog.gopenai.com/langgraph-vs-crewai-vs-google-adk-i-built-the-same-agent-three-times-87c2f2ce3b59) |
-| 10 | Capstone | **Другий деплой:** усе разом, під навантаженням | [#10](https://blog.gopenai.com/the-capstone-building-one-real-agent-with-everything-from-this-series-23742b41fcc7) |
+| 1 ✅ | [Agent loop](stages/s01_agent_loop/README.md) | ReAct-цикл з нуля, без фреймворку | [#1](https://artstroy.net/articles/01-three_guards_every_agent_loop_needs) |
+| 2 | RAG | embed → cosine → top-k → відповідь із цитатою | [#2](https://artstroy.net/articles/02-your_rag_leak_test_is_green) |
+| 3 | Router | Свій міні-граф, потім LangGraph | [#3](https://artstroy.net/articles/03-the_bug_that_breaks_nothing) |
+| 4 | MCP | FastMCP-сервер і клієнт | [#4](https://artstroy.net/articles/04-the_tool_description_you_did_not_write) |
+| 5 | Memory | extract → store → retrieve, семантичний пошук | [#5](https://artstroy.net/articles/05-nothing_leaked_the_answer_disappeared) |
+| 6 | Platform | **Перший деплой:** FastAPI + HTTPS + метрики | [#6](https://artstroy.net/articles/06-the_bugs_only_deploying_finds) |
+| 7 | Voice | Батч проти стріму, barge-in, вимірювання | [#7](https://artstroy.net/articles/07-your_streaming_benchmark_measures_two_things) |
+| 8 | Evaluation | Оцінка на 3 рівнях поверх трейсів | [#8](https://artstroy.net/articles/08-the_detector_that_always_finds_it) |
+| 9 | Frameworks | Один таск трьома фреймворками | [#9](https://artstroy.net/articles/09-less_code_is_half_an_argument) |
+| 10 | Capstone | **Другий деплой:** усе разом, під навантаженням | [#10](https://artstroy.net/articles/10-your_import_list_is_not_proof) |
 
 Детальніше — у [CURRICULUM.md](CURRICULUM.md).
 
@@ -101,10 +104,10 @@ python scripts/check_all.py      # має бути зелено, офлайн, �
 | [docs/adr/](docs/adr/) | Шість рішень, які визначили решту |
 | [planning/](planning/) | Дизайн-спека курсу |
 
-## Джерела
+## Статті
 
-Оригінальні статті лежать у [`docs/`](docs/readme.md), URL кожної — у її frontmatter.
-Етапи **не копіюють** текст статей: вони переказують ідеї і будують за ними працюючий код.
+До кожного етапу є стаття; усі перелічені в [`docs/readme.md`](docs/readme.md). Кожна веде на
+теґ, який описує, — тобто читач відкриває саме той код, про який ідеться.
 
-> Перед публікацією цього репозиторію повні тексти статей у `docs/` треба замінити на
-> посилання й власні конспекти — див. §14 [дизайн-спеки](planning/2026-08-22-agentic-ai-course-design.md).
+Числа в них тримає не уважність, а скрипт: `scripts/article_check.py` перераховує кожне
+твердження на тому теґу й червонить, коли проза й код розійшлися.

@@ -1,11 +1,11 @@
 # Agentic AI: From Zero to Production
 
-A 10-stage hands-on course built from [the article series](docs/readme.md) by Sai Bhargav
-Rallapalli. Not a retelling — a repository where every idea in the series has to be
-**built, broken, and measured**.
+A 10-stage hands-on course in building agentic systems. Not a survey — a repository where
+every idea has to be **built, broken, and measured**, and where a claim that cannot be checked
+by running something does not get made.
 
-> The lessons are written in Ukrainian. This page and each stage's `README.en.md` are the
-> English map; the full teaching text lives in the Ukrainian `README.md` files.
+Every stage ships with [an article](docs/readme.md), and the numbers in it are recomputed
+against the code at that stage's tag rather than typed by hand.
 
 [Українською](README.md) · [Curriculum](CURRICULUM.md) · [Setup](SETUP.md) · [Glossary](GLOSSARY.md)
 
@@ -87,12 +87,11 @@ All ten stages complete; each passed an independent two-reviewer gate.
 | Stage 9 — frameworks | **done**, 28 checks, 12 on failure modes; baseline 37 lines against 54 + 1895 invisible |
 | Stage 10 — capstone | **done**, 32 checks, 16 on failure modes; 6 parts execute and 3 are deliberately not wired, 173 executed stage lines against 12 adapter lines (7 %) |
 
-## Sources
+## Articles
 
-The original articles live in [`docs/`](docs/readme.md) with their URLs in each file's
-frontmatter. The stages do **not** copy the article text — they restate the ideas and build
-working code from them.
+Each stage has a written article; they are listed in [`docs/readme.md`](docs/readme.md). Every
+article links back to the tag it describes, so the code a reader opens is the code the article
+is about.
 
-> Before publishing this repository, the full article texts in `docs/` should be replaced
-> with links and original summaries — see §14 of the
-> [design spec](planning/2026-08-22-agentic-ai-course-design.md).
+Their numbers are kept honest by a script rather than by care: `scripts/article_check.py`
+recomputes each claimed figure at that tag and fails when the prose and the code disagree.

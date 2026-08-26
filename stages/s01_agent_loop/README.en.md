@@ -1,7 +1,7 @@
 # Stage 1 — The agent loop
 
 > The full lesson is in Ukrainian: [README.md](README.md). This page is the map.
-> Idea source: [What is an AI Agent?](https://blog.gopenai.com/what-is-an-ai-agent-the-simplest-explanation-youll-find-e7b176a31c44)
+> Stage article: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/01-three_guards_every_agent_loop_needs)
 
 ## What it is
 

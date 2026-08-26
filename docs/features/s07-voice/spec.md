@@ -298,26 +298,26 @@ Prefetch не безкоштовний: він виконує виклик, як
 | AC | Тест | Рівень | Що доводить |
 |---|---|---|---|
 | AC-01 | `the batch pipeline reports first audio and its parts` | unit | Розклад, сума збігається |
-| AC-01b | `the streaming breakdown adds up with a slow consumer` | unit | **ВІДМОВА.** Закон збереження з трьома доданками |
+| AC-01b | `the streaming breakdown adds up with a slow consumer` | unit | **FAILURE.** Закон збереження з трьома доданками |
 | AC-02 | `streaming reaches first audio at least twice as fast` | unit | Два числа поруч, відношення |
-| AC-02b | `the answer segment costs the same in both pipelines` | unit | **ВІДМОВА.** Раніша віддача не зменшує роботи; виграш розкладено на дві частини |
+| AC-02b | `the answer segment costs the same in both pipelines` | unit | **FAILURE.** Раніша віддача не зменшує роботи; виграш розкладено на дві частини |
 | AC-03 | `every stage of the pipeline is named and timed` | unit | Найдорожчий крок видно |
-| AC-04 | `p95 is visibly larger than the mean` | unit | **ВІДМОВА.** Розподіл, не одне число |
-| AC-04b | `p95 keeps its promise at every sample size` | unit | **ВІДМОВА.** Найближчий ранг, а не округлення |
-| AC-05 | `noise does not interrupt` | unit | **ВІДМОВА.** Поріг рівня |
+| AC-04 | `p95 is visibly larger than the mean` | unit | **FAILURE.** Розподіл, не одне число |
+| AC-04b | `p95 keeps its promise at every sample size` | unit | **FAILURE.** Найближчий ранг, а не округлення |
+| AC-05 | `noise does not interrupt` | unit | **FAILURE.** Поріг рівня |
 | AC-05b | `speech does interrupt, and the trace names why` | unit | Дзеркальна половина |
-| AC-05c | `short speech does not interrupt` | unit | **ВІДМОВА.** Дві умови, не одна |
+| AC-05c | `short speech does not interrupt` | unit | **FAILURE.** Дві умови, не одна |
 | AC-06 | `prefetch buys a measured number of milliseconds` | unit | Число, а не твердження |
-| AC-06b | `an unused prefetch is named as wasted work` | unit | **ВІДМОВА.** Ціна названа |
+| AC-06b | `an unused prefetch is named as wasted work` | unit | **FAILURE.** Ціна названа |
 | AC-07 | `the page plays audio and shows the same numbers` | e2e | **НЕ ПЕРЕВІРЕНО** без мікрофона |
 | AC-07c | `the socket actually runs a conversation` | integration | Сокет **виконується**, не читається |
-| AC-07b | `a missing model is explained, not crashed` | integration | **ВІДМОВА.** Третій стан |
-| AC-10 | `the microphone needs an explicit action` | integration | **ВІДМОВА.** Згода, не намір |
+| AC-07b | `a missing model is explained, not crashed` | integration | **FAILURE.** Третій стан |
+| AC-10 | `the microphone needs an explicit action` | integration | **FAILURE.** Згода, не намір |
 | AC-10b | `no audio or transcript is written down, but durations are` | unit | Дзеркальна пара |
-| AC-11 | `the trace carries the same breakdown as the timing` | unit | **ВІДМОВА.** Два механізми, одна правда |
+| AC-11 | `the trace carries the same breakdown as the timing` | unit | **FAILURE.** Два механізми, одна правда |
 | AC-08 | `checks run without microphone, models or network` | unit | Увесь набір офлайн |
-| AC-08b | `timing checks use fake delays, not the clock` | unit | **ВІДМОВА.** Проти мигтіння |
-| AC-09 | `empty transcription calls neither model nor synthesis` | unit | **ВІДМОВА.** Мовчання — не запит |
+| AC-08b | `timing checks use fake delays, not the clock` | unit | **FAILURE.** Проти мигтіння |
+| AC-09 | `empty transcription calls neither model nor synthesis` | unit | **FAILURE.** Мовчання — не запит |
 
 ### Чого цей план свідомо не доводить
 

@@ -714,7 +714,7 @@ if question.lower().startswith(("запамʼятай", "запам'ятай")):
 
 ### Перевірка, що шукає підрядок у конфігурації, доводить наявність підрядка
 
-Дві перевірки етапу 6 мали префікс `ВІДМОВА ·`, правильне твердження й нуль зубів:
+Дві перевірки етапу 6 мали префікс `FAILURE ·`, правильне твердження й нуль зубів:
 
 ```python
 assert "migrate:" in compose
@@ -1049,7 +1049,7 @@ assert "service_completed_successfully" in compose
 
 | Тека | Що там | Публікується |
 |---|---|---|
-| `sources/docs/` | Оригінали серії Sai Bhargav Rallapalli — довідка, джерело тем | ні |
+| `sources/docs/` | Робоча довідка автора — у репозиторій не йде | ні |
 | `sources/artstroy/{slug}/` | **Наші** статті у форматі Astro | так, у [artstroy](https://github.com/AZANIR/artstroy) |
 
 Уся `sources/` — у `.gitignore`.

@@ -324,26 +324,26 @@ MCP: невиконане має третій стан, і він не дорі�
 |---|---|---|---|
 | AC-01 | `three requests take three different branches` | integration | Три гілки видно у трейсі, а не у формулюваннях |
 | AC-02 | `the trace names every node and its reason` | integration | Кроки, порядок, причини; пошук за ідентифікатором |
-| AC-03 | `a request without a key never reaches the agent` | integration | **ВІДМОВА.** Жодного кроку, крім відмови |
+| AC-03 | `a request without a key never reaches the agent` | integration | **FAILURE.** Жодного кроку, крім відмови |
 | AC-03b | `a valid key reaches the agent and sees its own memory` | integration | Дзеркальна: воротар не глухий |
-| AC-03c | `two owners asking the same question get their own fact` | integration | **ВІДМОВА.** Дзеркальна пара: чуже не дійшло **і** своє дійшло |
-| AC-04 | `an over-quota request is refused before the model` | integration | **ВІДМОВА.** Відмова названа окремо від автентифікації |
-| AC-04b | `one client's limit does not stop another` | integration | **ВІДМОВА.** Лічильник на клієнта, не на сервіс |
-| AC-05 | `an exhausted budget stops the model call` | integration | **ВІДМОВА.** Причина відрізняється від ліміту |
+| AC-03c | `two owners asking the same question get their own fact` | integration | **FAILURE.** Дзеркальна пара: чуже не дійшло **і** своє дійшло |
+| AC-04 | `an over-quota request is refused before the model` | integration | **FAILURE.** Відмова названа окремо від автентифікації |
+| AC-04b | `one client's limit does not stop another` | integration | **FAILURE.** Лічильник на клієнта, не на сервіс |
+| AC-05 | `an exhausted budget stops the model call` | integration | **FAILURE.** Причина відрізняється від ліміту |
 | AC-05b | `spending is counted and visible` | integration | Запобіжник, що рахує |
-| AC-06 | `health names each dependency separately` | integration | **ВІДМОВА.** Несправна залежність не «жива» |
+| AC-06 | `health names each dependency separately` | integration | **FAILURE.** Несправна залежність не «жива» |
 | AC-06c | `a healthy service reports healthy` | integration | Позитивний вердикт: монітор, що завжди кричить, — та сама вада, що воротар, який нікого не пускає |
 | AC-06b | `metrics tell the failure kinds apart` | integration | Типи відмов + звірка з трейсами |
-| AC-07 | `two workers run the job twice, one scheduler runs it once` | e2e | **ВІДМОВА.** Пастка наживо й її виправлення |
-| AC-07b | `two workers double the rate limit until the store is shared` | e2e | **ВІДМОВА.** Друга половина пастки: подвоєння, якого не видно в логах |
+| AC-07 | `two workers run the job twice, one scheduler runs it once` | e2e | **FAILURE.** Пастка наживо й її виправлення |
+| AC-07b | `two workers double the rate limit until the store is shared` | e2e | **FAILURE.** Друга половина пастки: подвоєння, якого не видно в логах |
 | AC-08 | `https serves the service and http redirects` | e2e | Перевіряється скриптом; локально — самопідписаний |
 | AC-09 | `the smoke script runs the same list against both targets` | e2e | Один перелік, два цілі, ненульовий код |
 | AC-09b | `the smoke script exits zero against a healthy build` | e2e | Дзеркальна половина AC-09: скрипт, що завжди падає, доводить нуль |
-| AC-10 | `data survives a container restart` | e2e | **ВІДМОВА.** Стан поза контейнером |
-| AC-11 | `an unavailable dependency degrades, not crashes` | integration | **ВІДМОВА.** Названа помилка + стан |
-| AC-12 | `the key appears in no log, trace or response` | integration | **ВІДМОВА.** Похідний ідентифікатор замість ключа |
-| AC-13 | `metrics need a key, health does not` | integration | **ВІДМОВА.** Агрегати теж розкривають |
-| AC-14 | `the suite is green or not-verified, never red, without Docker` | unit | **ВІДМОВА.** Третій стан замість падіння |
+| AC-10 | `data survives a container restart` | e2e | **FAILURE.** Стан поза контейнером |
+| AC-11 | `an unavailable dependency degrades, not crashes` | integration | **FAILURE.** Названа помилка + стан |
+| AC-12 | `the key appears in no log, trace or response` | integration | **FAILURE.** Похідний ідентифікатор замість ключа |
+| AC-13 | `metrics need a key, health does not` | integration | **FAILURE.** Агрегати теж розкривають |
+| AC-14 | `the suite is green or not-verified, never red, without Docker` | unit | **FAILURE.** Третій стан замість падіння |
 
 ### Чого цей план свідомо не доводить
 
