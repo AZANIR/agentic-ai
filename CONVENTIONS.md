@@ -1,110 +1,114 @@
-# Конвенції репозиторію
+# Repository conventions
 
-Правила, яких дотримується кожен етап — **як писати код**.
-Як довести етап до готовності (конвеєр, гейт рев'ю, теги, стаття) — [PLAYBOOK.md](PLAYBOOK.md). Джерело — [`docs/architecture-map.md`](docs/architecture-map.md)
-§Conventions; тут вони розписані з поясненням «чому», бо правило без причини порушують першим.
+The rules every stage follows — **how to write the code**.
+How a stage is driven to done (the pipeline, the review gate, tags, the article):
+[PLAYBOOK.md](PLAYBOOK.md). The source is
+[`docs/architecture-map.md`](docs/architecture-map.md) §Conventions; here they are spelled out
+with the "why", because a rule with no reason behind it is the first one broken.
 
 ---
 
-## Структура
+## Structure
 
-**Етап — це Python-пакет `stages/sNN_slug/`.** Запуск: `python -m stages.sNN_slug.run`.
+**A stage is a Python package, `stages/sNN_slug/`.** Run it: `python -m stages.sNN_slug.run`.
 
-Префікс `s` обов'язковий: ім'я Python-пакета не може починатися з цифри, а дефіс у ньому
-заборонений. `stages/01-agent-loop` виглядає охайніше, але `python -m stages.01-agent-loop.run`
-не запуститься ніколи.
+The `s` prefix is mandatory: a Python package name cannot start with a digit, and a hyphen is
+not allowed inside one. `stages/01-agent-loop` looks tidier, and
+`python -m stages.01-agent-loop.run` will never run.
 
-**Склад етапу:**
+**What a stage contains:**
 
 ```
 stages/sNN_slug/
-├── README.md       UA — урок: канон зі статті + міст на наш домен
-├── README.en.md    EN — один екран
-├── exercises.md    UA — завдання без спойлерів
-├── solutions/      еталонні розв'язки
-├── CHECKLIST.md    «я зрозумів / я запустив / я пояснив»
-├── run.py          демо, працює без API-ключа
-├── check.py        перевірки, офлайн
-└── data/           фікстури
+├── README.md       the lesson: the canonical idea plus the bridge to our domain
+├── exercises.md    tasks, no spoilers
+├── solutions/      reference solutions
+├── CHECKLIST.md    "I understood / I ran / I explained"
+├── run.py          the demo, works with no API key
+├── check.py        the checks, offline
+└── data/           fixtures
 ```
 
-**Етапи 1–9 самодостатні** й навмисне дублюють трохи коду між собою — читач має могти
-почати з етапу 5. **Етап 10 імпортує**, а не копіює: у цьому й полягає різниця між
-навчальним і продакшн-кодом.
+**Stages 1–9 are self-contained** and deliberately duplicate a little code between them — a
+reader has to be able to start at stage 5. **Stage 10 imports** rather than copies: that is
+precisely the difference between teaching code and production code.
 
-## Профілі й адаптери
+## Profiles and adapters
 
-**`if profile == ...` у коді етапу заборонено.** Розгалуження живе у фабриках `shared/`.
+**`if profile == ...` inside stage code is forbidden.** The branching lives in the factories
+under `shared/`.
 
-Порушення цього правила — найдешевший спосіб зруйнувати репозиторій: щойно код уроку
-починає знати про профіль, урок перестає бути про агентів і стає про конфігурацію.
+Breaking this rule is the cheapest way to ruin the repository: the moment lesson code knows
+about the profile, the lesson stops being about agents and becomes about configuration.
 [ADR-0002](docs/adr/0002-profile-switched-adapters.md)
 
 ## LLM
 
-**Лише `shared.llm.get_client()`.** Жодного `openai.OpenAI()` у коді етапів.
+**Only `shared.llm.get_client()`.** No `openai.OpenAI()` in stage code.
 
-Демо завжди передає `demo_script=[...]`, щоб працювати без ключа, і друкує
-`shared.llm.banner(client)` першим рядком — читач має бачити, підробка перед ним чи
-справжня модель. [ADR-0003](docs/adr/0003-openai-compatible-llm-shim.md)
+A demo always passes `demo_script=[...]` so it works without a key, and prints
+`shared.llm.banner(client)` as its first line — the reader has to see whether a fake or a real
+model is in front of them. [ADR-0003](docs/adr/0003-openai-compatible-llm-shim.md)
 
-## Трасування
+## Tracing
 
-Кожен крок агента пише в `shared.trace`. Присутнє **з етапу 1**.
+Every step an agent takes is written through `shared.trace`. Present **from stage 1**.
 
 ```python
-with trace_run("демо етапу 1", stage="s01") as tr:
+with trace_run("stage 1 demo", stage="s01") as tr:
     tr.step("llm_call", model=settings.llm_model)
     tr.step("tool_call", name="get_weather", args=args)
 ```
 
 [ADR-0005](docs/adr/0005-tracing-from-stage-one.md)
 
-## Перевірки
+## Checks
 
-Голі `assert` у `check.py`, без тест-фреймворка. Кожна перевірка — функція з docstring у
-один рядок; цей рядок читач бачить у виводі.
+Bare `assert` statements in `check.py`, no test framework. Each check is a function with a
+one-line docstring; that line is what the reader sees in the output.
 
-**Серед перевірок етапу обов'язково є щонайменше одна на режим відмови.** Позначай її
-префіксом `FAILURE ·` у docstring.
+**Every stage has at least one check on a failure mode.** Mark it with the `FAILURE ·` prefix
+in the docstring.
 
 ```python
 def check_step_limit_stops_runaway() -> None:
-    """FAILURE · агент зупиняється лімітом, а не крутиться вічно"""
+    """FAILURE · the agent is stopped by the limit instead of running forever"""
     client = FakeLLM.always_calling("search_web")
     ...
 ```
 
-Зелений щасливий шлях не доводить нічого. [ADR-0006](docs/adr/0006-assert-checks-over-test-framework.md)
+A green happy path proves nothing.
+[ADR-0006](docs/adr/0006-assert-checks-over-test-framework.md)
 
-## Помилки
+## Errors
 
-Сервіс відповідає єдиним конвертом:
+The service answers in one envelope:
 
 ```json
 {"error": {"code": "budget_exceeded", "message": "…"}}
 ```
 
-Ліміти й бюджет — це `429` і `402`, а не `500`. `500` означає «ми зламались»; вичерпаний
-бюджет — це штатна робота запобіжника, і плутати їх у моніторингу дорого.
+Limits and budget are `429` and `402`, not `500`. A `500` means "we broke"; an exhausted budget
+is the breaker doing its job, and confusing the two in monitoring is expensive.
 
-## Ідентифікатори
+## Identifiers
 
-Зовнішні ID — префіксовані рядки, що генеруються застосунком: `ord_`, `ses_`, `trc_`.
+External IDs are prefixed strings generated by the application: `ord_`, `ses_`, `trc_`.
 
-Префікс одразу каже, на що дивишся, у логах, трейсах і повідомленнях про помилки. ID
-генерує застосунок, а не БД: інакше його не можна залогувати до вставки.
+The prefix tells you what you are looking at immediately — in logs, in traces, in error
+messages. The application generates the ID, not the database: otherwise it cannot be logged
+before the insert.
 
-## Дані
+## Data
 
-Postgres 16 + `pgvector` — єдине сховище. Redis — лише лічильники й TTL-кеш.
-[ADR-0004](docs/adr/0004-postgres-pgvector-single-store.md)
+Postgres 16 with `pgvector` is the only store. Redis holds counters and a TTL cache, nothing
+else. [ADR-0004](docs/adr/0004-postgres-pgvector-single-store.md)
 
-**Міграції:** пари `migrations/NNNN_name.up.sql` і `.down.sql`. Міграція без відкату не
-приймається — раннер відмовиться її бачити. Кожна виконується в одній транзакції.
+**Migrations:** pairs of `migrations/NNNN_name.up.sql` and `.down.sql`. A migration with no
+rollback is not accepted — the runner refuses to see it. Each one runs in a single transaction.
 
-**Таблиці створює той етап, якому вони потрібні.** Схема «наперед, про всяк випадок»
-застаріває швидше, ніж її встигають використати.
+**Tables are created by the stage that needs them.** A schema built "ahead of time, just in
+case" goes stale faster than anyone gets to use it.
 
 ## Language
 
@@ -128,22 +132,23 @@ whole, because a reader cannot tell which half is current.
 and anything under `sources/` stay in whatever language suits their author; `sources/` is
 gitignored precisely so that choice costs nothing.
 
-## Стиль коду
+## Code style
 
-`ruff` — лінтер і форматер: `ruff check .` і `ruff format .`. Рядок ≤ 100 символів.
-Правила: `E`, `F`, `I`, `UP`, `B`.
+`ruff` is the linter and the formatter: `ruff check .` and `ruff format .`. Lines ≤ 100
+characters. Rules: `E`, `F`, `I`, `UP`, `B`.
 
-**Код уроку читають більше, ніж запускають.** Тому: явне краще за коротке, коментар
-пояснює «чому», а не «що», і жодної магії, яку не пояснює сусідній абзац README.
+**Lesson code is read more often than it is run.** So: explicit beats short, a comment explains
+"why" rather than "what", and there is no magic that the neighbouring paragraph of the README
+does not explain.
 
-## Комміти
+## Commits
 
-Одна логічна зміна — один комміт. Імператив, англійською: `Add stage 1 agent loop`.
+One logical change, one commit. Imperative mood: `Add stage 1 agent loop`.
 
-Без згадок AI-асистента в будь-якому вигляді: ні співавторства, ні згенеровано-з, ні
-згадок інструментів — ні в коммітах, ні в PR, ні в коментарях, ні в документації.
+No mention of AI assistants in any form: no co-authorship, no "generated with", no tool names —
+not in commits, not in pull requests, not in comments, not in documentation.
 
-## Секрети
+## Secrets
 
-Лише `.env`, який ніколи не потрапляє в git. Жодних ключів у коді, фікстурах,
-прикладах чи README. Деталі — [SECURITY.md](SECURITY.md).
+Only `.env`, and it never reaches git. No keys in code, fixtures, examples or READMEs. Details
+in [SECURITY.md](SECURITY.md).

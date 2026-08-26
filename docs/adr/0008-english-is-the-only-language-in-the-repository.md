@@ -66,9 +66,12 @@ the SDD artefacts under `docs/features/`, then docstrings and comments. Until it
 
 ## Alternatives considered
 
-**Keep Ukrainian lessons and English `README.en.md` summaries.** Rejected: the summaries are
-maps of 350–1300 words against lessons of 1200–2000. They tell a reader what a stage is about,
-not what it teaches. The teaching text would remain unreadable to most of the audience.
+**Keep the Ukrainian lessons and let the existing `README.en.md` summaries carry English
+readers.** Rejected: those summaries are maps of 350–1300 words against lessons of 1200–2000.
+They tell a reader what a stage is about, not what it teaches, so the teaching text would stay
+unreadable to most of the audience. Once each lesson is English, the summary has nothing left
+to do — the `.en` files are therefore deleted rather than maintained in parallel, starting with
+the root one in this migration's first pass.
 
 **Translate only what a visitor sees first — the root documents.** Rejected for the same reason
 that makes the migration necessary: the visitor follows a link into a stage, and that is where

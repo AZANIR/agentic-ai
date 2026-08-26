@@ -197,7 +197,7 @@ HTTPS → Caddy → uvicorn (N воркерів) → guards → intent → memor
 ## Where things live / closest precedents
 
 - **Новий навчальний етап** → `stages/sNN_slug/`, за зразком `stages/s01_agent_loop/`
-  (README.md + README.en.md + exercises.md + solutions/ + CHECKLIST.md + код + check.py).
+  (README.md + README.md + exercises.md + solutions/ + CHECKLIST.md + код + check.py).
 - **Новий адаптер** (провайдер, сховище, стік трейсів) → `shared/`, з обома реалізаціями
   (`local` і `prod`) за одним інтерфейсом; ніколи не `if PROFILE == ...` у коді етапу.
 - **Новий інструмент агента** → MCP-tool у `stages/s04_mcp/server.py` або

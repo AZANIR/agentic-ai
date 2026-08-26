@@ -1,69 +1,72 @@
-# CONTEXT — доменний словник репозиторію
+# CONTEXT — the repository's domain vocabulary
 
-Канонічні **ролі** й **доменні об'єкти**, якими користуються всі специфікації. Одне слово —
-одне значення на весь репозиторій.
+The canonical **roles** and **domain objects** every specification here uses. One word, one
+meaning, repository-wide.
 
-> Це не те саме, що [GLOSSARY.md](GLOSSARY.md). Там — технічні поняття, яких навчає курс
-> (embedding, tool call, barge-in). Тут — ролі й об'єкти, якими описується **сам продукт**.
-> Плутати їх дорого: перше пояснює предмет, друге описує систему.
+> This is not the same thing as [GLOSSARY.md](GLOSSARY.md). That file holds the technical ideas
+> the course teaches — embedding, tool call, barge-in. This one holds the roles and objects
+> that describe **the product itself**. Confusing the two is expensive: the first explains the
+> subject, the second describes the system.
 
-Формат запису: **Термін** — визначення. *Не плутати з:* найближчий омонім.
+Entry format: **Term** — definition. *Not to be confused with:* the nearest homonym.
 
 ---
 
 ## Glossary
 
-### Ролі
+### Roles
 
-- **Learner** (Читач) — людина, що проходить курс: читає урок, запускає демо, робить вправи,
-  деплоїть на етапах 6 і 10. Головний адресат усього репозиторію.
-  *Не плутати з:* **Shopper** — той усередині вигаданої історії, а Learner — зовні, за клавіатурою.
+- **Learner** — the person taking the course: reads the lesson, runs the demo, does the
+  exercises, deploys at stages 6 and 10. Everything in this repository is addressed to them.
+  *Not to be confused with:* **Shopper** — that one lives inside the fictional story, while the
+  Learner is outside it, at the keyboard.
 
-- **Contributor** (Автор етапу) — той, хто пише або змінює етап: урок, код, вправи, перевірки.
-  Зобов'язаний дотримуватись [CONVENTIONS.md](CONVENTIONS.md) і критеріїв завершеності етапу.
-  *Не плутати з:* Learner — Learner споживає етап, Contributor його виробляє.
+- **Contributor** — whoever writes or changes a stage: the lesson, the code, the exercises, the
+  checks. Bound by [CONVENTIONS.md](CONVENTIONS.md) and by the stage completion criteria.
+  *Not to be confused with:* Learner — a Learner consumes a stage, a Contributor produces it.
 
-- **Operator** (Оператор) — той, хто розгортає й супроводжує сервіс на етапах 6 і 10: тримає
-  `.env` на сервері, стежить за метриками, реагує на вичерпаний бюджет.
-  На практиці це той самий Learner, але з іншими обов'язками й іншим набором ризиків.
+- **Operator** — whoever deploys and runs the service at stages 6 and 10: keeps `.env` on the
+  server, watches the metrics, reacts when the budget runs out. In practice the same person as
+  the Learner, with different duties and a different set of risks.
 
-- **Shopper** (Покупець NovaShop) — **вигаданий** персонаж усередині наскрізного домену: питає
-  про статус замовлення, оформлює повернення. Ніколи не є користувачем репозиторію.
+- **Shopper** — a **fictional** character inside the running domain: asks about an order,
+  files a return. Never a user of this repository.
 
-### Доменні об'єкти
+### Domain objects
 
-- **Stage** (Етап) — самодостатня одиниця курсу: `stages/sNN_slug/`. Містить урок, код, вправи,
-  еталонні розв'язки, чекліст і перевірки. Етап вважається завершеним лише за всіма дев'ятьма
-  критеріями з [CURRICULUM.md](CURRICULUM.md).
-  *Не плутати з:* «крок» — крок це одна ітерація циклу агента, етап це розділ курсу.
+- **Stage** — a self-contained unit of the course: `stages/sNN_slug/`. Holds the lesson, the
+  code, the exercises, the reference solutions, the checklist and the checks. A stage counts as
+  finished only against all nine criteria in [CURRICULUM.md](CURRICULUM.md).
+  *Not to be confused with:* a "step" — a step is one iteration of the agent loop, a stage is a
+  chapter of the course.
 
-- **Lesson** (Урок) — текст етапу (`README.md`): що зможеш після нього, канон зі статті-джерела,
-  міст на наш домен, що зламати.
+- **Lesson** — a stage's text (`README.md`): what you will be able to do afterwards, the
+  canonical idea, the bridge to our own domain, what to break.
 
-- **Demo run** (Демо-прогін) — запуск демонстрації етапу. Працює **без API-ключа** і першим
-  рядком друкує банер: підробка перед тобою чи справжня модель.
+- **Demo run** — running a stage's demonstration. Works **with no API key** and prints a banner
+  as its first line: a fake in front of you, or a real model.
 
-- **Stage check** (Перевірка етапу) — набір `assert`-перевірок, що виконуються офлайн.
-  Серед них обов'язково є щонайменше одна на **режим відмови**.
+- **Stage check** — the set of `assert` checks that run offline. At least one of them always
+  covers a **failure mode**.
 
-- **Agent run** (Прогін агента) — один повний цикл: задача → кроки → фінальна відповідь або
-  зупинка лімітом. Породжує рівно один трейс.
+- **Agent run** — one complete cycle: task → steps → a final answer or a stop at the limit.
+  Produces exactly one trace.
 
-- **Step** (Крок) — одна ітерація прогону: питання до моделі, її рішення, виконання інструмента,
-  спостереження результату.
+- **Step** — one iteration of a run: the question to the model, its decision, the tool call, the
+  observation of the result.
 
-- **Tool** (Інструмент) — функція, яку агенту дозволено викликати, разом зі схемою її параметрів.
+- **Tool** — a function the agent is allowed to call, together with the schema of its
+  parameters.
 
-- **Irreversible tool** (Незворотний інструмент) — інструмент, наслідки якого не можна відкотити
-  автоматично: оформити повернення, надіслати листа, видалити запис. Виконується **лише після
-  явного підтвердження людиною**.
-  *Не плутати з:* «інструмент із побічним ефектом» — запис у лог теж має ефект, але його
-  не треба підтверджувати. Незворотність, а не наявність ефекту, вмикає гейт.
+- **Irreversible tool** — a tool whose consequences cannot be rolled back automatically: file a
+  return, send an email, delete a record. Runs **only after an explicit human confirmation**.
+  *Not to be confused with:* "a tool with a side effect" — writing a log line has an effect too,
+  and needs no confirmation. Irreversibility opens the gate, not the presence of an effect.
 
-- **Trace** (Трейс) — впорядкована послідовність кроків одного прогону. Рядок = крок.
-  Джерело даних для оцінки на етапі 8.
+- **Trace** — the ordered sequence of steps of one run. One line, one step. The data the
+  evaluation at stage 8 reads.
 
-- **Profile** (Профіль) — `local` або `prod`. Обирає реалізації адаптерів і більше нічого.
+- **Profile** — `local` or `prod`. Chooses adapter implementations and nothing else.
 
-- **NovaShop** — наскрізний вигаданий інтернет-магазин, на якому будуються всі «мости» від
-  канонічних прикладів статей до одного зв'язного домену: замовлення, повернення, політики, каталог.
+- **NovaShop** — the fictional online shop running through the whole course, the one domain all
+  the canonical examples bridge into: orders, returns, policies, catalogue.

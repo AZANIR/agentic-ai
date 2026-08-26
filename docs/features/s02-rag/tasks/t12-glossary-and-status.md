@@ -4,7 +4,7 @@ title: "Терміни етапу в глосарій, статус у прог�
 layer: "docs"
 deps: ["T10"]
 acs: []
-files_hint: ["GLOSSARY.md", "CURRICULUM.md", "README.md", "README.en.md"]
+files_hint: ["GLOSSARY.md", "CURRICULUM.md", "README.md", "README.md"]
 owner: "Contributor"
 estimate: "S"
 status: "todo"
