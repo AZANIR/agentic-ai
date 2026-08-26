@@ -1,82 +1,85 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
-ticket: "CI run 32658796467"
+feature_size: "n/a (amends a repository-wide decision)"
+ticket: "n/a"
 ---
 
-# 0007 — numpy у ядрі, і три стани замість двох у прогоні перевірок
+# 0007 — numpy is a core dependency
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
 - **Deciders:** Contributor, Tech Lead
-- **Amends:** ADR-0001 (розкладка залежностей за етапами)
+- **Amends:** ADR-0001 (per-stage dependency layout)
 
 ## Context
 
-ADR-0001 тримає ядро мінімальним: усе, що потрібне етапу 1, і нічого більше; важче — в
-extras за етапами. Етап 2 додав `numpy` як `[s02]`.
+ADR-0001 keeps the core minimal: whatever stage 1 needs and nothing else, with heavier things in
+per-stage extras. Stage 2 added `numpy` as `[s02]`.
 
-Але `numpy` імпортується не етапом. Він імпортується `shared/embeddings.py` на рівні модуля,
-і `shared/check.py` — перевірки **ядра** — його виконують. CI ставить `[dev]` і не має ані
-`[s02]`, ані причин його мати.
+But `numpy` is not imported by a stage. It is imported by `shared/embeddings.py` at module level,
+and `shared/check.py` — the checks for the **core** — execute it. CI installs `[dev]` and has
+neither `[s02]` nor any reason to.
 
-Наслідок був неминучий і мовчазний до першого пуша: обидві роботи матриці впали на
-`ModuleNotFoundError: No module named 'numpy'` **до першої перевірки**. Локально все зелене,
-бо у venv numpy стоїть.
+The consequence was inevitable and silent until the first push: both matrix jobs failed with
+`ModuleNotFoundError: No module named 'numpy'` **before the first check ran**. Locally everything
+was green, because numpy is installed in the venv.
 
-До моменту, коли причину назвали, етап 3 уже тягнув `numpy` транзитивно — тобто наступний
-пуш дав би три упалі модулі замість двох.
+By the time the cause was named, stage 3 was pulling `numpy` transitively too — so the next push
+would have produced three failed modules instead of two.
 
 ## Decision drivers
 
-- Пакет, який спільний шар імпортує **безумовно**, є залежністю ядра — хоч би що казала
-  таблиця extras.
-- «Немає LangGraph» і «немає numpy» у трейсбеку виглядають однаково, а означають протилежне.
-- Етапи 4, 6 і 9 упруться в ту саму стіну зі своїми важкими бібліотеками.
+- A package the shared layer imports **unconditionally** is a core dependency, whatever the
+  extras table says.
+- "LangGraph is missing" and "numpy is missing" look identical in a traceback and mean opposite
+  things.
+- Stages 4, 6 and 9 will hit the same wall with their own heavy libraries.
 
 ## Considered options
 
-1. **CI ставить `[dev,s02]`.** Один рядок, таблиця extras лишається як є.
-2. **`numpy` у ядрі.** Один рядок, таблиця extras стає правдивою.
-3. **`check_all.py` рахує смерть на імпорті як «не перевіряли».** Довговічно, але саме по
-   собі ховає причину.
+1. **CI installs `[dev,s02]`.** One line, the extras table unchanged.
+2. **`numpy` in the core.** One line, and the extras table becomes true.
+3. **`check_all.py` counts a death on import as "not evaluated".** Durable, but on its own it
+   hides the cause.
 
 ## Decision outcome
 
-**Chosen:** Option 2 **плюс** Option 3, і саме в такому порядку.
+**Chosen:** Option 2 **plus** Option 3, in that order.
 
-Option 1 лікує симптом: CI перестає червоніти, а твердження «ядро — це лише етап 1» лишається
-неправдою, яку ніхто не помітить до наступного разу. Питання не в тому, де встановлювати
-пакет, а в тому, **чий він**.
+Option 1 treats the symptom: CI stops going red while the claim "the core is only stage 1"
+remains untrue, and nobody notices until next time. The question is not where to install the
+package but **whose it is**.
 
-Option 3 наодинці гірша за обидві: якби `check_all.py` тоді вже вмів казати «НЕ ПЕРЕВІРЕНО»
-на будь-який відсутній пакет, зламана збірка читалась би як «етап не перевіряли», і CI був
-би зелений на тому самому баґу, який його червонив.
+Option 3 alone is worse than either: if `check_all.py` had already been able to say "NOT
+EVALUATED" for any missing package, a broken build would have read as "the stage was not checked"
+and CI would have been green on the very bug that was reddening it.
 
-Тому:
+So:
 
-- `numpy` переїжджає в ядро; extras `[s02]` і `[s08]` зникають — у них не лишалось нічого.
-- `check_all.py` отримує третій стан, але **опційність визначає за `pyproject.toml`**, а не
-  за фактом відсутності. Немає `langgraph` — «НЕ ПЕРЕВІРЕНО». Немає `numpy` — `FAIL`, код 1.
+- `numpy` moves into the core; the `[s02]` and `[s08]` extras disappear — nothing was left in
+  them.
+- `check_all.py` gains a third state, but decides **optionality from `pyproject.toml`** rather
+  than from the fact of absence. No `langgraph` — "NOT EVALUATED". No `numpy` — `FAIL`, exit 1.
 
 ## Consequences
 
 **Positive**
-- Ядро тепер описує те, що ядро справді імпортує.
-- Етапи 4, 6 і 9 не вб'ють прогін на базовій установці — і не сховаються за цим.
-- CI-крок «нічого не має лишатись неперевіреним» перестав бути сліпим: `check_all.py` раніше
-  ковтав вивід зеленого модуля разом із рядками «НЕ ПЕРЕВІРЕНО», тож `grep` промахувався б
-  завжди, а робота лишалась зеленою.
+- The core now describes what the core actually imports.
+- Stages 4, 6 and 9 will not kill the run on a base install — and will not hide behind it either.
+- The CI step "nothing may stay unverified here" stopped being blind: `check_all.py` used to
+  swallow a green module's output along with its "NOT EVALUATED" lines, so the `grep` would have
+  missed every time while the job stayed green.
 
 **Negative**
-- Ядро потовщало на `numpy`. Прийнято: він і так стояв у кожного, хто дійшов до етапу 2, а
-  альтернатива — тримати в таблиці неправду.
-- «Зелений» тепер має два відтінки, і читач мусить дивитись на підсумковий рядок. Це ціна
-  чесності; попередній варіант мав один відтінок і брехав.
+- The core gained `numpy`. Accepted: everyone who reached stage 2 had it installed anyway, and
+  the alternative is keeping an untruth in the table.
+- "Green" now has two shades, and the reader has to look at the summary line. That is the price
+  of honesty; the previous version had one shade and lied.
 
-**Що з цього пішло в PLAYBOOK**
-Локальне оточення — не CI. Пакет, встановлений у venv «десь по дорозі», робить зеленим те,
-що в чистій установці не запускається взагалі. Симуляція чистого CI — блокатор імпортів у
-`sys.meta_path` — коштує двадцять рядків і ловить цей клас цілком.
+**What went into the PLAYBOOK**
+A local environment is not CI. A package installed into the venv "somewhere along the way" makes
+green something that does not run at all on a clean install. Simulating a clean CI — an import
+blocker in `sys.meta_path` — costs twenty lines and catches the entire class.

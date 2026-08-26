@@ -1,31 +1,32 @@
-# Встановлення
+# Setup
 
-Мета цієї сторінки — довести тебе до зеленого `check_all` за п'ять хвилин, **без API-ключа
-і без інтернету**. Усе інше (справжня модель, база, деплой) — опційно й потім.
+The point of this page is to get you to a green `check_all` in five minutes, **with no API key
+and no internet**. Everything else — a real model, a database, a deployment — is optional and
+comes later.
 
 ---
 
-## 1. Що потрібно
+## 1. What you need
 
-| Обов'язково | Версія | Навіщо |
+| Required | Version | For |
 |---|---|---|
-| Python | 3.11 або новіший | етапи 1–5, 8, 9 |
-| git | будь-яка | клонувати |
+| Python | 3.11 or newer | stages 1–5, 8, 9 |
+| git | any | cloning |
 
-| Знадобиться пізніше | Коли |
+| Needed later | When |
 |---|---|
-| Docker + Docker Compose | етап 6 (база, Redis, деплой) |
-| VM з Ubuntu, ~4 ГБ RAM | етапи 6 і 10 (справжній деплой, ~€4–8/міс) |
+| Docker + Docker Compose | stage 6 (database, Redis, deployment) |
+| An Ubuntu VM, ~4 GB RAM | stages 6 and 10 (a real deployment, about €4–8/month) |
 
-Перевір Python:
+Check Python:
 
 ```bash
-python --version     # має бути 3.11+
+python --version     # must be 3.11+
 ```
 
-Якщо команда не знайдена — спробуй `python3` або `py` (Windows).
+If the command is not found, try `python3`, or `py` on Windows.
 
-## 2. Віртуальне оточення
+## 2. Virtual environment
 
 ```bash
 git clone <url> Agentic-AI
@@ -37,102 +38,100 @@ source .venv/bin/activate         # Linux / macOS
 # source .venv/Scripts/activate   # Windows Git Bash
 ```
 
-Ознака успіху: в промпті з'явився префікс `(.venv)`.
+You know it worked when your prompt gains a `(.venv)` prefix.
 
-## 3. Встановлення пакета
+## 3. Installing the package
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-> **Лапки обов'язкові.** Без них `bash` і `zsh` спробують розкрити `[dev]` як glob-шаблон
-> і ти отримаєш `no matches found` або мовчазне встановлення без dev-залежностей.
-> У PowerShell лапки не потрібні, але й не заважають — пиши їх завжди.
+> **The quotes are not optional.** Without them `bash` and `zsh` try to expand `[dev]` as a
+> glob and you get `no matches found` — or, worse, a silent install with no dev dependencies.
+> PowerShell does not need them and does not mind them; type them always.
 
-`-e` означає «editable»: пакет ставиться посиланням на цю папку, тож твої правки діють
-одразу, без перевстановлення.
+`-e` means editable: the package is installed as a link to this directory, so your edits take
+effect immediately with no reinstall.
 
-**Що дає який extra:**
+**What each extra gives you:**
 
-| Команда | Коли ставити |
+| Command | When to install |
 |---|---|
-| `pip install -e ".[dev]"` | завжди — лінтер + інструмент міграцій |
-| `pip install -e ".[s03]"` | етап 3 (LangGraph) |
-| `pip install -e ".[s04]"` | етап 4 (MCP) |
-| `pip install -e ".[s06]"` | етап 6 (FastAPI, Postgres, Redis) |
-| `pip install -e ".[s09]"` | етап 9 (LangGraph + CrewAI) |
-| `pip install -e ".[embed]"` | справжні локальні ембеддинги |
-| `pip install -e ".[voice]"` | етап 7 (Whisper + Piper) |
-| `pip install -e ".[prod]"` | усе для розгортання |
+| `pip install -e ".[dev]"` | always — linter plus the migration tool |
+| `pip install -e ".[s03]"` | stage 3 (LangGraph) |
+| `pip install -e ".[s04]"` | stage 4 (MCP) |
+| `pip install -e ".[s06]"` | stage 6 (FastAPI, Postgres, Redis) |
+| `pip install -e ".[s09]"` | stage 9 (LangGraph + CrewAI) |
+| `pip install -e ".[embed]"` | real local embeddings |
+| `pip install -e ".[voice]"` | stage 7 (Whisper + Piper) |
+| `pip install -e ".[prod]"` | everything needed to deploy |
 
-Extras складаються: `pip install -e ".[dev,s02,s03]"`.
+Extras compose: `pip install -e ".[dev,s02,s03]"`.
 
-## 4. Налаштування
+## 4. Configuration
 
 ```bash
 cp .env.example .env
 ```
 
-**Міняти нічого не треба.** Дефолтний `.env` — це профіль `local` із порожнім
-`LLM_API_KEY`, тобто детермінований [FakeLLM](GLOSSARY.md#fakellm) і жодного мережевого
-виклику.
+**Nothing in it needs changing.** The default `.env` is the `local` profile with an empty
+`LLM_API_KEY`, which means the deterministic [FakeLLM](GLOSSARY.md#fakellm) and no network call
+at all.
 
-## 5. Перевірка
+## 5. Verifying
 
 ```bash
 python scripts/check_all.py
 ```
 
-Очікуваний вивід:
+Expected output:
 
 ```
-check_all · 1 модул(ів)
+check_all · 1 module(s)
   PASS  shared.check (0.12 s)
 
-усе зелене (1 модул(ів), 0.12 s)
+all green (1 module(s), 0.12 s)
 ```
 
-Якщо зелено — встановлення завершено. Далі можна йти на [етап 1](CURRICULUM.md).
+Green means the install is done, and you can go to [stage 1](CURRICULUM.md).
 
-Окремий модуль запускається так:
+To run a single module:
 
 ```bash
-python -m shared.check                 # ядро, з деталізацією по перевірках
-python scripts/check_all.py s01 s03    # лише названі етапи
+python -m shared.check                 # the core, check by check
+python scripts/check_all.py s01 s03    # only the named stages
 ```
 
 ---
 
-## 6. Опційно: справжня модель
+## 6. Optional: a real model
 
-Курс проходиться на FakeLLM повністю. Але щоб побачити, як агент поводиться зі
-**справжньою** моделлю, потрібен провайдер. Найдешевший шлях — Groq: безкоштовний рівень,
-реєстрація за хвилину, картка не потрібна.
+The course runs end to end on FakeLLM. But to see how an agent behaves against a **real** model
+you need a provider. The cheapest path is Groq: a free tier, a minute to register, no card.
 
-Впиши в `.env`:
+Put this in `.env`:
 
 ```ini
 LLM_BASE_URL=https://api.groq.com/openai/v1
-LLM_API_KEY=gsk_твій_ключ
+LLM_API_KEY=gsk_your_key
 LLM_MODEL=llama-3.3-70b-versatile
 ```
 
-Альтернативи — у коментарях `.env.example`: OpenRouter, Ollama (повністю локально),
-OpenAI (як у статтях-джерелах).
+Alternatives are in the comments of `.env.example`: OpenRouter, Ollama (fully local), OpenAI.
 
-**Як зрозуміти, що саме працює.** Кожне демо друкує банер першим рядком:
+**How to tell which one is running.** Every demo prints a banner as its first line:
 
 ```
-[FakeLLM] Відповіді розігруються за сценарієм — мережі немає.
+[FakeLLM] Replies come from a script — there is no network.
 [LLM] https://api.groq.com/openai/v1 · model=llama-3.3-70b-versatile
 ```
 
-Перевірки (`check.py`) **завжди** працюють на FakeLLM, навіть коли ключ заданий — інакше
-вони перестали б бути детермінованими й почали б коштувати грошей.
+The checks (`check.py`) **always** run on FakeLLM, even when a key is configured — otherwise
+they would stop being deterministic and would start costing money.
 
-## 7. Опційно: база даних
+## 7. Optional: the database
 
-Потрібна з етапу 6.
+Needed from stage 6 onwards.
 
 ```bash
 docker compose -f deploy/docker-compose.yml up -d --wait
@@ -140,34 +139,34 @@ python scripts/migrate.py up
 python scripts/migrate.py status
 ```
 
-Зупинити: `docker compose -f deploy/docker-compose.yml down`
-Зупинити й **стерти дані**: `... down -v`
+Stop it: `docker compose -f deploy/docker-compose.yml down`
+Stop it and **erase the data**: `... down -v`
 
 ---
 
-## Типові граблі
+## The usual traps
 
 **`no matches found: [dev]`**
-Забув лапки. Пиши `pip install -e ".[dev]"`.
+You forgot the quotes. Write `pip install -e ".[dev]"`.
 
 **`ModuleNotFoundError: No module named 'shared'`**
-Не активоване venv, або пакет не встановлений. Перевір префікс `(.venv)` у промпті й
-повтори `pip install -e ".[dev]"`.
+The venv is not active, or the package is not installed. Check for the `(.venv)` prefix and run
+`pip install -e ".[dev]"` again.
 
-**Підключення до бази висить, потім падає з таймаутом**
-У `DATABASE_URL` стоїть `localhost`. Постав `127.0.0.1`.
-Docker публікує порт лише на IPv4, а `localhost` резолвиться **спершу** в `::1` (IPv6) —
-клієнт іде туди, слухача там немає, і підключення висить. Явна IPv4-адреса знімає
-неоднозначність. У `.env.example` уже правильно.
+**The database connection hangs, then times out**
+`DATABASE_URL` says `localhost`. Change it to `127.0.0.1`.
+Docker publishes the port on IPv4 only, while `localhost` resolves to `::1` (IPv6) **first** —
+the client goes there, nothing is listening, and the connection hangs. An explicit IPv4 address
+removes the ambiguity. `.env.example` already has it right.
 
-**`port is already allocated` при `docker compose up`**
-На 5432 або 6379 уже щось слухає — найчастіше локально встановлений Postgres або Redis.
-Або зупини його, або зміни порт у `deploy/docker-compose.yml` **і** в `.env`.
+**`port is already allocated` on `docker compose up`**
+Something is already listening on 5432 or 6379 — usually a locally installed Postgres or Redis.
+Either stop it, or change the port in `deploy/docker-compose.yml` **and** in `.env`.
 
-**`ConfigError: профіль prod налаштований небезпечно`**
-Це не баг, а запобіжник: `APP_PROFILE=prod` вимагає `API_KEYS`, `DATABASE_URL`, `REDIS_URL`
-і справжнього LLM. Публічний ендпоінт без автентифікації, що ходить до платної моделі, —
-відкритий гаманець. Деталі: [SECURITY.md](SECURITY.md).
+**`ConfigError: the prod profile is configured unsafely`**
+Not a bug but a guard: `APP_PROFILE=prod` requires `API_KEYS`, `DATABASE_URL`, `REDIS_URL` and a
+real LLM. A public endpoint with no authentication that calls a paid model is an open wallet.
+Details: [SECURITY.md](SECURITY.md).
 
-**Перевірки падають після `git pull`**
-Змінилися залежності. Повтори `pip install -e ".[dev]"`.
+**Checks fail after `git pull`**
+Dependencies changed. Run `pip install -e ".[dev]"` again.

@@ -1,6 +1,6 @@
 ---
 status: Draft
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
@@ -8,517 +8,532 @@ feature_size: "M"
 
 # Spec — s08-eval
 
-> **Glossary:** [CONTEXT](../../../CONTEXT.md) (ролі + доменні об'єкти), [GLOSSARY](../../../GLOSSARY.md) (терміни курсу)
-> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §9 (s08) · `CURRICULUM.md` · `PLAYBOOK.md` · `shared/trace.py` як уже наявне джерело даних · `docs/features/s06-platform/adr/0005` і `0008` (обіцянки, що переходять сюди) · сервіс етапу 6 як джерело живого трафіку · стаття-джерело #8 (Agent Evaluation)
+> **Glossary:** [CONTEXT](../../../CONTEXT.md) (roles + domain objects), [GLOSSARY](../../../GLOSSARY.md) (the course's terms)
+> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §9 (s08) · `CURRICULUM.md` · `PLAYBOOK.md` · `shared/trace.py` as the data source that already exists · `docs/features/s06-platform/adr/0005` and `0008` (promises carried over to here) · the stage 6 service as a source of live traffic · source article #8 (Agent Evaluation)
 
 ## 1. Context
 
-Сім етапів побудували систему. Питання «чи вона працює» досі має ту саму відповідь, що й до
-першого рядка коду: **«я прогнав кілька разів, начебто нормально»**.
+Seven stages built a system. The question "does it work" still has the same answer it had before
+the first line of code: **"I ran it a few times, seems fine"**.
 
-Етап 6 дав метрики: чи сервіс живий, скільки відповідає, скільки коштує. Етап 7 дав числа
-затримки. Жодне з них не відповідає на інше питання:
+Stage 6 gave metrics: is the service alive, how long does it answer, what does it cost. Stage 7
+gave latency numbers. Neither of them answers the other question:
 
-> **Інфраструктура каже, чи система працює. Оцінювання каже, чи її рішення хороші. Це різні
-> питання, і сервіс із бездоганним аптаймом може впевнено відповідати неправильно.**
+> **Infrastructure tells you whether the system works. Evaluation tells you whether its decisions
+> are good. These are different questions, and a service with flawless uptime can answer wrongly
+> with great confidence.**
 
-Головна теза етапу — з тієї самої статті, і вона не про метрики:
+The stage's main thesis comes from that same article, and it is not about metrics:
 
-> **Оцінювати треба шлях, а не лише пункт призначення.**
+> **What has to be evaluated is the path, not only the destination.**
 
-Агент може викликати всі інструменти правильно, дістати потрібні документи, розсудити
-розумно на кожному кроці — і провалити задачу. Або спіткнутись, покликати не той інструмент,
-викрутитись і дати правильну відповідь. **Якщо дивитись лише на останнє повідомлення, ці два
-випадки виглядають однаково.** Один був щасливою випадковістю, другий — інженерією.
+An agent can call every tool correctly, retrieve the right documents, reason sensibly at every
+step — and fail the task. Or it can stumble, call the wrong tool, wriggle out of it and give the
+right answer. **If you look only at the last message, those two cases look identical.** One was a
+lucky accident, the other was engineering.
 
-Другу тезу стаття не формулює, і вона специфічна для цього репозиторію:
+The second thesis the article does not state, and it is specific to this repository:
 
-> **Суддя-модель — це вимірювальний прилад, а прилади калібрують.** Оцінювач, який
-> оголошує вердикт судді істиною, зробив рівно ту помилку, від якої весь етап застерігає:
-> повірив числу, не спитавши, звідки воно.
+> **A judge model is a measuring instrument, and instruments get calibrated.** An evaluator that
+> declares the judge's verdict to be the truth has made exactly the mistake the whole stage warns
+> against: it trusted a number without asking where it came from.
 
-Тому доказ етапу — не «ми поставили оцінки», а **зловлений біас**: перестановка двох
-відповідей місцями змінює вердикт, і читач бачить це на власних числах.
+So the stage's proof is not "we assigned scores" but **a bias caught in the act**: swapping two
+answers around changes the verdict, and the reader sees it in numbers of their own.
 
-**Чому це можливо офлайн.** Підроблений суддя упереджений **навмисно** — так само, як
-мутації етапів 1–7 навмисно ламають властивість. Він не доводить, що справжні судді
-упереджені (це доводять чужі дослідження, на які посилається стаття); він дає **детектору
-що виявляти**. З реальним ключем той самий детектор іде проти справжньої моделі й дає той
-самий звіт.
+**Why this is possible offline.** The fake judge is biased **on purpose** — the same way the
+mutations of stages 1–7 break a property on purpose. It does not prove that real judges are
+biased (other people's research proves that, and the article cites it); it gives the detector
+**something to detect**. With a real key the same detector runs against a real model and produces
+the same report.
 
-**Дві обіцянки, що переходять сюди.** Етап 6 двічі відклав рішення на цей етап:
-`adr/0005` — «етап 8 скаже, чого йому справді бракує у трейсі»; `adr/0008` — «вимогу до
-сховища трейсів сформулює той, хто їх читатиме». Обидві виконуються тут (§8, ADR-0008 і
-ADR-0009 етапу), і виконуються **виміряно**, а не здогадом.
+**Two promises carried over to here.** Stage 6 deferred a decision to this stage twice:
+`adr/0005` — "stage 8 will say what it actually lacks in the trace"; `adr/0008` — "the
+requirement on the trace store will be stated by whoever reads them". Both are kept here (§8, the
+stage's ADR-0008 and ADR-0009), and they are kept **by measurement** rather than by guess.
 
-Ухвалено на глибині інтерв'ю `easy`: рішення зафіксовані в дизайн-специфікації курсу.
-Прийняті припущення — наприкінці §5.
+Decided at interview depth `easy`: the decisions are fixed in the course's design specification.
+The assumptions taken are at the end of §5.
 
-### Словник цієї специфікації
+### The vocabulary of this specification
 
-Три слова вживаються точно й не взаємозамінно:
+Three words are used precisely and are not interchangeable:
 
-- **Оцінювач** (evaluator) — компонент харнеса, що виносить вердикт рівня. Оцінювачі бувають
-  детерміновані або судять.
-- **Перевірка** (check) — `assert`-функція в `check.py`, що доводить властивість харнеса. Це
-  `Stage check` із [CONTEXT.md](../../../CONTEXT.md).
-- **Траєкторія** — максимальна множина кроків трейсу, що поділяють **ключ прогону**. Який
-  саме ключ — властивість джерела, не оцінювача (§5, AC-11).
+- **Evaluator** — a harness component that delivers a level's verdict. Evaluators are either
+  deterministic or they judge.
+- **Check** — an `assert` function in `check.py` that proves a property of the harness. This is
+  the `Stage check` from [CONTEXT.md](../../../CONTEXT.md).
+- **Trajectory** — the maximal set of trace steps sharing a **run key**. Which key that is
+  belongs to the source, not to the evaluator (§5, AC-11).
 
 ## 2. Goals
 
-- Читач однією командою отримує **звіт**, у якому «чи працює» — це числа по трьох рівнях, а
-  не враження.
-- Читач бачить різницю між «дійшов правильно» і «дійшов випадково» на конкретних кейсах.
-- Читач може сказати, коли суддя-модель виправдана, а коли це дорога заміна `==`.
-- Читач **на власних даних** бачить, як перестановка відповідей місцями змінює вердикт судді,
-  і як довша відповідь виграє в коротшої без жодного виграшу в якості.
-- Оператор розуміє схему онлайн-оцінювання: дешеві чеки на всьому трафіку, суддя — на
-  обмеженій частці, і чому саме так.
-- Читач бачить, що «не оцінено» — це третій стан, а не мовчазний провал і не мовчазний успіх.
-- Репозиторій отримує **виміряну** відповідь на питання, чого оцінювачеві бракує у трейсі.
+- With one command the reader gets a **report** in which "does it work" is numbers across three
+  levels rather than an impression.
+- The reader sees the difference between "arrived correctly" and "arrived by accident" on
+  concrete cases.
+- The reader can say when a judge model is justified and when it is an expensive replacement
+  for `==`.
+- The reader sees, **on data of their own**, how swapping two answers around changes the judge's
+  verdict, and how a longer answer beats a shorter one with no gain in quality.
+- The Operator understands the online evaluation scheme: cheap checks over all traffic, the judge
+  over a limited fraction, and why it is arranged that way.
+- The reader sees that "unscored" is a third state rather than a silent failure or a silent
+  success.
+- The repository gets a **measured** answer to the question of what the evaluator lacks in the
+  trace.
 
 ## 3. Non-goals
 
-- **Не будуємо платформу оцінювання.** Ані веб-інтерфейсу, ані бази результатів; звіт —
-  файл, який читає людина й порівнює з попереднім.
-- **Не міряємо якість моделей.** Етап оцінює **агента** — його рішення й шлях, — а не те,
-  який провайдер пише кращий текст.
-- **Не робимо статистику значущості.** Двадцять кейсів не дають довірчих інтервалів, і
-  вдавати протилежне гірше, ніж не рахувати їх узагалі. Звідси й детермінований семплер
-  (ADR-0007): межа звірки — точне число, а не інтервал.
-- **Не стежимо за дрейфом у часі.** Дрейф потребує **збереженої історії**, яку перший пункт
-  цього переліку виключає. Етап друкує числа, яких дрейф-моніторингу бракує (частки по
-  вікнах), і зупиняється на цьому; порівняння вікон у часі — етап 10.
-- **Не доводимо, що справжні судді упереджені.** Це показано в літературі; етап дає
-  **інструмент виявлення** й демонструє його на судді з відомою поведінкою.
-- **Не переписуємо етапи 1–7.** Харнес читає трейси, які вже пишуться. Брак у трейсі
-  **називається** (§8, ADR-0008 етапу), а виправляється там, де етапи й так перезбираються —
-  на етапі 10.
-- **Не робимо жодної частини оцінювання в гарячому шляху.** Ані судді, ані дешевих чеків:
-  усе працює **поза смугою**, читаючи трейс після відповіді. Сервіс, чию затримку етап 7
-  щойно міряв цілим етапом, не отримує невиміряного доданка.
+- **We are not building an evaluation platform.** No web interface, no results database; the
+  report is a file a human reads and compares with the previous one.
+- **We are not measuring model quality.** The stage evaluates **the agent** — its decisions and
+  its path — not which provider writes better text.
+- **We are not doing significance statistics.** Twenty cases give no confidence intervals, and
+  pretending otherwise is worse than not counting them at all. Hence the deterministic sampler
+  too (ADR-0007): the verification margin is an exact number, not an interval.
+- **We are not tracking drift over time.** Drift needs **stored history**, which the first item
+  on this list rules out. The stage prints the numbers drift monitoring lacks (fractions by
+  window) and stops there; comparing windows over time is stage 10.
+- **We are not proving that real judges are biased.** The literature shows that; the stage
+  provides **the detection instrument** and demonstrates it on a judge whose behaviour is known.
+- **We are not rewriting stages 1–7.** The harness reads traces that are already being written.
+  What the trace lacks is **named** (§8, the stage's ADR-0008) and fixed where the stages are
+  being reassembled anyway — at stage 10.
+- **We put no part of evaluation in the hot path.** Neither the judge nor the cheap checks:
+  everything runs **out of band**, reading the trace after the response. The service whose
+  latency stage 7 just spent a whole stage measuring does not get an unmeasured addend.
 
 ## 4. User stories
 
-### US-01: звіт однією командою
-**Як** Learner
-**Я хочу** прогнати весь набір оцінювання однією командою й отримати звіт
-**Щоб** питання «чи працює» мало відповідь у числах, а не в враженні
+### US-01: a report from one command
+**As** a Learner
+**I want** to run the whole evaluation suite with one command and get a report
+**So that** the question "does it work" has an answer in numbers rather than in impressions
 
-### US-02: оцінювання поверх наявних трейсів
-**Як** Learner
-**Я хочу**, щоб харнес читав трейси, які етапи 1–7 уже пишуть
-**Щоб** побачити, навіщо трасування додали з першого етапу, а не на восьмому
+### US-02: evaluation on top of existing traces
+**As** a Learner
+**I want** the harness to read the traces stages 1–7 already write
+**So that** I see why tracing was added at the first stage and not at the eighth
 
-### US-03: три рівні окремо
-**Як** Learner
-**Я хочу** бачити e2e, траєкторію й компонент окремими вердиктами
-**Щоб** «зламалось» відповідало на питання «де», а не лише «чи»
+### US-03: three levels, separately
+**As** a Learner
+**I want** to see e2e, trajectory and component as separate verdicts
+**So that** "it broke" answers the question "where" and not only "whether"
 
-### US-04: детермінований оцінювач проти судді
-**Як** Learner
-**Я хочу**, щоб кожен оцінювач явно оголошував, детермінований він чи судить
-**Щоб** навчитись не платити за суддю там, де досить порівняння
+### US-04: a deterministic evaluator versus a judge
+**As** a Learner
+**I want** every evaluator to declare explicitly whether it is deterministic or judges
+**So that** I learn not to pay for a judge where a comparison is enough
 
-### US-05: position bias на власних даних
-**Як** Learner
-**Я хочу** переставити дві відповіді місцями й побачити, що вердикт змінився
-**Щоб** зрозуміти біас із власного прогону, а не з переказу
+### US-05: position bias on my own data
+**As** a Learner
+**I want** to swap two answers around and see that the verdict changed
+**So that** I understand bias from my own run rather than from a retelling
 
-### US-06: length bias на власних даних
-**Як** Learner
-**Я хочу** побачити, як довша відповідь виграє в коротшої без виграшу в якості
-**Щоб** знати, що саме оцінює суддя, коли здається, що він оцінює якість
+### US-06: length bias on my own data
+**As** a Learner
+**I want** to see a longer answer beat a shorter one with no gain in quality
+**So that** I know what the judge is actually scoring when it looks like it is scoring quality
 
-### US-07: онлайн-оцінювання й семплінг
-**Як** Operator
-**Я хочу** дешеві чеки на всьому трафіку й суддю на обмеженій частці
-**Щоб** мати числа, з яких згодом рахують дрейф, не оплачуючи судження кожного запиту
+### US-07: online evaluation and sampling
+**As** an Operator
+**I want** cheap checks over all traffic and the judge over a limited fraction
+**So that** I have the numbers drift is later computed from, without paying to judge every
+request
 
-### US-08: третій стан
-**Як** Learner
-**Я хочу**, щоб недоступний суддя давав «не оцінено», а не «провалено»
-**Щоб** відрізняти зламане від неперевіреного
+### US-08: the third state
+**As** a Learner
+**I want** an unavailable judge to yield "unscored" rather than "failed"
+**So that** I can tell broken from unchecked
 
-### US-09: зламати й побачити, що почервоніє
-**Як** Contributor
-**Я хочу** ламати харнес і бачити, яка саме перевірка реагує
-**Щоб** знати, що перевірки мають зуби, а не лише правильний вердикт
+### US-09: break it and see what goes red
+**As** a Contributor
+**I want** to break the harness and see which check reacts
+**So that** I know the checks have teeth and not merely the right verdict
 
-### US-10: назвати, чого бракує у трейсі
-**Як** Contributor
-**Я хочу** отримати **виміряний** перелік того, чого оцінювачеві бракує в наявних трейсах
-**Щоб** виконати обіцянку, яку етап 6 двічі відклав на цей етап
+### US-10: name what the trace lacks
+**As** a Contributor
+**I want** a **measured** list of what the evaluator lacks in the existing traces
+**So that** the promise stage 6 deferred here twice is kept
 
 ## 5. Acceptance criteria
 
 ### AC-01 (US-01) — happy path
 
-**Given** набір кейсів оцінювання й породжені з них трейси
-**When** Learner запускає оцінювання однією командою
-**Then** він отримує звіт, у якому для кожного кейса є вердикт **кожного з трьох рівнів** і
-вид оцінювача поруч із кожним вердиктом, а внизу — підсумки. Звіт записується у файл, який
-читається людиною й порівнюється з попереднім
+**Given** an evaluation case set and the traces generated from it
+**When** the Learner starts evaluation with one command
+**Then** they get a report in which every case carries a verdict for **each of the three levels**
+and the evaluator's kind beside each verdict, with the summaries at the bottom. The report is
+written to a file that a human reads and compares with the previous one
 
 ### AC-01b (US-01) — domain invariant
 
-**Given** записаний звіт
-**When** перевірка **розбирає файл** і рахує рядки заново
-**Then** її числа збігаються з підсумками, надрукованими у звіті. Порівнюються **два
-незалежні джерела** — розібраний файл і лічильники прогону, — інакше рівність буде
-тотожністю й пропустить кейс, який до звіту не доїхав.
+**Given** the written report
+**When** a check **parses the file** and counts the rows again
+**Then** its numbers agree with the summaries printed in the report. **Two independent sources**
+are compared — the parsed file and the run's counters — because otherwise the equality is an
+identity and misses the case that never made it into the report.
 
-**Знаменник — усі кейси**, а не лише оцінені: частка пройдених, порахована від оцінених,
-**росте**, коли суддя падає
+**The denominator is all cases**, not only the scored ones: a passed fraction computed over the
+scored ones **grows** when the judge falls over
 
 ### AC-02 (US-02) — cross-context
 
-**Given** трейси, які етапи 1–7 записали під час своїх прогонів
-**When** харнес їх читає
-**Then** оцінювання відбувається **без жодної зміни в цих етапах**. Етап, який довелося б
-інструментувати заради оцінювання, довів би, що трасування додали запізно
+**Given** the traces stages 1–7 wrote during their own runs
+**When** the harness reads them
+**Then** evaluation happens **without a single change in those stages**. A stage that had to be
+instrumented for the sake of evaluation would prove that tracing was added too late
 
 ### AC-02b (US-02) — authorization
 
-**Given** файл трейсів, який харнес збирається читати
-**When** прогін оцінювання завершився
-**Then** цей файл **побайтово незмінний**: ані дописаний, ані переписаний. Власний трейс
-прогону оцінювання пишеться **в окремий шлях**, який задається явно; за замовчуванням
-оцінювач у спільний денний файл не пише — інакше другий прогін знайшов би серед вхідних
-даних трейс першого й почав би оцінювати оцінювача
+**Given** the trace file the harness is about to read
+**When** the evaluation run has finished
+**Then** that file is **byte-identical**: neither appended to nor rewritten. The evaluation run's
+own trace is written to **a separate path**, given explicitly; by default the evaluator writes
+nothing into the shared daily file — otherwise the second run would find the first run's trace
+among its inputs and start evaluating the evaluator
 
 ### AC-03 (US-03) — happy path
 
-**Given** два кейси з **однаковою правильною** відповіддю: перший описує прямий шлях, другий —
-зайвий цикл і виклик не того інструмента; обидва **породжені** зі своїх описів крізь
-`shared.trace`, тож трейси справжні
-**When** харнес їх оцінює
-**Then** їхні вердикти **різні**: e2e збігається, траєкторія — ні. Оцінювач, для якого ці
-два випадки однакові, не відрізняє інженерію від щасливої випадковості
+**Given** two cases with **the same correct** answer: the first describes the direct path, the
+second a redundant loop and a call to the wrong tool; both are **generated** from their own
+descriptions through `shared.trace`, so the traces are real
+**When** the harness evaluates them
+**Then** their verdicts **differ**: e2e agrees, the trajectory does not. An evaluator for which
+these two cases are the same does not tell engineering from a lucky accident
 
 ### AC-03b (US-03) — domain invariant
 
-**Given** будь-який кейс
-**When** Learner дивиться на його рядок у звіті
-**Then** вердикти трьох рівнів **незалежні**: кейс може пройти один рівень і провалити
-інший, і звіт показує обидва. Один зведений бал приховав би саме те, заради чого рівнів три.
+**Given** any case
+**When** the Learner looks at its row in the report
+**Then** the verdicts of the three levels are **independent**: a case can pass one level and fail
+another, and the report shows both. A single combined score would hide exactly what having three
+levels is for.
 
-**Правило приписування дефекта рівню — одне, і воно однозначне:**
+**The rule for assigning a defect to a level is one rule, and it is unambiguous:**
 
-    e2e         про ОСТАННЮ відповідь і ні про що інше
-    траєкторія  про ПОСЛІДОВНІСТЬ кроків: порядок, кількість, зайві виклики
-    компонент   про ОДИН крок і його власний результат: відмовив, відхилив, віддав порожньо
+    e2e         about the LAST answer and nothing else
+    trajectory  about the SEQUENCE of steps: order, count, redundant calls
+    component   about ONE step and its own result: it errored, it refused, it came back empty
 
 ### AC-03c (US-03) — error
 
-**Given** прогін, у якому окремий крок завершився помилкою або відмовою
-**When** харнес звітує про провал компонентного рівня
-**Then** він називає **крок** — його вид і порядковий номер, — а не лише кейс. «Агент
-відповів погано» — єдина інформація, яку дає оцінювач без компонентного рівня, і вона не
-каже, що чинити
+**Given** a run in which an individual step ended in an error or a refusal
+**When** the harness reports a failure at the component level
+**Then** it names **the step** — its kind and its ordinal — and not only the case. "The agent
+answered badly" is the only information an evaluator without a component level gives, and it does
+not say what to do about it
 
 ### AC-03d (US-03) — error
 
-**Given** трейс, у якому кроків потрібного компонента **немає взагалі**
-**When** харнес оцінює компонентний рівень
-**Then** його вердикт — **не оцінено**, а не «пройдено». Рівень, який мовчки зараховує
-відсутність даних як успіх, показує тим зеленіший звіт, чим бідніший трейс
+**Given** a trace that has **no steps at all** of the component's kind
+**When** the harness evaluates the component level
+**Then** its verdict is **unscored**, not "passed". A level that silently counts missing data as
+a success shows a greener report the poorer the trace is
 
 ### AC-04 (US-04) — domain invariant
 
-**Given** перелік оцінювачів харнеса
-**When** Learner дивиться на звіт
-**Then** поруч із кожним вердиктом стоїть **вид оцінювача**: детермінований або судить.
+**Given** the list of the harness's evaluators
+**When** the Learner looks at the report
+**Then** beside every verdict stands **the evaluator's kind**: deterministic or judges.
 
-Друга половина — **машинна**, не домовленість: лічильник викликів судді показує **нуль** для
-кожного детермінованого оцінювача, а сумарна кількість викликів за прогін дорівнює кількості
-оцінювачів, що судять. Суддю не кличуть «про всяк випадок»
+The second half is **machine-checked**, not an understanding: the judge-call counter reads
+**zero** for every deterministic evaluator, and the total number of calls in a run equals the
+number of evaluators that judge. The judge is not called "just in case"
 
 ### AC-05 (US-05) — error
 
-**Given** пару відповідей на ту саму задачу й суддю, що працює **попарно**: приймає дві
-відповіді в заданому порядку й повертає одне з трьох — перемогла перша, перемогла друга,
-нічия
-**When** харнес подає ту саму пару **двічі** — у порядку AB і в порядку BA
-**Then** він рахує **переворотом** випадок, коли зміст-переможець першого порядку не є
-змістом-переможцем другого (нічия — окреме значення, а не відсутність вердикта), і звітує це
-як **знахідку біасу**, а не як оцінку.
+**Given** a pair of answers to the same task and a judge that works **pairwise**: it takes two
+answers in a given order and returns one of three things — the first won, the second won, a tie
+**When** the harness submits the same pair **twice** — in the order AB and in the order BA
+**Then** it counts as a **flip** the case where the content that won in the first order is not
+the content that won in the second (a tie is a value of its own, not the absence of a verdict),
+and it reports this as **a bias finding**, not as a score.
 
-Пари беруться з **окремого переліку пар** етапу, а не з кейсів набору: знахідка біасу — це
-властивість **судді**, і змішувати її з якістю агента означало б звинувачувати агента в
-поведінці приладу
+The pairs are taken from **a separate list of pairs** belonging to the stage rather than from the
+suite's cases: a bias finding is a property of **the judge**, and mixing it in with the agent's
+quality would mean blaming the agent for the instrument's behaviour
 
 ### AC-05b (US-05) — domain invariant
 
-**Given** суддю, чий вердикт **не** залежить від порядку
-**When** харнес проганяє той самий детектор на тих самих парах
-**Then** він звітує **згоду**: нуль переворотів. Детектор, що знаходить біас завжди, не
-відрізняє упередженого суддю від чесного й тому не є детектором
+**Given** a judge whose verdict does **not** depend on the order
+**When** the harness runs the same detector on the same pairs
+**Then** it reports **agreement**: zero flips. A detector that always finds bias cannot tell a
+biased judge from an honest one and is therefore not a detector
 
 ### AC-06 (US-06) — error
 
-**Given** пару відповідей на ту саму задачу: коротку правильну й **ту саму** правильну,
-доповнену правдивим, але зайвим текстом, і суддю, що працює **поточково**: ставить кожній
-відповіді цілий бал за оголошеною шкалою
-**When** суддя оцінює обидві
-**Then** харнес показує **різницю балів числом** і рахує знахідкою length bias **будь-яку
-строго додатну** різницю.
+**Given** a pair of answers to the same task: the short correct one, and **the same** correct one
+padded with truthful but redundant text, and a judge that works **pointwise**: it gives each
+answer a whole score on a declared scale
+**When** the judge scores both
+**Then** the harness shows **the difference of scores as a number** and counts **any strictly
+positive** difference as a length bias finding.
 
-Поріг тут не потрібен і був би помилкою: обидві відповіді правильні, друга відрізняється
-лише зайвим текстом, тож **будь-яка** перевага довшої — це бал за довжину
+No threshold is needed here and one would be a mistake: both answers are correct, the second
+differs only by redundant text, so **any** preference for the longer one is a point for length
 
 ### AC-07 (US-07) — happy path
 
-**Given** записаний трейс сервісу
-**When** увімкнено онлайн-оцінювання
-**Then** дешеві детерміновані чеки виконуються на **кожній траєкторії запиту** з трейсу,
-суддя — на обмеженій частці, і **обидва числа названі**. Усе відбувається **поза смугою**,
-після відповіді: жоден крок оцінювання не стоїть між запитом і відповіддю.
+**Given** a recorded service trace
+**When** online evaluation is turned on
+**Then** the cheap deterministic checks run on **every request trajectory** in the trace, the
+judge on a limited fraction, and **both numbers are named**. All of it happens **out of band**,
+after the response: no evaluation step stands between the request and the response.
 
-Межа названа прямо: запит, який до трейсера не дійшов, не оцінюється **ніяк**, і харнес
-звітує кількість таких, якщо може її знати
+The limit is named outright: a request that never reached the tracer is not evaluated **at all**,
+and the harness reports how many such requests there were if it can know that
 
 ### AC-07b (US-07) — authorization
 
-**Given** запит користувача, що містить чутливий текст
-**When** його вибрано в семпл
-**Then** **матеріали оцінювання** — записаний звіт і власний трейс прогону — не містять ані
-тексту запиту, ані тексту відповіді користувача.
+**Given** a user request containing sensitive text
+**When** it is selected into the sample
+**Then** **the evaluation material** — the written report and the run's own trace — contains
+neither the request text nor the text of the user's answer.
 
-Відповіді **демонстрації біасу** під заборону не підпадають: їх написав автор етапу як
-фікстури, вони не належать жодному користувачеві, і без них демонстрація втратила б те,
-заради чого існує
+The answers used in the **bias demonstration** are not covered by that ban: the stage's author
+wrote them as fixtures, they belong to no user, and without them the demonstration would lose the
+thing it exists for
 
 ### AC-07c (US-07) — domain invariant
 
-**Given** заявлену частку семплінгу й потік ідентифікаторів запитів
-**When** через семплер пройшов увесь потік
-**Then** фактична частка **збігається із заявленою** в межах **±3 відсоткових пунктів** на
-потоці від двохсот ідентифікаторів — і межа названа тут, у специфікації, а не обирається харнесом.
+**Given** a declared sampling fraction and a stream of request identifiers
+**When** the whole stream has passed through the sampler
+**Then** the actual fraction **matches the declared one** within **±3 percentage points** on a
+stream of two hundred identifiers or more — and the margin is named here, in the specification, rather than chosen by the harness.
 
-Відбір **детермінований**: той самий ідентифікатор завжди дає те саме рішення, а той самий
-потік — ту саму частку. Випадковий відбір зробив би перевірку мигтливою, а її допуск довелося
-б розширити настільки, що вона перестала б розрізняти 10 % і 1 %
+The selection is **deterministic**: the same identifier always yields the same decision, and the
+same stream the same fraction. Random selection would make the check flaky, and its tolerance
+would have to be widened so far that it would stop telling 10 % from 1 %
 
 ### AC-08 (US-08) — error
 
-**Given** кейс, для якого суддя недоступний
-**When** харнес звітує
-**Then** його стан — **не оцінено**, і цей стан рахується окремо від пройдених і провалених.
+**Given** a case for which the judge is unavailable
+**When** the harness reports
+**Then** its state is **unscored**, and that state is counted separately from passed and failed.
 
-«Недоступний» — це закритий перелік: ключа не налаштовано, провайдер відмовив за квотою чи
-частотою, вичерпано бюджет, збіг тайм-аут, відповідь судді нерозбірлива. Усе інше — провал.
+"Unavailable" is a closed list: no key configured, the provider refused on quota or rate, the
+budget is exhausted, a timeout elapsed, the judge's answer is unparseable. Everything else is a
+failure.
 
-Дзеркальна половина: прогін, у якому **все** опинилось у стані «не оцінено», не є успішним —
-звіт каже це прямо, а не показує порожню зелень
+The mirror half: a run in which **everything** ended up unscored is not a success — the report
+says so outright rather than showing empty green
 
 ### AC-09 (US-09) — error
 
-**Given** харнес із навмисно зламаним рівнем оцінювання
-**When** Learner запускає перевірки
-**Then** червоніє перевірка, яка стверджує **саме про цей рівень**, і її повідомлення
-називає, що саме зламалось
+**Given** a harness with a deliberately broken evaluation level
+**When** the Learner runs the checks
+**Then** the check that asserts **about that very level** goes red, and its message names what
+exactly broke
 
 ### AC-10 (US-01) — domain invariant
 
-**Given** набір кейсів
-**When** перевірка рахує його склад
-**Then** щонайменше третина — **крайні випадки**, і крайність виводиться зі **спостережної
-властивості** кейса: очікується відмова, відхилення аргументів, вичерпаний ліміт, порожня
-видача або невідомий інструмент. Самопроголошеної мітки немає — інакше NFR задовольняється
-перемиканням прапорця, і набір із двадцяти щасливих шляхів лишається зеленим.
+**Given** the case set
+**When** a check counts its composition
+**Then** at least a third are **edge cases**, and edge-ness is derived from an **observable
+property** of the case: a refusal is expected, arguments were rejected, a limit was exhausted, the
+result was empty, or the tool was unknown. There is no self-declared label — otherwise the NFR is
+satisfied by flipping a flag, and a set of twenty happy paths stays green.
 
-Третина береться **вгору**: на двадцяти кейсах це сім, а не шість
+The third is taken **rounding up**: on twenty cases that is seven, not six
 
 ### AC-11 (US-03) — cross-context
 
-**Given** трейс прогону агента етапу 1 і трейс прогону сервісу етапу 6
-**When** харнес витягує з обох траєкторії
-**Then** він робить це **тим самим кодом**, отримуючи **ключ прогону параметром**.
+**Given** a trace of a stage 1 agent run and a trace of a stage 6 service run
+**When** the harness extracts trajectories from both
+**Then** it does so with **the same code**, receiving **the run key as a parameter**.
 
-Джерело визначає ключ, а не оцінювач: етап 1 групує по ідентифікатору трейсу, сервіс етапу 6 —
-по ідентифікатору запиту. Дзеркальна половина, без якої твердження порожнє: на трейсі етапу 6
-траєкторій **більше за одну**. Групування, що схлопує весь файл сервісу в одну траєкторію,
-формально «працює» й рахує підсумки по одному рядку
+The source decides the key, not the evaluator: stage 1 groups by trace identifier, the stage 6
+service by request identifier. The mirror half, without which the claim is empty: on the stage 6
+trace there is **more than one** trajectory. A grouping that collapses the whole service file
+into one trajectory formally "works" and computes its summaries over a single row
 
 ### AC-12 (US-10) — cross-context
 
-**Given** трейси всіх наявних етапів
-**When** харнес намагається витягти з них траєкторії одним способом
-**Then** він **називає числом**, чого йому бракує, і цей перелік потрапляє в урок.
+**Given** the traces of every existing stage
+**When** the harness tries to extract trajectories from them all one way
+**Then** it **names as a number** what it lacks, and that list goes into the lesson.
 
-Виміряно, а не припущено: **перелік обчислюється з джерел**, а не стоїть у прозі. Число, яке
-описує, чого бракує вимірюванню, не сміє саме бути здогадом — і перша редакція цієї фрази ним
-була: вона рахувала фазу відмови етапу 4 за ключ прогону й пропускала етап 7. Це і є відповідь
-на питання, яке етап 6 двічі відклав сюди
+Measured, not assumed: **the list is computed from the sources** rather than sitting in prose. A
+number that describes what a measurement lacks must not itself be a guess — and the first draft of
+this sentence was one: it counted stage 4's refusal phase as a run key and skipped stage 7. This
+is the answer to the question stage 6 deferred here twice
 
 ## Test plan
 
-Кожен критерій §5 має щонайменше один названий тест. Рівень — узагальнений; конкретні
-функції живуть у `stages/s08_eval/check.py`, і жодна назва інструмента тут не закріплена.
+Every criterion in §5 has at least one named test. The level is generalised; the concrete
+functions live in `stages/s08_eval/check.py`, and no tool name is fixed here.
 
-| AC | Тест | Рівень | Що доводить |
+| AC | Test | Level | What it proves |
 |---|---|---|---|
-| AC-01 | `one case yields three verdicts and three evaluator kinds` | unit | Три рівні поруч, вид оцінювача біля кожного |
-| AC-01b | `the written report parses back to the same totals` | unit | **ВІДМОВА.** Два незалежні джерела; знаменник — усі кейси |
-| AC-02 | `stage traces are read exactly as the stages wrote them` | integration | Жодної правки в етапах 1–7 |
-| AC-02b | `the input trace file is byte-identical after a run` | integration | **ВІДМОВА.** Оцінювач не пише в те, що оцінює |
-| AC-03 | `same answer, different paths, different verdicts` | unit | e2e збігається, траєкторія — ні |
-| AC-03b | `a case passes one level and fails another in the same row` | unit | Вердикти незалежні; зведеного бала немає |
-| AC-03c | `a failed step is named by its kind and ordinal` | unit | **ВІДМОВА.** Названо крок, а не лише кейс |
-| AC-03d | `a trace without steps of that kind is not evaluated` | unit | **ВІДМОВА.** Третій стан замість мовчазного «пройдено» |
-| AC-04 | `deterministic evaluators call the judge zero times` | unit | Лічильник викликів, а не домовленість |
-| AC-05 | `swapping the order flips the winner` | unit | **ВІДМОВА.** Position bias — знахідка про прилад |
-| AC-05b | `a stable judge yields zero flips` | unit | Дзеркальна половина: детектор, що спрацьовує завжди, не детектор |
-| AC-06 | `padding a correct answer raises its score` | unit | **ВІДМОВА.** Length bias числом; порога немає й бути не може |
-| AC-07 | `cheap checks cover every trajectory, the judge only a share` | integration | Обидва числа названі; усе поза смугою |
-| AC-07b | `neither request nor answer text reaches the report or the trace` | unit | **ВІДМОВА.** Матеріали оцінювання без тексту користувача |
-| AC-07c | `the sampled share matches the declared one within the stated margin` | unit | Відбір детермінований; межа зі специфікації, не з харнеса |
-| AC-08 | `an unavailable judge yields not-evaluated, never a failure` | unit | **ВІДМОВА.** Закритий перелік причин; суцільне «не оцінено» не є успіхом |
-| AC-09 | `a broken level reddens the check that asserts about that level` | unit | **ВІДМОВА.** Мутація влучає точно, а не абикуди |
-| AC-10 | `at least a third of the case set is edge by observation` | unit | Крайність виводиться зі спостережної властивості, не з мітки |
-| AC-11 | `one grouping-key parameter serves both stage 1 and the stage 6 service` | integration | Дзеркальна половина: на сервісі траєкторій більше за одну |
-| AC-12 | `what the traces lack is counted, not assumed` | integration | Чотири різні поля прогону, два етапи без жодного |
+| AC-01 | `one case yields three verdicts and three evaluator kinds` | unit | Three levels side by side, the evaluator's kind beside each |
+| AC-01b | `the written report parses back to the same totals` | unit | **FAILURE.** Two independent sources; the denominator is all cases |
+| AC-02 | `stage traces are read exactly as the stages wrote them` | integration | Not one edit in stages 1–7 |
+| AC-02b | `the input trace file is byte-identical after a run` | integration | **FAILURE.** The evaluator does not write into what it evaluates |
+| AC-03 | `same answer, different paths, different verdicts` | unit | e2e agrees, the trajectory does not |
+| AC-03b | `a case passes one level and fails another in the same row` | unit | The verdicts are independent; there is no combined score |
+| AC-03c | `a failed step is named by its kind and ordinal` | unit | **FAILURE.** The step is named, not only the case |
+| AC-03d | `a trace without steps of that kind is not evaluated` | unit | **FAILURE.** The third state instead of a silent "passed" |
+| AC-04 | `deterministic evaluators call the judge zero times` | unit | A counter of calls, not an understanding |
+| AC-05 | `swapping the order flips the winner` | unit | **FAILURE.** Position bias — a finding about the instrument |
+| AC-05b | `a stable judge yields zero flips` | unit | The mirror half: a detector that always fires is not a detector |
+| AC-06 | `padding a correct answer raises its score` | unit | **FAILURE.** Length bias as a number; there is no threshold and cannot be |
+| AC-07 | `cheap checks cover every trajectory, the judge only a share` | integration | Both numbers named; all of it out of band |
+| AC-07b | `neither request nor answer text reaches the report or the trace` | unit | **FAILURE.** Evaluation material with no user text |
+| AC-07c | `the sampled share matches the declared one within the stated margin` | unit | The selection is deterministic; the margin comes from the spec, not the harness |
+| AC-08 | `an unavailable judge yields not-evaluated, never a failure` | unit | **FAILURE.** A closed list of causes; wall-to-wall "unscored" is not a success |
+| AC-09 | `a broken level reddens the check that asserts about that level` | unit | **FAILURE.** The mutation lands precisely, not just anywhere |
+| AC-10 | `at least a third of the case set is edge by observation` | unit | Edge-ness is derived from an observable property, not from a label |
+| AC-11 | `one grouping-key parameter serves both stage 1 and the stage 6 service` | integration | The mirror half: on the service there is more than one trajectory |
+| AC-12 | `what the traces lack is counted, not assumed` | integration | Four different run fields, two stages with none at all |
 
-**Стратегія інтеграційних тестів.** Справжня залежність тут — **файл трейсів**, а не база:
-`TRACE_SINK=jsonl` — єдина реалізація стіка (ADR-0009). Кожен інтеграційний тест породжує
-свій трейс у тимчасовий каталог крізь той самий `shared.trace`, що й етапи, і прибирає його
-після себе. Межа прибирання — **на тест**, не на набір: спільний файл зробив би прогони
-залежними від порядку. Підробленого сховища немає ніде — трейс, який пройшов повз
-`shared.trace`, доводив би властивість формату, якого в репозиторії немає.
+**Integration test strategy.** The real dependency here is **the trace file**, not a database:
+`TRACE_SINK=jsonl` is the only sink implementation (ADR-0009). Every integration test generates
+its own trace into a temporary directory through the same `shared.trace` the stages use, and
+cleans up after itself. The cleanup boundary is **per test**, not per suite: a shared file would
+make the runs order-dependent. There is no fake store anywhere — a trace that went around
+`shared.trace` would prove a property of a format the repository does not have.
 
-**Дані.** Кейси **породжуються з описів** (ADR-0005), а не читаються з записаних фікстур.
-Фікстурними лишаються тільки відповіді демонстрації біасу: вони — вхід **приладу**, а не
-дані користувача, і саме тому §6.1 виводить їх з-під заборони на текст.
+**Data.** Cases are **generated from descriptions** (ADR-0005) rather than read from recorded
+fixtures. The only things that stay fixtures are the bias demonstration's answers: they are input
+to **the instrument**, not user data, and that is exactly why §6.1 exempts them from the ban on
+text.
 
-**Розміщення в CI.** Увесь набір швидкий і офлайновий — він іде на кожному PR разом з
-рештою `scripts/check_all.py`. Окремого повільного набору етап не має: перевірка, що
-потребує мережі, зламана, а не повільна.
+**Placement in CI.** The whole suite is fast and offline — it runs on every PR along with the
+rest of `scripts/check_all.py`. The stage has no separate slow suite: a check that needs the
+network is broken, not slow.
 
-<!-- N/A: жоден NFR §6 не несе числа пропускної здатності чи затримки під навантаженням; NFR-2 і NFR-2b — це стелі тривалості прогону, які міряє звичайна перевірка -->
+<!-- N/A: no NFR in §6 carries a throughput or under-load latency number; NFR-2 and NFR-2b are run-duration ceilings measured by an ordinary check -->
 
-### Чого цей план свідомо не доводить
+### What this plan deliberately does not prove
 
-- **Що суддя-модель судить правильно.** За замовчуванням суддя — підробка з **оголошеною**
-  упередженістю. Доказ етапу стосується детектора й приладу, а не якості конкретної моделі;
-  з реальним ключем той самий детектор іде проти справжньої моделі й дає той самий звіт.
-- **Що агент попередніх етапів хороший.** Двадцять кейсів — навчальний набір, а не бенчмарк:
-  вони показують, **що міряти**, і навмисно не дають довірчих інтервалів (§3).
-- **Що семплінг тримає частку на справжньому розгортанні.** Він перевіряється локально, в
-  тому самому процесі; справжнє розгортання лишається `НЕ ПЕРЕВІРЕНО` (§8, припущення 4).
-- **Що ±3 відсоткові пункти — правильна межа для продакшну.** Це межа **вправи** на потоці
-  від двохсот ідентифікаторів. Справжня залежить від обсягу трафіку й ціни судження.
-- **Що звіт детермінований із реальним суддею.** NFR-6b знімає цю вимогу прямо: з ключем
-  перевірка мигтіння стає `НЕ ПЕРЕВІРЕНО`, а не зеленою.
-- **Що перелік причин «недоступний» вичерпний назавжди.** Він закритий **на сьогодні**
-  (AC-08); нова причина відмови провайдера потрапить у нього правкою, і доти читатиметься
-  як провал — навмисно гучно.
+- **That a judge model judges correctly.** By default the judge is a fake with a **declared**
+  bias. The stage's proof is about the detector and the instrument, not about the quality of a
+  particular model; with a real key the same detector runs against a real model and produces the
+  same report.
+- **That the agent of the earlier stages is good.** Twenty cases are a teaching set, not a
+  benchmark: they show **what to measure**, and deliberately give no confidence intervals (§3).
+- **That sampling holds the fraction on a real deployment.** It is checked locally, in the same
+  process; a real deployment stays `NOT EVALUATED` (§8, assumption 4).
+- **That ±3 percentage points is the right margin for production.** It is the margin of **an
+  exercise** on a stream of two hundred identifiers or more. The real one depends on the volume of
+  traffic and the price of a judgement.
+- **That the report is deterministic with a real judge.** NFR-6b lifts that requirement outright:
+  with a key, the flakiness check becomes `NOT EVALUATED` rather than green.
+- **That the list of "unavailable" causes is exhaustive forever.** It is closed **as of today**
+  (AC-08); a new provider refusal will enter it by an edit, and until then it will read as a
+  failure — deliberately loudly.
 
 ## 6. Non-functional requirements
 
-| # | Вимога | Ціль | Як міряється |
+| # | Requirement | Target | How it is measured |
 |---|---|---|---|
-| NFR-1 | Розмір модулів **реалізації** — `trajectory.py`, `cases.py`, `levels.py`, `judge.py`, `bias.py`, `report.py`, `online.py` (`run.py` і `check.py` не рахуються: перший — демо, другий — набір перевірок) | кожен ≤ 110 виконуваних рядків | AST-підрахунок у перевірці |
-| NFR-2 | Прогін **`python -m stages.s08_eval.check`** офлайн | ≤ 30 с без ключа й без мережі | стеля `BUDGET_SECONDS`, яку читає `check_all` |
-| NFR-2b | Прогін **`python -m stages.s08_eval.run`** офлайн | ≤ 10 с; міряється перевіркою, що запускає демо | заміряний час у перевірці e2e |
-| NFR-3 | Обсяг уроку | ≤ 2500 слів | підрахунок у перевірці |
-| NFR-4 | Частка перевірок на режими відмови | ≥ 1/3, округлення вгору | підрахунок префікса в перевірці |
-| NFR-5 | Прогін без опційних пакетів і без ключа | зелено або `НЕ ПЕРЕВІРЕНО`; жодної червоної | `scripts/clean_install.py` |
-| NFR-6 | Детермінізм звіту **офлайн, із підробленим суддею** | двадцять прогонів дають однакові **вердикти й підсумки** (не побайтову тотожність файлу: ідентифікатори й час до порівняння не входять) | перевірка мигтіння |
-| NFR-6b | Детермінізм **із реальним суддею** | не вимагається; перевірка мигтіння з ключем стає `НЕ ПЕРЕВІРЕНО` | та сама перевірка, інша гілка |
-| NFR-7 | Обсяг набору кейсів | ≥ 20 кейсів, із них ≥ 1/3 крайніх (округлення вгору) | підрахунок у перевірці за спостережною властивістю |
+| NFR-1 | The size of the **implementation** modules — `trajectory.py`, `cases.py`, `levels.py`, `judge.py`, `bias.py`, `report.py`, `online.py` (`run.py` and `check.py` do not count: the first is the demo, the second is the set of checks) | each ≤ 110 executable lines | AST count in a check |
+| NFR-2 | Running **`python -m stages.s08_eval.check`** offline | ≤ 30 s with no key and no network | the `BUDGET_SECONDS` ceiling, read by `check_all` |
+| NFR-2b | Running **`python -m stages.s08_eval.run`** offline | ≤ 10 s; measured by a check that starts the demo | the time measured in the e2e check |
+| NFR-3 | Lesson length | ≤ 2500 words | a count in a check |
+| NFR-4 | The fraction of checks covering failure modes | ≥ 1/3, rounding up | a prefix count in a check |
+| NFR-5 | A run with no optional packages and no key | green or `NOT EVALUATED`; not a single red | `scripts/clean_install.py` |
+| NFR-6 | Determinism of the report **offline, with the fake judge** | twenty runs give the same **verdicts and summaries** (not byte-identical files: identifiers and time are excluded from the comparison) | the flakiness check |
+| NFR-6b | Determinism **with a real judge** | not required; with a key the flakiness check becomes `NOT EVALUATED` | the same check, a different branch |
+| NFR-7 | The size of the case set | ≥ 20 cases, of which ≥ 1/3 are edge cases (rounding up) | a count in a check, by observable property |
 
 ## 6.1 Security and privacy
 
-- **Оцінювання читає, а не пише** в те, що оцінює: файл трейсів побайтово незмінний (AC-02b).
-- **Власний трейс — в окремий шлях.** Спільний денний файл оцінювач не чіпає за
-  замовчуванням: інакше наступний прогін оцінює попередній.
-- **Матеріали оцінювання** — це записаний звіт і власний трейс прогону. Вони не несуть ані
-  тексту запиту, ані тексту відповіді користувача (AC-07b). Фікстурні відповіді демонстрації
-  біасу написав автор етапу — вони не є даними користувача.
-- **Жодна частина оцінювання не стоїть у гарячому шляху** — ані суддя, ані дешеві чеки.
-- **Ключ провайдера не потрібен** для проходження етапу; без нього суддя дає стан
-  «не оцінено», а не помилку.
+- **Evaluation reads, it does not write** into what it evaluates: the trace file is byte-identical
+  (AC-02b).
+- **Its own trace goes to a separate path.** The evaluator leaves the shared daily file alone by
+  default: otherwise the next run evaluates the previous one.
+- **The evaluation material** is the written report and the run's own trace. They carry neither
+  the request text nor the text of the user's answer (AC-07b). The fixture answers of the bias
+  demonstration were written by the stage's author — they are not user data.
+- **No part of evaluation stands in the hot path** — neither the judge nor the cheap checks.
+- **A provider key is not required** to pass the stage; without one, the judge yields the
+  "unscored" state rather than an error.
 
-### Зловживання
+### Abuse
 
-| Сценарій | Що ламається | Що робить етап |
+| Scenario | What breaks | What the stage does |
 |---|---|---|
-| Оцінювач звітує середній бал і ховає розкид | «зелено» означає «в середньому терпимо» | три рівні окремо, «не оцінено» окремим станом |
-| Суддя оцінює власний стиль замість якості | оцінка дрейфує від правильності до подібності | детектор біасу як частина набору, не як опція |
-| Набір складається зі щасливих шляхів | висока оцінка, що нічого не доводить | крайність виводиться зі спостережної властивості (AC-10) |
-| Семплінг заявлено, але не перевірено | реальна частка інша | детермінований відбір і межа ±3 п. п. у специфікації (AC-07c) |
-| Порожній трейс дає зелений компонентний рівень | що бідніший трейс, то кращий звіт | відсутність кроків → «не оцінено» (AC-03d) |
-| Частка пройдених береться від оцінених | вона росте, коли суддя падає | знаменник — усі кейси (AC-01b) |
+| The evaluator reports an average score and hides the spread | "green" comes to mean "tolerable on average" | three levels separately, "unscored" as its own state |
+| The judge scores its own style instead of quality | the score drifts from correctness towards similarity | the bias detector as part of the suite, not as an option |
+| The set consists of happy paths | a high score that proves nothing | edge-ness derived from an observable property (AC-10) |
+| Sampling is declared but never verified | the real fraction is a different one | deterministic selection and the ±3 pp margin in the spec (AC-07c) |
+| An empty trace gives a green component level | the poorer the trace, the better the report | no steps → "unscored" (AC-03d) |
+| The passed fraction is taken over the scored ones | it grows when the judge falls over | the denominator is all cases (AC-01b) |
 
 ## 7. KPIs
 
-- Читач може назвати три рівні оцінювання й сказати, що бачить кожен, чого не бачать двоє інших.
-- Читач після прогону називає **своє** число: скільки кейсів провалило траєкторію при
-  правильній відповіді.
-- Читач може сформулювати правило розподілу «детермінований оцінювач проти судді» одним реченням.
-- Читач бачив перестановку відповідей, що змінила вердикт, — на власному прогоні.
-- Читач може сказати, чому «не оцінено» рахується окремо й чому знаменник — усі кейси.
-- Contributor може назвати, чого трейсам бракує для оцінювання, і де це виправляється.
+- The reader can name the three levels of evaluation and say what each one sees that the other
+  two do not.
+- After a run the reader names a number of **their own**: how many cases failed the trajectory
+  while giving the right answer.
+- The reader can state the "deterministic evaluator versus judge" rule in one sentence.
+- The reader has seen a swap of answers change the verdict — on a run of their own.
+- The reader can say why "unscored" is counted separately and why the denominator is all cases.
+- The Contributor can name what the traces lack for evaluation, and where that gets fixed.
 
 ## 8. Open questions
 
-- [ ] Чи семплінг перевіряти проти справжнього розгортання, чи локального сервісу етапу 6?
-      Default now: локально, у тому самому процесі; справжнє розгортання — `НЕ ПЕРЕВІРЕНО`.
-      — owner: Contributor, due: перед тегом `stage-08`
-- [ ] Чи потрібен окремий формат звіту для машинного читання поруч із людським?
-      Default now: один файл, який читає людина; машинне читання — етап 10, якщо знадобиться.
-      — owner: Contributor, due: етап 10
-- [ ] Чи виносити детектор біасу в `shared/`, щоб етап 10 брав його готовим?
-      Default now: лишається в етапі 8; винесення — рішення етапу 10 за фактом потреби.
-      — owner: Contributor, due: етап 10
-- [ ] Спільне поле «ключ прогону» у `shared/trace.py` замість чотирьох різних імен —
-      коли? Default now: вимога **сформульована** тут (AC-12, ADR-0008 етапу), а зміна
-      робиться на етапі 10, де етапи й так перезбираються: правка `shared/trace.py` зачіпає
-      всі сім етапів і порушила б обмеження цього етапу.
-      — owner: Contributor, due: етап 10
+- [ ] Should sampling be checked against a real deployment or against a local stage 6 service?
+      Default now: locally, in the same process; a real deployment is `NOT EVALUATED`.
+      — owner: Contributor, due: before the `stage-08` tag
+- [ ] Is a separate machine-readable report format needed alongside the human one?
+      Default now: one file a human reads; machine reading is stage 10, if it turns out to be
+      needed. — owner: Contributor, due: stage 10
+- [ ] Should the bias detector move into `shared/` so that stage 10 gets it ready-made?
+      Default now: it stays in stage 8; moving it is a stage 10 decision, once the need is real.
+      — owner: Contributor, due: stage 10
+- [ ] A shared "run key" field in `shared/trace.py` instead of four different names — when?
+      Default now: the requirement is **stated** here (AC-12, the stage's ADR-0008), and the
+      change is made at stage 10, where the stages are being reassembled anyway: editing
+      `shared/trace.py` touches all seven stages and would violate this stage's constraint.
+      — owner: Contributor, due: stage 10
 
-### Відкладене після рев'ю (2026-08-25)
+### Deferred after the review (2026-08-25)
 
-Дві незалежні рев'ю в чистому контексті дали шістнадцять MAJOR і вісімнадцять MINOR. Усі
-MAJOR закриті; нижче — те, що свідомо відкладено, з власником і терміном.
+Two independent reviews in a clean context produced sixteen MAJOR and eighteen MINOR findings.
+Every MAJOR is closed; below is what was deliberately deferred, with an owner and a deadline.
 
-- [ ] **Мертвий код у модулях із лімітом рядків.** `Watch.within()` (`online.py`) реалізує
-      дослівно AC-07c, але не викликається ніде: перевірка рахує `sampled()` на
-      синтетичному потоці. Так само `Trajectory.of_kind` поза `tools()`.
-      Default now: лишається — `within()` тепер міряє **відібраних**, а не оцінених, і
-      потрібне онлайн-читачеві; підключення до перевірки — разом із першим справжнім
-      сервісом. — owner: Contributor, due: етап 10
-- [ ] **Довга беззмістовна відповідь проходить e2e за побудовою.** `PASS_SCORE = 2` і
-      `CHARS_PER_POINT = 40` дають прохідний бал за 80 символів шуму. Жоден нинішній кейс
-      цього не показує (кожен пройдений має ≥2 бали за змістом), але співвідношення не
-      тримає ніщо.
-      Default now: лишається як **демонстрація власної тези** етапу; ассерт «жоден кейс не
-      проходить лише за рахунок надбавки» — коли зʼявиться двадцять другий кейс.
-      — owner: Contributor, due: етап 10
-- [ ] **`EDGE_KINDS` і `BROKEN_KINDS` розходяться про `specialist_failed`.** Кейс «маршрут
-      не туди, відновився» провалює компонентний рівень і при цьому не рахується крайнім.
-      Default now: лишається — крайність описує **вхідні дані** набору, а зламаність —
-      **результат** прогону, і збіг переліків був би випадковим. — owner: Contributor,
-      due: етап 10
-- [ ] **Онлайн-частина не піднімає справжнього сервісу етапу 6.** Перевірки читають
-      справжні трейси з `traces/`, але сервіс у тому самому процесі не стартує.
-      Default now: `НЕ ПЕРЕВІРЕНО`, як і сказано в припущенні 4. — owner: Contributor,
-      due: етап 10
+- [ ] **Dead code in modules that have a line limit.** `Watch.within()` (`online.py`) implements
+      AC-07c literally, but is called nowhere: the check counts `sampled()` on a synthetic stream.
+      The same goes for `Trajectory.of_kind` outside `tools()`.
+      Default now: it stays — `within()` now measures the **selected** rather than the scored, and
+      an online reader needs it; wiring it into a check comes with the first real service.
+      — owner: Contributor, due: stage 10
+- [ ] **A long meaningless answer passes e2e by construction.** `PASS_SCORE = 2` and
+      `CHARS_PER_POINT = 40` give a passing score for 80 characters of noise. No current case
+      shows this (every passing one has ≥2 points on content), but nothing holds the ratio in
+      place.
+      Default now: it stays as **a demonstration of the stage's own thesis**; the assert "no case
+      passes on the padding alone" comes when the twenty-second case appears.
+      — owner: Contributor, due: stage 10
+- [ ] **`EDGE_KINDS` and `BROKEN_KINDS` disagree about `specialist_failed`.** The case "routed to
+      the wrong place, recovered" fails the component level and is not counted as an edge case.
+      Default now: it stays — edge-ness describes the set's **input data**, brokenness describes
+      the **result** of a run, and a matching pair of lists would be a coincidence.
+      — owner: Contributor, due: stage 10
+- [ ] **The online part does not bring up a real stage 6 service.** The checks read real traces
+      from `traces/`, but no service starts in the same process.
+      Default now: `NOT EVALUATED`, exactly as assumption 4 says. — owner: Contributor,
+      due: stage 10
 
-### Прийняті припущення (глибина `easy`)
+### Assumptions taken (depth `easy`)
 
-Ухвалені без окремого питання, бо зафіксовані в дизайн-специфікації курсу:
+Taken without a separate question, because they are fixed in the course's design specification:
 
-1. **Три рівні саме такі** — e2e, траєкторія, компонент — за статтею-джерелом.
-2. **Підроблений суддя упереджений навмисно.** Він грає роль зламаного приладу так само, як
-   мутація грає роль зламаного коду. Етап каже це першим рядком, а не в підвалі.
-3. **Двадцять кейсів, не двісті.** Етап навчальний; двісті кейсів дали б статистику й
-   сховали б урок за обсягом даних.
-4. **Онлайн-семплінг верифікується локально.** Справжнього VM немає; AC-07 перевіряється
-   проти трейсу сервісу етапу 6, піднятого в тому ж процесі.
-5. **Звіт — один файл для людини.** Ані бази, ані інтерфейсу: етап про **що міряти**, а не
-   про те, де це показувати.
-6. **Суддя має два протоколи** — попарний (для position bias) і поточковий (для length
-   bias). Один протокол не покриває обох: у попарному немає бала, у поточковому немає порядку.
+1. **The three levels are exactly these** — e2e, trajectory, component — following the source
+   article.
+2. **The fake judge is biased on purpose.** It plays the part of a broken instrument the same way
+   a mutation plays the part of broken code. The stage says so in its first line, not in a
+   footnote.
+3. **Twenty cases, not two hundred.** The stage is a teaching one; two hundred cases would give
+   statistics and bury the lesson under the volume of data.
+4. **Online sampling is verified locally.** There is no real VM; AC-07 is checked against the
+   trace of a stage 6 service brought up in the same process.
+5. **The report is one file for a human.** No database, no interface: the stage is about **what
+   to measure**, not about where to display it.
+6. **The judge has two protocols** — pairwise (for position bias) and pointwise (for length
+   bias). One protocol does not cover both: the pairwise one has no score, the pointwise one has
+   no order.

@@ -1,324 +1,331 @@
-# Вправи — етап 4
+# Exercises — stage 4
 
-Роби після того, як прочитав [урок](README.md) і запустив демо.
+Do these after you have read the [lesson](README.md) and run the demo.
 
-**Правило одне: спершу зламай, потім подивись, потім поверни назад.**
+**One rule: break it first, then look, then put it back.**
 
 ```bash
 git checkout stages/s04_mcp/
 ```
 
-Числа нижче **виміряні** й закріплені машинно:
+The numbers below are **measured** and pinned by machine:
 
 ```bash
 python scripts/mutate.py s04 --expect
 ```
 
-Скрипт накладає кожну мутацію з цієї сторінки, рахує червоні перевірки й падає, якщо число
-розійшлося з обіцяним тут.
+The script applies every mutation on this page, counts the red checks, and fails if the number
+has drifted from what is promised here.
 
-> **Заміри зроблено зі встановленим MCP.** Без нього перевірки з підпроцесом позначаються
-> `НЕ ПЕРЕВІРЕНО` — не пройденими, — і числа будуть меншими.
+> **The measurements were taken with MCP installed.** Without it the subprocess checks are
+> marked `NOT VERIFIED` — not passed — and the numbers will be smaller.
 
 ---
 
-## Вправа 1 — Розбирай усю відповідь замість блоку
+## Exercise 1 — Parse the whole response instead of the block
 
-**Складність:** легко · **Час:** 10 хв · **Почни з неї**
+**Difficulty:** easy · **Time:** 10 min · **Start here**
 
-У [`parse.py`](parse.py) заміни `for block in _FENCED.findall(response):` на
-`for block in [response]:` — тобто спробуй розібрати всю відповідь цілком.
+In [`parse.py`](parse.py) replace `for block in _FENCED.findall(response):` with
+`for block in [response]:` — that is, try to parse the whole response at once.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-Червоніють **сім** перевірок — найбільше з усіх вправ етапу:
+**Seven** checks go red — the most of any exercise on this stage:
 
 ```
-integration · виклик через протокол дає те саме значення, що й локальна функція
-integration · сервер говорить навколо даних — і саме тому парсер потрібен
-ВІДМОВА · рівень доступу їде в payload і обмежує видачу на тому боці
-ВІДМОВА · виклик без сліду не існує як стан
-e2e · демо показує шість сцен і лишає трейс
-ВІДМОВА · parse: дані дістаються з відповіді, обгорнутої прозою
-ВІДМОВА · parse: порожній перелік — це результат, а не відсутність даних
+integration · a call through the protocol yields the same value as the local function
+integration · the server talks around the data — which is exactly why the parser is needed
+FAILURE · the access level rides in the payload and narrows the result on the other side
+FAILURE · a call with no trace does not exist as a state
+e2e · the demo shows six scenes and leaves a trace
+FAILURE · parse: data is extracted from a response wrapped in prose
+FAILURE · parse: an empty list is a result, not an absence of data
 ```
 
-Сім — тому що **кожен виклик** до сервера пошуку йде через прозу. Це не сім різних вад, а
-одна, видима з семи місць.
+Seven — because **every call** to the search server goes through prose. These are not seven
+different defects but one, visible from seven places.
 
-Тепер зроби те саме навпаки: постав сервер, який відповідає **лише** даними, і побач, що
-наївний парсер працює бездоганно. Саме так ця вада й потрапляє в продакшн: перший сервер
-мовчазний, і код виглядає правильним рівно доти, доки не з'явиться другий.
+Now do the opposite: stand up a server that answers with **data only**, and see the naive parser
+work flawlessly. That is exactly how this defect reaches production: the first server is
+taciturn, and the code looks correct right up until a second one appears.
 </details>
 
 ---
 
-## Вправа 2 — Хай відсутність даних стає порожнім словником
+## Exercise 2 — Let missing data become an empty dict
 
-**Складність:** легко · **Час:** 10 хв
+**Difficulty:** easy · **Time:** 10 min
 
-У [`parse.py`](parse.py) заміни `raise NoPayload(_first_lines(stripped))` на `return {}`.
+In [`parse.py`](parse.py) replace `raise NoPayload(_first_lines(stripped))` with `return {}`.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-**Дві** перевірки:
+**Two** checks:
 
 ```
-ВІДМОВА · parse: відсутність даних — окремий стан, не порожній результат
-ВІДМОВА · parse: приклад у прозі не приймається за дані
+FAILURE · parse: missing data is a state of its own, not an empty result
+FAILURE · parse: an example inside the prose is not mistaken for data
 ```
 
-Друга цікавіша. Вона перевіряє, що фрагмент із пояснення формату — `{"order_id": "..."}` —
-не приймається за дані. Із `return {}` вона червоніє **не тому, що приклад узяли**, а тому,
-що замість чесної відмови повернувся порожній словник.
+The second is the more interesting one. It checks that a fragment from an explanation of the
+format — `{"order_id": "..."}` — is not taken for data. With `return {}` it goes red **not
+because the example was taken**, but because an empty dict came back instead of an honest
+refusal.
 
-Різниця, яку варто відчути: після цієї зміни виклик до зламаного сервера й виклик до
-справного, який нічого не знайшов, дають **однаковий** результат. Діагностувати після цього
-нічим.
+The difference worth feeling: after this change a call to a broken server and a call to a
+working one that found nothing give **the same** result. There is nothing left to diagnose with.
 </details>
 
 ---
 
-## Вправа 3 — Зроби невідомий інструмент зворотним
+## Exercise 3 — Make an unknown tool reversible
 
-**Складність:** середньо · **Час:** 15 хв
+**Difficulty:** medium · **Time:** 15 min
 
-У [`bridge.py`](bridge.py) заміни
+In [`bridge.py`](bridge.py) replace
 
 ```python
 return name in IRREVERSIBLE or name not in ALLOWED
 ```
 
-на
+with
 
 ```python
 return name in IRREVERSIBLE and name in ALLOWED
 ```
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-Червоніє **одна**:
+**One** goes red:
 
 ```
-ВІДМОВА · bridge: інструмент поза списком дозволених у реєстр не потрапляє
+FAILURE · bridge: a tool outside the allow list does not make it into the registry
 ```
 
-Одна — і цього достатньо, бо мутація ламає **дефолт**, а не поточну поведінку. Усі відомі
-інструменти лишаються правильними; змінюється лише те, що станеться з наступним, якого ще
-немає.
+One — and that is enough, because the mutation breaks the **default**, not the current
+behaviour. Every known tool stays correct; what changes is only what happens to the next one,
+which does not exist yet.
 
-Це і є fail-closed: помилятися треба в бік «спитали зайвий раз», а не «списали гроші мовчки».
-Той самий принцип, що в метаданих доступу на етапі 2 — і там він теж коштував рев'ю, щоб
-з'явитись.
+This is fail-closed: the error has to fall on the side of "asked one time too many" rather than
+"charged the money silently". The same principle as the access metadata on stage 2 — and there,
+too, it took a review to appear.
 </details>
 
 ---
 
-## Вправа 4 — Бери все, що пропонує сервер
+## Exercise 4 — Take everything the server offers
 
-**Складність:** середньо · **Час:** 15 хв
+**Difficulty:** medium · **Time:** 15 min
 
-У [`bridge.py`](bridge.py), у `registry`, заміни
-`if info.name not in ALLOWED or info.name in built:` на `if False:` — тобто бери все, що
-оголосив сервер.
+In [`bridge.py`](bridge.py), inside `registry`, replace
+`if info.name not in ALLOWED or info.name in built:` with `if False:` — that is, take
+everything the server declared.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-**Дві** перевірки:
+**Two** checks:
 
 ```
-ВІДМОВА · bridge: інструмент поза списком дозволених у реєстр не потрапляє
-ВІДМОВА · bridge: дубльоване імʼя не затінює перше оголошення
+FAILURE · bridge: a tool outside the allow list does not make it into the registry
+FAILURE · bridge: a duplicated name does not shadow the first declaration
 ```
 
-Тепер `wipe_customer_data` — «рутинна операція обслуговування», як каже опис, — потрапляє в
-реєстр агента. Модель може її обрати.
+Now `wipe_customer_data` — "a routine maintenance operation", as its description says — makes it
+into the agent's registry. The model can pick it.
 
-Друга червона несподівана: та сама умова, що фільтрувала за списком дозволених, заодно
-відкидала дублікати. Прибрав одне — зникло двоє.
+The second red one is a surprise: the same condition that filtered by the allow list was also
+discarding duplicates. Remove one thing, lose two.
 
-Запусти демо після цієї зміни й подивись на сцену 5: рядок «у реєстр не взято» стане
-порожнім. Порожній перелік відхилених — не привід радіти, а привід перевірити, чи є взагалі
-що відхиляти.
+Run the demo after this change and look at scene 5: the "not taken into the registry" line goes
+empty. An empty list of rejects is not a reason to celebrate but a reason to check whether there
+is anything to reject at all.
 </details>
 
 ---
 
-## Вправа 5 — Лиши рівень доступу у схемі
+## Exercise 5 — Leave the access level in the schema
 
-**Складність:** середньо · **Час:** 15 хв
+**Difficulty:** medium · **Time:** 15 min
 
-У [`bridge.py`](bridge.py) заміни `schema = _without(info.schema, fixed)` на
+In [`bridge.py`](bridge.py) replace `schema = _without(info.schema, fixed)` with
 `schema = info.schema`.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-**Три** перевірки, і дві з них — про зовсім інші властивості:
+**Three** checks, and two of them are about entirely different properties:
 
 ```
-ВІДМОВА · bridge: рівень доступу підставляє клієнт і не показує моделі
-ВІДМОВА · bridge: чужа схема згортається в порожню, а не валить складання реєстру
-ВІДМОВА · bridge: `required` не може називати поле, якого немає у схемі
+FAILURE · bridge: the access level is substituted by the client and not shown to the model
+FAILURE · bridge: a foreign schema collapses to an empty one instead of crashing the registry
+FAILURE · bridge: `required` cannot name a field the schema does not have
 ```
 
-Тепер `access` є у схемі, яку бачить модель. Вона може передати `"internal"` — і зробить це
-не зі зловмисності, а тому що так більше знайдеться.
+Now `access` is in the schema the model sees. It can pass `"internal"` — and it will do so not
+out of malice but because that way more will be found.
 
-Це рівно та сама вада, що на етапі 3, і рівно з тієї самої причини: **рівень доступу — факт
-про того, хто питає, а не аргумент, який обирають під час відповіді.** Тут вона приходить із
-нового боку — через чужу схему.
+This is exactly the same defect as on stage 3, and for exactly the same reason: **the access
+level is a fact about whoever is asking, not an argument chosen while answering.** Here it
+arrives from a new direction — through somebody else's schema.
 
-А дві інші червоні пояснюють, чому клієнт схему **переписує**, а не передає як є: разом із
-доступом крізь неї проходить усе інше — невалідовані `properties` і `required` на поля,
-яких немає. Захист виявився шаром, а не однією умовою: одна мутація, три наслідки.
+And the other two reds explain why the client **rewrites** the schema rather than passing it
+through as it is: along with access, everything else comes through it — unvalidated
+`properties` and `required` naming fields that are not there. The protection turned out to be a
+layer, not a single condition: one mutation, three consequences.
 </details>
 
 ---
 
-## Вправа 6 — Зроби тайм-аут удесятеро довшим
+## Exercise 6 — Make the timeout ten times longer
 
-**Складність:** середньо · **Час:** 20 хв
+**Difficulty:** medium · **Time:** 20 min
 
-У [`client.py`](client.py) заміни `..., timeout)` на `..., timeout * 10)` у виклику
-`asyncio.wait_for`.
+In [`client.py`](client.py) replace `..., timeout)` with `..., timeout * 10)` in the
+`asyncio.wait_for` call.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
 ```
-ВІДМОВА · дві фази відмови різні, і жодна причина не порожня
+FAILURE · the two failure phases are different, and neither reason is empty
 ```
 
-Одна перевірка — і в неї цікава історія. Спершу вона писала `assert took < 10`, і при
-тайм-ауті 1.5 с мутація давала 15 с і чесно червоніла. Потім тайм-аут зменшили до 0.6 с
-заради швидкості набору — і та сама мутація стала давати 6 с, тобто **проходити**.
+One check — and it has an interesting history. At first it said `assert took < 10`, and with a
+timeout of 1.5 s the mutation produced 15 s and went honestly red. Then the timeout was reduced
+to 0.6 s for the sake of suite speed — and the same mutation started producing 6 s, that is,
+**passing**.
 
-Ніхто нічого не ламав: константна межа перестала відповідати параметру, який зменшили в
-іншому місці й з іншої причини. Тепер межа похідна: `1.5 + asked * 3`.
+Nobody broke anything: a constant bound stopped matching a parameter that was reduced somewhere
+else, for a different reason. The bound is now derived: `1.5 + asked * 3`.
 
-Тепер прибери `asyncio.wait_for` зовсім і запусти набір. Він **зависне** — не впаде,
-зависне. Це і є та відмова, заради якої тайм-аут існує, і причина, чому в репозиторії є
-`mute.py`: сервер, який піднімається й мовчить.
+Now remove `asyncio.wait_for` entirely and run the suite. It will **hang** — not fail, hang.
+That is the failure the timeout exists for, and the reason `mute.py` is in the repository: a
+server that comes up and stays silent.
 </details>
 
 ---
 
-## Вправа 7 — Підсунь мосту зламану схему
+## Exercise 7 — Feed the bridge a broken schema
 
-**Складність:** середньо · **Час:** 20 хв · **Прийшла з рев'ю**
+**Difficulty:** medium · **Time:** 20 min · **Came out of a review**
 
-У [`bridge.py`](bridge.py) заміни `declared = declared if isinstance(declared, dict) else {}`
-на `declared = declared`.
+In [`bridge.py`](bridge.py) replace `declared = declared if isinstance(declared, dict) else {}`
+with `declared = declared`.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
 ```
-ВІДМОВА · bridge: чужа схема згортається в порожню, а не валить складання реєстру
+FAILURE · bridge: a foreign schema collapses to an empty one instead of crashing the registry
 ```
 
-Одна перевірка — і вона подає мосту п'ять форм, знятих із реального прогону проти
-саморобного сервера:
+One check — and it feeds the bridge five shapes taken from a real run against a home-made
+server:
 
 ```
 "properties": null       -> AttributeError
 "required": null         -> TypeError
 "properties": ["query"]  -> AttributeError
-"required": "query"      -> рядок замість списку
-{}                       -> схеми немає взагалі
+"required": "query"      -> a string instead of a list
+{}                       -> no schema at all
 ```
 
-`mcp.types.Tool.input_schema` типізований просто як `dict[str, Any]` — тобто бібліотека
-**вмісту не перевіряє**. Чужий сервер валив не свій інструмент, а складання **всього**
-реєстру: один поганий опис вимикав агента цілком.
+`mcp.types.Tool.input_schema` is typed simply as `dict[str, Any]` — that is, the library **does
+not validate the contents**. Somebody else's server was crashing not its own tool but the
+assembly of the **whole** registry: one bad description switched the agent off entirely.
 
-Цю ваду знайшло незалежне рев'ю, і найгірше в ній не сам виняток, а те, що модуль
-починається словами «уся суть у тому, чого сервер **не** може».
+An independent review found this defect, and the worst thing about it is not the exception
+itself but that the module opens with the words "the whole point is what the server **cannot**
+do".
 </details>
 
 ---
 
-## Вправа 8 — Оголоси той самий інструмент двічі
+## Exercise 8 — Declare the same tool twice
 
-**Складність:** середньо · **Час:** 20 хв · **Прийшла з рев'ю**
+**Difficulty:** medium · **Time:** 20 min · **Came out of a review**
 
-У [`bridge.py`](bridge.py) заміни `if info.name not in ALLOWED or info.name in built:` на
+In [`bridge.py`](bridge.py) replace `if info.name not in ALLOWED or info.name in built:` with
 `if info.name not in ALLOWED:`.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
 ```
-ВІДМОВА · bridge: дубльоване імʼя не затінює перше оголошення й потрапляє у відхилені
+FAILURE · bridge: a duplicated name does not shadow the first declaration and lands in the rejects
 ```
 
-Атака тонка й тому цікава. Сервер оголошує `search_knowledge_base` **двічі**: перший раз
-чесно, другий — із ворожим описом і зовсім іншою схемою. Словник бере останнє.
+The attack is subtle, and that is what makes it interesting. The server declares
+`search_knowledge_base` **twice**: honestly the first time, with a hostile description and an
+entirely different schema the second. The dict keeps the last one.
 
-Зверни увагу, чого при цьому **не** сталося: список дозволених не порушено. Імʼя те саме,
-воно в `ALLOWED`, `rejected()` порожній. Захист, побудований на переліку імен, тут просто
-не спрацьовує — бо підмінили не імʼя, а те, що за ним стоїть.
+Notice what did **not** happen here: the allow list was not violated. The name is the same, it
+is in `ALLOWED`, `rejected()` is empty. Protection built on a list of names simply does not fire
+here — because what was swapped was not the name but what stands behind it.
 
-Тепер перше оголошення виграє, а дублікат потрапляє у відхилені з поміткою. Порожній
-перелік відхилених — не привід радіти, а привід перевірити, чи є що відхиляти.
+Now the first declaration wins and the duplicate lands in the rejects with a note. An empty list
+of rejects is not a reason to celebrate but a reason to check whether there is anything to
+reject.
 </details>
 
 ---
 
-## Вправа 9 — Постав чужий MCP-сервер
+## Exercise 9 — Stand up somebody else's MCP server
 
-**Складність:** середньо · **Час:** 30 хв · **Найкорисніша**
+**Difficulty:** medium · **Time:** 30 min · **The most useful one**
 
-Візьми будь-який публічний MCP-сервер (їх десятки) і підключи до нього `client.py`, змінивши
-`SERVER_MODULE` або передавши `module=`.
+Take any public MCP server (there are dozens) and point `client.py` at it by changing
+`SERVER_MODULE` or passing `module=`.
 
 <details>
-<summary>Про що тут думати</summary>
+<summary>What to think about</summary>
 
-**Перше, що варто зробити, — подивитись на сиру відповідь.** Наш `--raw` показує саме її.
-Питання, на які варто відповісти до того, як писати код:
+**The first thing worth doing is looking at the raw response.** Our `--raw` shows exactly that.
+The questions worth answering before writing any code:
 
-- Чи є в ній проза навколо даних? Чи є взагалі блок?
-- Чи схеми придатні для `tools=` без перетворень, чи їх треба переписувати?
-- Скільки інструментів він оголошує? Чи не є половина з них ендпоінтами
+- Is there prose around the data? Is there a block at all?
+- Are the schemas usable in `tools=` without conversion, or do they need rewriting?
+- How many tools does it declare? Are half of them not endpoints
   ([`DECISION.md`](DECISION.md))?
-- Чи є серед описів щось, що виглядає як інструкція тобі, а не опис дії?
+- Is there anything among the descriptions that reads as an instruction to you rather than a
+  description of an action?
 
-Останнє питання — не паранойя. Опис іде в промпт, і ти не писав його.
+That last question is not paranoia. The description goes into the prompt, and you did not write
+it.
 
-Далі спробуй те, що зробить `bridge.py`: чи всі оголошені інструменти є у твоєму списку
-дозволених? Скільки з них ти позначив би незворотними, а сервер — ні?
+Then try what `bridge.py` will do: are all the declared tools on your allow list? How many of
+them would you mark irreversible where the server did not?
 </details>
 
 ---
 
-## Вправа 10 — Переведи граф етапу 3 на MCP у демо
+## Exercise 10 — Move the stage 3 graph onto MCP in the demo
 
-**Складність:** складно · **Час:** 60 хв
+**Difficulty:** hard · **Time:** 60 min
 
-`wiring.py` уже підмінює реєстр етапу 1 на MCP-реєстр, і перевірка `AC-05` проганяє цим
-шість запитів графа. Але **демо цього не показує**. Додай сцену, яка проганяє граф через
-MCP, — **не змінивши жодного рядка в `stages/s03_router/`**.
+`wiring.py` already swaps the stage 1 registry for the MCP registry, and the `AC-05` check runs
+the graph's six queries through it. But **the demo does not show this**. Add a scene that runs
+the graph over MCP — **without changing a single line in `stages/s03_router/`**.
 
 <details>
-<summary>Про що тут думати</summary>
+<summary>What to think about</summary>
 
-Перевірка «етапи 1–3 не змінено» вже стоїть у наборі й червонітиме, якщо зміниш. Це не
-формальність: теза етапу — що протокол є деталлю підключення, і єдиний спосіб її довести —
-не чіпати те, що підключаєш.
+The "stages 1–3 are unchanged" check is already in the suite and will go red if you change them.
+This is not a formality: the stage's claim is that the protocol is a wiring detail, and the only
+way to prove it is to leave alone the thing you are wiring.
 
-Що варто зміряти, а не вгадати:
+What is worth measuring rather than guessing:
 
-- **скільки часу займе той самий прогін шести запитів** через MCP проти локального. Сцена 6
-  демо дає порядок величини для одного виклику; помнож на кількість викликів у графі;
-- чи змінився **маршрут** хоч одного запиту. Не має — але перевір;
-- що станеться, коли сервер помре посеред прогону графа. Спеціаліст поверне текст про
-  недоступність; supervisor побачить його як звичайну відповідь. Це правильно чи ні?
+- **how long the same run of six queries takes** over MCP against locally. Scene 6 of the demo
+  gives the order of magnitude for one call; multiply it by the number of calls in the graph;
+- whether the **route** of even one query changed. It should not have — but check;
+- what happens when the server dies mid-run of the graph. The specialist will return text about
+  unavailability; the supervisor will see it as an ordinary answer. Is that right or not?
 
-Останнє питання не має однозначної відповіді, і саме тому воно тут.
+The last question has no single answer, and that is exactly why it is here.
 </details>

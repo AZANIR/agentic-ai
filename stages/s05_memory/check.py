@@ -82,7 +82,7 @@ def _clock_calls(source: str) -> list[str]:
 
 
 def check_time_is_passed_in_never_read_from_the_clock() -> None:
-    """ВІДМОВА · facts: рішення про активність не залежить від системного годинника
+    """FAILURE · facts: рішення про активність не залежить від системного годинника
 
     Перша редакція грепала текст модуля — і червоніла на власному docstring, де про
     `datetime.now()` саме застерігають. Перевірка про код має дивитись на код: розбір AST
@@ -109,7 +109,7 @@ def check_time_is_passed_in_never_read_from_the_clock() -> None:
 
 
 def check_an_expired_fact_stops_being_active() -> None:
-    """ВІДМОВА · facts: факт із терміном перестає бути активним рівно після терміну"""
+    """FAILURE · facts: факт із терміном перестає бути активним рівно після терміну"""
     perishable = _fact(topic="delivery", text="Замовлення в дорозі", ttl=7 * DAY)
 
     assert is_active(perishable, now=NOW + 6 * DAY), "протух раніше за термін"
@@ -119,7 +119,7 @@ def check_an_expired_fact_stops_being_active() -> None:
 
 
 def check_a_replaced_fact_never_returns_to_the_context() -> None:
-    """ВІДМОВА · facts: замінений факт не активний, скільки б часу не минуло"""
+    """FAILURE · facts: замінений факт не активний, скільки б часу не минуло"""
     old = _fact(status=REPLACED, replaced_at=NOW + DAY)
 
     assert not is_active(old, now=NOW + DAY), "замінений факт лишився активним"
@@ -138,7 +138,7 @@ def check_a_fact_survives_a_round_trip_through_a_line() -> None:
 
 
 def check_a_corrupted_line_is_named_not_guessed() -> None:
-    """ВІДМОВА · facts: зіпсований рядок відхиляється, а не стає фактом із порожніми полями"""
+    """FAILURE · facts: зіпсований рядок відхиляється, а не стає фактом із порожніми полями"""
     broken = [
         "",
         "{обірваний",
@@ -176,7 +176,7 @@ def check_the_window_keeps_the_tail_verbatim() -> None:
 
 
 def check_overflow_names_how_many_were_compressed() -> None:
-    """ВІДМОВА · short: кількість стиснутого — число, а не «частину скорочено»"""
+    """FAILURE · short: кількість стиснутого — число, а не «частину скорочено»"""
     window = Window(size=4)
     for message in _said(10):
         window.add(message)
@@ -191,7 +191,7 @@ def check_overflow_names_how_many_were_compressed() -> None:
 
 
 def check_the_summary_is_not_compressed_again() -> None:
-    """ВІДМОВА · short: повторне стиснення чіпає нові репліки, а не попередній підсумок"""
+    """FAILURE · short: повторне стиснення чіпає нові репліки, а не попередній підсумок"""
     window = Window(size=2)
     for message in _said(6):
         window.add(message)
@@ -304,7 +304,7 @@ def check_a_fact_from_the_first_session_reaches_the_second() -> None:
 
 
 def check_an_irrelevant_fact_does_not_reach_the_context() -> None:
-    """ВІДМОВА · головна перевірка етапу: нерелевантний факт не потрапляє у контекст"""
+    """FAILURE · головна перевірка етапу: нерелевантний факт не потрапляє у контекст"""
     with tempfile.TemporaryDirectory() as tmp:
         memory = _memory(tmp)
         _remember(memory, "olena", "address", "Доставляти на Хрещатик 22")
@@ -325,7 +325,7 @@ def check_an_irrelevant_fact_does_not_reach_the_context() -> None:
 
 
 def check_a_contradicting_fact_retires_the_old_one() -> None:
-    """ВІДМОВА · дві правди одночасно не існують як стан"""
+    """FAILURE · дві правди одночасно не існують як стан"""
     with tempfile.TemporaryDirectory() as tmp:
         memory = _memory(tmp)
         _remember(memory, "olena", "address", "Доставляти на Хрещатик 22")
@@ -355,7 +355,7 @@ def check_a_contradicting_fact_retires_the_old_one() -> None:
 
 
 def check_an_expired_fact_is_skipped_and_an_eternal_one_is_not() -> None:
-    """ВІДМОВА · протухле не бере участі, вічне бере — і причина видима"""
+    """FAILURE · протухле не бере участі, вічне бере — і причина видима"""
     with tempfile.TemporaryDirectory() as tmp:
         memory = _memory(tmp)
         _remember(memory, "olena", "name", "Співрозмовницю звати Олена")
@@ -375,7 +375,7 @@ def check_an_expired_fact_is_skipped_and_an_eternal_one_is_not() -> None:
 
 
 def check_another_owners_facts_never_reach_the_context() -> None:
-    """ВІДМОВА · чужа памʼять не потрапляє у контекст"""
+    """FAILURE · чужа памʼять не потрапляє у контекст"""
     with tempfile.TemporaryDirectory() as tmp:
         memory = _memory(tmp)
         _remember(memory, "olena", "address", "Доставляти на Хрещатик 22")
@@ -401,7 +401,7 @@ def check_another_owners_facts_never_reach_the_context() -> None:
 
 
 def check_the_owners_own_facts_still_arrive() -> None:
-    """ВІДМОВА · дзеркальна: фільтр власника не звузив видачу до порожньої"""
+    """FAILURE · дзеркальна: фільтр власника не звузив видачу до порожньої"""
     with tempfile.TemporaryDirectory() as tmp:
         memory = _memory(tmp)
         # Чужих фактів більше, і вони релевантніші ЗА ОЦІНКОЮ (1.00 проти 0.67) — щоб фільтр
@@ -422,7 +422,7 @@ def check_the_owners_own_facts_still_arrive() -> None:
 
 
 def check_a_fact_cannot_raise_its_own_priority_by_its_text() -> None:
-    """ВІДМОВА · текст факту не змінює ні порядку, ні порога, ні чиєї памʼяті"""
+    """FAILURE · текст факту не змінює ні порядку, ні порога, ні чиєї памʼяті"""
     with tempfile.TemporaryDirectory() as tmp:
         memory = _memory(tmp)
         _remember(memory, "olena", "address", "Доставляти замовлення на Хрещатик 22")
@@ -462,7 +462,7 @@ def check_a_fact_cannot_raise_its_own_priority_by_its_text() -> None:
 
 
 def check_a_fact_cannot_close_the_data_block_from_inside() -> None:
-    """ВІДМОВА · факт із роздільником у тексті не виносить себе за межі даних"""
+    """FAILURE · факт із роздільником у тексті не виносить себе за межі даних"""
     with tempfile.TemporaryDirectory() as tmp:
         memory = _memory(tmp)
         _remember(memory, "olena", "address", "Доставляти замовлення на Хрещатик 22")
@@ -490,7 +490,7 @@ def check_a_fact_cannot_close_the_data_block_from_inside() -> None:
 
 
 def check_a_corrupted_memory_file_does_not_break_retrieval() -> None:
-    """ВІДМОВА · зіпсовані записи названі й пропущені, решта памʼяті робоча"""
+    """FAILURE · зіпсовані записи названі й пропущені, решта памʼяті робоча"""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "memory.jsonl"
         good = Fact(owner="olena", topic="address", text="Доставляти на Хрещатик 22", stored_at=NOW)
@@ -580,7 +580,7 @@ def check_the_checklist_answers_every_situation() -> None:
 
 
 def check_no_rule_of_the_checklist_is_dead() -> None:
-    """ВІДМОВА · дзеркальна: жодне правило не лишається без ситуації, що його вмикає"""
+    """FAILURE · дзеркальна: жодне правило не лишається без ситуації, що його вмикає"""
     fired = {decide(situation).rule for situation in SITUATIONS}
     dead = [rule.question for rule in RULES if rule.question not in fired]
     assert not dead, (
@@ -592,7 +592,7 @@ def check_no_rule_of_the_checklist_is_dead() -> None:
 
 
 def check_the_order_of_the_checklist_is_load_bearing() -> None:
-    """ВІДМОВА · порядок питань — і є чекліст: секрет сильніший за пряме прохання"""
+    """FAILURE · порядок питань — і є чекліст: секрет сильніший за пряме прохання"""
     both = Situation("запамʼятай мій пароль", secret=True, asked=True)
     assert not decide(both).keep, (
         "секрет і прохання одночасно дали «запамʼятати» — питання про прохання стоїть "
@@ -600,15 +600,15 @@ def check_the_order_of_the_checklist_is_load_bearing() -> None:
     )
 
     questions = [rule.question for rule in RULES]
-    secret = next(i for i, q in enumerate(questions) if "секрет" in q)
-    asked = next(i for i, q in enumerate(questions) if "прямо просив" in q)
+    secret = next(i for i, q in enumerate(questions) if "secret" in q)
+    asked = next(i for i, q in enumerate(questions) if "directly ask" in q)
     assert secret < asked, f"секрет ({secret}) має стояти перед проханням ({asked})"
 
     assert RULES[-1].applies(Situation("будь-що")), "останнє правило перестало ловити все"
 
 
 def check_the_prose_checklist_matches_the_code() -> None:
-    """ВІДМОВА · DECISION.md і decision.py не можуть розійтися мовчки"""
+    """FAILURE · DECISION.md і decision.py не можуть розійтися мовчки"""
     prose = (Path(__file__).parent / "DECISION.md").read_text(encoding="utf-8")
 
     # Апостроф у прозі — типографський, у коді — теж; але markdown-таблиця писалась
@@ -628,7 +628,7 @@ def check_the_prose_checklist_matches_the_code() -> None:
         f"у прозі {len(body)} правил, у коді {len(RULES)} — таблиця відстала від коду"
     )
 
-    keeps = sum(1 for row in body if "**зберегти**" in row)
+    keeps = sum(1 for row in body if "**store**" in row)
     assert keeps == sum(1 for rule in RULES if rule.keep), (
         "кількість «зберегти» у таблиці не збігається з кодом"
     )
@@ -638,7 +638,7 @@ def check_the_prose_checklist_matches_the_code() -> None:
 
 
 def check_a_line_break_inside_a_fact_does_not_split_the_record() -> None:
-    """ВІДМОВА · U+2028 у тексті факту не розриває запис JSONL надвоє"""
+    """FAILURE · U+2028 у тексті факту не розриває запис JSONL надвоє"""
     # `json.dumps` НЕ екранує U+2028, U+2029 і U+0085, а `str.splitlines()` вважає їх
     # межею рядка. Один такий символ робив із запису дві половини, і факт зникав з
     # обох — жодного повідомлення, жодного `broken`. Приїжджає з тексту, копійованого
@@ -656,7 +656,7 @@ def check_a_line_break_inside_a_fact_does_not_split_the_record() -> None:
 
 
 def check_an_unreadable_line_survives_the_next_write() -> None:
-    """ВІДМОВА · зіпсований рядок не стирається наступним записом"""
+    """FAILURE · зіпсований рядок не стирається наступним записом"""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "memory.jsonl"
         good = Fact(owner="olena", topic="name", text="Звати Олена", stored_at=NOW)
@@ -675,7 +675,7 @@ def check_an_unreadable_line_survives_the_next_write() -> None:
 
 
 def check_an_older_fact_arrives_already_superseded() -> None:
-    """ВІДМОВА · старіший факт не відкочує памʼять і не ставить час заміни в минуле"""
+    """FAILURE · старіший факт не відкочує памʼять і не ставить час заміни в минуле"""
     with tempfile.TemporaryDirectory() as tmp:
         memory = _memory(tmp)
         _remember(
@@ -698,7 +698,7 @@ def check_an_older_fact_arrives_already_superseded() -> None:
 
 
 def check_a_window_of_zero_is_refused_not_silently_disabled() -> None:
-    """ВІДМОВА · вікно нульового розміру — помилка, а не мовчазне вимкнення стиснення"""
+    """FAILURE · вікно нульового розміру — помилка, а не мовчазне вимкнення стиснення"""
     # `messages[-0:]` у Python — це `messages[0:]`, тобто ВСІ повідомлення. Вікно нуля
     # мовчки вимикало стиснення, і контекст ріс необмежено без жодної помилки.
     for size in (0, -1):
@@ -711,7 +711,7 @@ def check_a_window_of_zero_is_refused_not_silently_disabled() -> None:
 
 
 def check_the_clock_guard_sees_a_bare_import_too() -> None:
-    """ВІДМОВА · вартовий годинника не обходиться через `from time import time`"""
+    """FAILURE · вартовий годинника не обходиться через `from time import time`"""
     source = NEWLINE.join(
         [
             "from time import time",
@@ -728,7 +728,7 @@ def check_the_clock_guard_sees_a_bare_import_too() -> None:
 
 
 def check_the_number_of_taken_facts_is_capped_and_named() -> None:
-    """ВІДМОВА · кількість узятих фактів обмежена, і межа названа у видачі"""
+    """FAILURE · кількість узятих фактів обмежена, і межа названа у видачі"""
     with tempfile.TemporaryDirectory() as tmp:
         memory = _memory(tmp)
         # Пʼять релевантних фактів одного власника: без ліміту всі пʼять пройдуть поріг.
@@ -748,7 +748,7 @@ def check_the_number_of_taken_facts_is_capped_and_named() -> None:
 
 
 def check_the_suite_says_out_loud_that_the_provider_is_a_fake() -> None:
-    """ВІДМОВА · вивід демо називає, що працює підробка, а не справжня модель"""
+    """FAILURE · вивід демо називає, що працює підробка, а не справжня модель"""
     buffer = io.StringIO()
     with tempfile.TemporaryDirectory() as tmp:
         with redirect_stdout(buffer):
@@ -763,7 +763,7 @@ def check_the_suite_says_out_loud_that_the_provider_is_a_fake() -> None:
 
 
 def check_the_suite_needs_no_key_and_no_network() -> None:
-    """ВІДМОВА · перевірки не мають доступу до справжнього провайдера"""
+    """FAILURE · перевірки не мають доступу до справжнього провайдера"""
     from shared.config import Settings
 
     assert not Settings.load(source={}).has_real_llm, (
@@ -801,7 +801,7 @@ def check_the_two_retrievals_disagree_on_a_named_fact() -> None:
 def check_the_failure_modes_are_at_least_a_third() -> None:
     """перевірки: режимів відмови не менше третини (NFR-5)"""
     labels = [(c.__doc__ or "").split(NEWLINE)[0] for c in CHECKS]
-    failures = [d for d in labels if d.startswith("ВІДМОВА")]
+    failures = [d for d in labels if d.startswith("FAILURE")]
     assert len(failures) * 3 >= len(CHECKS), (
         f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини"
     )
@@ -814,15 +814,12 @@ def check_the_lesson_fits_the_reading_budget() -> None:
 
 
 def check_the_lesson_numbers_match_the_suite() -> None:
-    """ВІДМОВА · урок: числа в прозі збігаються з тим, що друкує команда"""
+    """FAILURE · урок: числа в прозі збігаються з тим, що друкує команда"""
     total = len(CHECKS)
-    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
+    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
     here = Path(__file__).parent
-    for name, sentence in (
-        ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("CHECKLIST.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
-    ):
+    sentence = f"{total} checks, {failures} of them on failure modes"
+    for name in ("README.md", "CHECKLIST.md"):
         page = (here / name).read_text(encoding="utf-8")
         assert sentence in page, (
             f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
@@ -831,30 +828,27 @@ def check_the_lesson_numbers_match_the_suite() -> None:
 
 
 def check_the_lesson_line_counts_match_the_modules() -> None:
-    """ВІДМОВА · урок: розміри модулів у прозі — обчислені, а не переписані"""
+    """FAILURE · урок: розміри модулів у прозі — обчислені, а не переписані"""
     here = Path(__file__).parent
     lesson = (here / "README.md").read_text(encoding="utf-8")
-    english = (here / "README.en.md").read_text(encoding="utf-8")
 
-    # Бюджет мають двоє, число в таблиці — усі пʼять. Попередня редакція звіряла лише
-    # ті два, і три числа дрейфували мовчки: рівно той клас вади, який перевірка й
-    # мала закрити. Модуль без бюджету теж має правдиве число.
+    # Budget belongs to two modules; a true number belongs to all five. An earlier edition
+    # checked only the budgeted pair and three numbers drifted silently — exactly the class of
+    # defect this check exists against. The other three named their sizes only in the English
+    # map, and deleting that map (ADR-0008) nearly lost them again: the lesson now carries all
+    # five, so all five are checked here.
     for module, budget in (
-        ("facts", None),
         ("short_term", 50),
-        ("retrieval", None),
         ("long_term", 90),
+        ("facts", None),
+        ("retrieval", None),
         ("decision", None),
     ):
         require_intact_source(f"{module}.py")
         lines = _executable_lines(f"{module}.py")
-        if budget is not None:
-            assert f"`{module}.py` — {lines} із {budget}" in lesson, (
-                f"{module}.py має {lines} виконуваних рядків — урок називає інше число"
-            )
-        shown = f"{lines} / {budget}" if budget else f"| {lines} |"
-        assert shown in english, (
-            f"README.en.md відстав: {module}.py = {lines}, у таблиці немає {shown!r}"
+        shown = f"`{module}.py` — {lines} of {budget}" if budget else f"`{module}.py` — {lines}"
+        assert shown in lesson, (
+            f"{module}.py has {lines} executable lines — the lesson names a different number"
         )
 
 

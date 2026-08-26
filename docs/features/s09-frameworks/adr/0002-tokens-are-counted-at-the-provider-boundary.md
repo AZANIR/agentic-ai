@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0002 — Токени рахуються на межі провайдера, а не в реалізації
+# 0002 — Tokens are counted at the provider boundary, not inside the implementation
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,46 +15,49 @@ ticket: "n/a"
 
 ## Context
 
-Колонка «токени понад запит» — це і є ціна риштувань: системні підказки фреймворка, описи
-ролей, повторна подача історії на кожному кроці. Питання в тому, **де** її рахувати.
+The "tokens above the request" column is the price of the scaffolding: the framework's system
+prompts, the role descriptions, the history re-sent on every step. The question is **where** to
+count it.
 
-Лічильник усередині реалізації бачить те, що реалізація попросила. Саме те, що додав
-фреймворк, він за побудовою не бачить — а це рівно вимірювана величина.
+A counter inside the implementation sees what the implementation asked for. What the framework
+added is, by construction, exactly what it does not see — and that is precisely the quantity being
+measured.
 
-Другий варіант — довіритись звітності самого фреймворка. Кожен рапортує по-своєму, дехто не
-рапортує взагалі, і жоден не рапортує в одиницях сусіда. Порівнювати такі числа означає
-порівнювати три різні визначення слова «токен».
+The second option is to trust the framework's own reporting. Each one reports in its own way, some
+do not report at all, and none reports in a neighbour's units. Comparing such numbers means
+comparing three different definitions of the word "token".
 
 ## Decision Drivers
 
-- Міряється **надбавка**, тобто різниця між попросили й пішло.
-- Одиниця має бути одна на всі чотири реалізації.
-- Офлайн-число має бути детермінованим (NFR-6).
+- What is measured is the **overhead**, that is, the difference between what was asked for and what
+  went out.
+- The unit must be one and the same for all four implementations.
+- The offline number must be deterministic (NFR-6).
 
 ## Considered Options
 
-**А. Лічильник у кожній реалізації.** Не бачить надбавки — тобто не міряє нічого з того,
-заради чого існує.
+**A. A counter in each implementation.** It does not see the overhead — that is, it measures
+nothing of what it exists for.
 
-**Б. Звітність фреймворка.** Три різні визначення, одна відсутня.
+**B. The framework's own reporting.** Three different definitions, one of them missing.
 
-**В. Обгортка навколо клієнта з `shared.llm`.** Єдина точка, крізь яку зобов'язані ходити всі
-(ADR-0007). Бачить фактичний запит, яким би шаром він не був складений.
+**C. A wrapper around the client from `shared.llm`.** The single point everyone is obliged to go
+through (ADR-0007). It sees the actual request, whatever layer assembled it.
 
 ## Decision
 
-**В.** `counters.py` обгортає клієнта, отриманого з `shared.llm.get_client`, і рахує два
-числа: скільки токенів у тому, що склала реалізація, і скільки в тому, що пішло насправді.
+**C.** `counters.py` wraps the client obtained from `shared.llm.get_client` and counts two numbers:
+how many tokens are in what the implementation assembled, and how many in what actually went out.
 
-Тексту запиту лічильник **не зберігає** — лише числа (spec §6.1).
+The counter **does not store** the request text — only the numbers (spec §6.1).
 
 ## Consequences
 
-**Добре.** Надбавка стала спостережною величиною, однаковою для всіх чотирьох. Для базової
-лінії вона дорівнює нулю — і це дзеркальна половина, без якої лічильник не є лічильником.
+**Good.** The overhead became an observable quantity, the same one for all four. For the baseline it
+equals zero — and that is the mirror half, without which a counter is not a counter.
 
-**Ціна.** Реалізація, що обходить `shared.llm`, лишається непорахованою. Тому ADR-0007
-робить обхід не питанням дисципліни, а спійманою помилкою.
+**The price.** An implementation that goes around `shared.llm` stays uncounted. That is why
+ADR-0007 makes the bypass a caught error rather than a matter of discipline.
 
-**Межа.** Токени рахуються приблизно — за довжиною тексту, а не токенізатором провайдера.
-Для **співвідношень** цього досить, для рахунку від провайдера — ні, і урок каже це прямо.
+**The limit.** Tokens are counted approximately — by text length, not by the provider's tokenizer.
+For **ratios** that is enough; for the provider's bill it is not, and the lesson says so outright.

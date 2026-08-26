@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
@@ -11,192 +11,195 @@ target_surfaces: [backend-service, cli]
 
 ## 1. Introduction and goals
 
-Етап 6 перетворює п'ять окремих здатностей на **один сервіс**. Теза етапу коротка:
+Stage 6 turns five separate capabilities into **one service**. The stage's thesis is short:
 
-> **Продакшн — це не «прототип на сервері». Це інший набір задач, і майже жодна з них не про
-> якість відповідей.**
+> **Production is not "a prototype on a server". It is a different set of problems, and almost
+> none of them are about the quality of the answers.**
 
-Три цілі, кожна перевіряється:
+Three goals, each of them checkable:
 
-1. Читач бачить, що межі (хто, скільки, за чий рахунок) — це **три різні** механізми з трьома
-   різними відмовами.
-2. Читач бачить, що метрики й трейс відповідають на **різні** питання, і не плутає їх.
-3. Читач наступає на пастку другого воркера **навмисно**, бачить її числом і виправляє.
+1. The learner sees that the boundaries (who, how many times, at whose expense) are **three
+   different** mechanisms with three different refusals.
+2. The learner sees that metrics and the trace answer **different** questions, and does not
+   confuse them.
+3. The learner steps into the second-worker trap **deliberately**, sees it as a number and
+   fixes it.
 
-**Стейкхолдери:** Learner (проходить етап), Operator (розгортає й супроводжує), Contributor
-(автор етапу). Shopper лишається вигаданим персонажем усередині домену NovaShop.
+**Stakeholders:** Learner (takes the stage), Operator (deploys and maintains it), Contributor
+(writes the stage). Shopper stays a fictional character inside the NovaShop domain.
 
 ## 2. Constraints
 
-| # | Обмеження | Звідки |
+| # | Constraint | Where from |
 |---|---|---|
-| C-1 | Етапи 1–5 **не змінюються**; будь-яка правка — привід для ADR | spec §3 |
-| C-2 | Усе працює офлайн і без ключа; Docker потрібен лише частині перевірок | правило курсу, NFR-5 |
-| C-3 | Реальної VM немає — усе верифікується локально, `smoke.sh` працює проти обох цілей | spec §8 |
-| C-4 | `if profile == ...` живе лише у фабриках `shared/` | CONVENTIONS.md, ADR-0002 курсу |
-| C-5 | `app.py` ≤ 120 рядків, `guards.py` ≤ 100 | NFR-1, NFR-1b |
-| C-6 | Проза українською, код англійською | CONVENTIONS.md |
-| C-7 | У профілі `prod` стан лімітів і бюджету — у спільному сховищі | інакше сервіс містить ваду, якої навчає |
-| C-7b | У профілі `local` він **навмисно** в пам'яті процесу | це і є вправа: два воркери показують подвоєння обох лічильників |
+| C-1 | Stages 1–5 **do not change**; any edit is grounds for an ADR | spec §3 |
+| C-2 | Everything works offline and without a key; Docker is needed by only some of the checks | course rule, NFR-5 |
+| C-3 | There is no real VM — everything is verified locally, `smoke.sh` works against both targets | spec §8 |
+| C-4 | `if profile == ...` lives only in the `shared/` factories | CONVENTIONS.md, the course's ADR-0002 |
+| C-5 | `app.py` ≤ 120 lines, `guards.py` ≤ 100 | NFR-1, NFR-1b |
+| C-6 | Everything published is written in English | CONVENTIONS.md |
+| C-7 | In the `prod` profile the rate-limit and budget state lives in shared storage | otherwise the service contains the very defect it teaches |
+| C-7b | In the `local` profile it is **deliberately** in process memory | that is the exercise: two workers show both counters doubling |
 
 ## 3. Context and scope
 
 ```mermaid
 C4Context
-    title Етап 6 — сервіс, що зшиває етапи 1-5
+    title Stage 6 — the service that stitches stages 1-5 together
 
-    Person(learner, "Learner", "Надсилає запити, ламає навмисно, читає трейси")
-    Person(operator, "Operator", "Розгортає, стежить за метриками, тримає .env")
+    Person(learner, "Learner", "Sends requests, breaks things deliberately, reads traces")
+    Person(operator, "Operator", "Deploys, watches the metrics, keeps .env")
 
-    System_Boundary(s06, "Етап 6 — Platform") {
-        System(api, "API-сервіс", "Воротарі, зшивання етапів 1-5, трейс")
-        System(sched, "Планувальник", "Періодичні задачі; окремий процес")
+    System_Boundary(s06, "Stage 6 — Platform") {
+        System(api, "API service", "Guards, stitching stages 1-5, the trace")
+        System(sched, "Scheduler", "Periodic jobs; a separate process")
     }
 
-    System_Ext(proxy, "Зворотний проксі", "TLS, перенаправлення, один вхід")
-    System_Ext(pg, "Postgres", "Факти переживають перезапуск")
-    System_Ext(redis, "Redis", "Лічильники лімітів і бюджету, спільні для воркерів")
-    System_Ext(llm, "LLM-провайдер", "Підробка за замовчуванням")
-    System_Ext(monitor, "Зовнішній монітор", "Читає стан і метрики")
+    System_Ext(proxy, "Reverse proxy", "TLS, redirects, a single entrance")
+    System_Ext(pg, "Postgres", "Facts survive a restart")
+    System_Ext(redis, "Redis", "Rate-limit and budget counters, shared across workers")
+    System_Ext(llm, "LLM provider", "Fake by default")
+    System_Ext(monitor, "External monitor", "Reads health and metrics")
 
-    Rel(learner, proxy, "Запит із ключем")
-    Rel(operator, proxy, "Розгортає й перевіряє")
-    Rel(proxy, api, "Передає запит")
-    Rel(api, redis, "Читає й збільшує лічильники")
-    Rel(api, pg, "Читає й пише факти")
-    Rel(api, llm, "Виклик моделі, якщо воротарі пропустили")
-    Rel(sched, pg, "Періодичні задачі")
-    Rel(monitor, api, "Стан і метрики")
+    Rel(learner, proxy, "Request with a key")
+    Rel(operator, proxy, "Deploys and verifies")
+    Rel(proxy, api, "Passes the request on")
+    Rel(api, redis, "Reads and increments counters")
+    Rel(api, pg, "Reads and writes facts")
+    Rel(api, llm, "Model call, if the guards let it through")
+    Rel(sched, pg, "Periodic jobs")
+    Rel(monitor, api, "Health and metrics")
 ```
 
-**У межах:** зшивання етапів 1–5, три воротарі, стан і метрики, трейс запиту, пастка двох
-воркерів і її виправлення, сховище для фактів, том для трейсів, TLS через зворотний проксі, скрипт
-перевірки для обох цілей.
+**In scope:** stitching stages 1–5 together, three guards, health and metrics, the request trace,
+the two-worker trap and its fix, storage for facts, a volume for traces, TLS through a reverse
+proxy, a check script for both targets.
 
-**Поза межами:** мультитенантність, черги й довгі задачі, оптимізація латентності (етап 7),
-оцінювання (етап 8), дашборд і навантажувальний тест (етап 10), провізіювання VM.
+**Out of scope:** multi-tenancy, queues and long jobs, latency optimisation (stage 7), evaluation
+(stage 8), the dashboard and the load test (stage 10), VM provisioning.
 
 ## 4. Solution strategy
 
-| Рішення | Вибір | Чому |
+| Decision | Choice | Why |
 |---|---|---|
-| Цільова поверхня | `backend-service` + `cli` | Сервіс і скрипт перевірки; UI немає |
-| Маршрутизація | Класифікатор наміру, не supervisor | Дешевше на порядок, достатньо для обсягу. ADR-0001 |
-| Стан лічильників | Redis у `prod`, пам'ять процесу в `local` | Локальна половина — не поступка, а вправа. ADR-0002 |
-| Планувальник | Окремий процес | Пастка показується наживо, потім виправляється. ADR-0003 |
-| Пам'ять | Postgres замість файлу; інтерфейс етапу 5 незмінний | Обіцянка етапу 5. ADR-0004 |
-| Трейсер в етапи 2 і 5 | **Не** протягувати | Межа лишається; етап 8 скаже, чого бракує. ADR-0005 |
-| Сховище трейсів | JSONL на томі, не база й не зовнішній стік | Читач має читати трейси очима. ADR-0008 |
-| Автентифікація | Ключ у заголовку, звірка сталим порівнянням | Обсяг курсу; ціна названа. ADR-0006 |
-| TLS | Зворотний проксі з автоматичним сертифікатом | Два рядки конфігурації проти десяти кроків. ADR-0007 |
-| Формат метрик | Стандартний текстовий формат витягування | Дашборд етапу 10 читатиме те саме |
+| Target surface | `backend-service` + `cli` | A service and a check script; there is no UI |
+| Routing | An intent classifier, not a supervisor | An order of magnitude cheaper, enough for the scope. ADR-0001 |
+| Counter state | Redis in `prod`, process memory in `local` | The local half is not a concession but an exercise. ADR-0002 |
+| Scheduler | A separate process | The trap is shown live, then fixed. ADR-0003 |
+| Memory | Postgres instead of a file; stage 5's interface unchanged | Stage 5's promise. ADR-0004 |
+| The tracer into stages 2 and 5 | **Not** threaded through | The boundary stays; stage 8 will say what is missing. ADR-0005 |
+| Trace storage | JSONL on a volume, not a database and not an external sink | The learner has to read the traces with their own eyes. ADR-0008 |
+| Authentication | A key in a header, checked with a constant-time comparison | The scope of the course; the price is named. ADR-0006 |
+| TLS | A reverse proxy with an automatic certificate | Two lines of configuration against ten steps. ADR-0007 |
+| Metrics format | The standard scrape text format | Stage 10's dashboard will read the same thing |
 
-**Три воротарі — три механізми, а не «безпека».** Вони стоять у різному порядку й дають різні
-відмови, і саме це читач має винести з етапу:
+**Three guards — three mechanisms, not "security".** They stand at different points in the order
+and give different refusals, and that is exactly what the learner has to take away from the stage:
 
-    автентифікація   хто ти          відмова не каже, чи існує такий ключ
-    ліміт частоти    скільки разів   відмова каже, коли можна повторити
-    бюджет           за чий рахунок  відмова каже, що вичерпано межу витрат
+    authentication   who you are        the refusal does not say whether such a key exists
+    rate limit       how many times     the refusal says when you may retry
+    budget           at whose expense   the refusal says the spending limit is used up
 
-Порядок не довільний: спершу **хто**, потім **скільки**, потім **за чий рахунок**. Ліміт до
-автентифікації рахував би анонімів разом; бюджет до ліміту витрачав би облік на тих, кого
-однаково відхилять.
+The order is not arbitrary: first **who**, then **how many times**, then **at whose expense**. A
+rate limit before authentication would count all anonymous callers together; a budget before the
+rate limit would spend its bookkeeping on those who are going to be rejected anyway.
 
 ## 5. Building block view
 
 ```
 stages/s06_platform/
-├── app.py          зшивання: воротарі -> класифікатор -> агент -> памʼять -> трейс; ≤120
-├── guards.py       три воротарі, три відмови; ≤100
-├── intent.py       класифікатор наміру — дешева заміна supervisor
-├── observe.py      стан залежностей і метрики
-├── jobs.py         періодична задача + пастка двох воркерів
-├── run.py          демо: сцени проти `Service`, без мережі й без фреймворка
-├── check.py        перевірки
-└── DECISION.md     чекліст «що має бути перед першим деплоєм»
+├── app.py          stitching: guards -> classifier -> agent -> memory -> trace; ≤120
+├── guards.py       three guards, three refusals; ≤100
+├── intent.py       intent classifier — a cheap replacement for a supervisor
+├── observe.py      dependency health and metrics
+├── jobs.py         a periodic job + the two-worker trap
+├── run.py          demo: scenes against `Service`, no network and no framework
+├── check.py        checks
+└── DECISION.md     the "what must exist before the first deploy" checklist
 
 shared/
-├── counters.py     лічильники: у памʼяті (local) або Redis (prod) — фабрика
-└── factstore.py    сховище фактів: файл етапу 5 або Postgres — фабрика (ADR-0004)
+├── counters.py     counters: in memory (local) or Redis (prod) — a factory
+└── factstore.py    fact store: stage 5's file or Postgres — a factory (ADR-0004)
 
 deploy/
-├── docker-compose.prod.yml  сервіс + проксі + сховища
-├── Caddyfile                TLS і перенаправлення
-├── smoke.sh                 той самий перелік проти localhost і проти домену
-└── RUNBOOK.md               що робити, коли впало
+├── docker-compose.prod.yml  service + proxy + stores
+├── Caddyfile                TLS and redirects
+├── smoke.sh                 the same list against localhost and against the domain
+└── RUNBOOK.md               what to do when it breaks
 ```
 
 **C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title Етап 6 — внутрішня будова
+    title Stage 6 — internal structure
 
     Person(learner, "Learner")
     Person(operator, "Operator")
 
     Container_Boundary(s06, "stages/s06_platform") {
-        Container(app, "app.py", "Python", "Зшивання пʼяти етапів і трейс запиту")
-        Container(guards, "guards.py", "Python", "Ключ, частота, бюджет — три відмови")
-        Container(intent, "intent.py", "Python", "Класифікатор наміру")
-        Container(observe, "observe.py", "Python", "Стан залежностей і метрики")
-        Container(jobs, "jobs.py", "Python", "Періодична задача; пастка двох воркерів")
+        Container(app, "app.py", "Python", "Stitching five stages together and the request trace")
+        Container(guards, "guards.py", "Python", "Key, rate, budget — three refusals")
+        Container(intent, "intent.py", "Python", "Intent classifier")
+        Container(observe, "observe.py", "Python", "Dependency health and metrics")
+        Container(jobs, "jobs.py", "Python", "A periodic job; the two-worker trap")
     }
 
     Container_Boundary(shared, "shared/") {
-        Container(counters, "counters.py", "Python", "Лічильники: памʼять або Redis")
-        Container(store, "factstore.py", "Python", "Факти: файл етапу 5 або Postgres")
-        Container(cfg, "config.py", "Python", "Профіль і межі з оточення")
-        Container(trace, "trace.py", "Python", "Кроки запиту")
+        Container(counters, "counters.py", "Python", "Counters: memory or Redis")
+        Container(store, "factstore.py", "Python", "Facts: stage 5's file or Postgres")
+        Container(cfg, "config.py", "Python", "Profile and limits from the environment")
+        Container(trace, "trace.py", "Python", "The steps of a request")
     }
 
-    Container_Boundary(stages, "етапи 1-5") {
-        Container(loop, "s01 loop", "Python", "Цикл агента й гейт підтвердження")
-        Container(rag, "s02 rag", "Python", "Пошук по базі знань")
-        Container(router, "s03 router", "Python", "Спеціалісти")
-        Container(mcp, "s04 mcp", "Python", "Інструменти за межею процесу")
-        Container(mem, "s05 memory", "Python", "Памʼять власника")
+    Container_Boundary(stages, "stages 1-5") {
+        Container(loop, "s01 loop", "Python", "The agent loop and the confirmation gate")
+        Container(rag, "s02 rag", "Python", "Search over the knowledge base")
+        Container(router, "s03 router", "Python", "Specialists")
+        Container(mcp, "s04 mcp", "Python", "Tools across a process boundary")
+        Container(mem, "s05 memory", "Python", "The owner's memory")
     }
 
-    Container(cli, "deploy/smoke.sh", "Shell", "Перелік перевірок проти будь-якої адреси")
+    Container(cli, "deploy/smoke.sh", "Shell", "A list of checks against any address")
     System_Ext(redis, "Redis")
     System_Ext(pg, "Postgres")
 
-    Rel(learner, app, "Запит із ключем")
-    Rel(operator, cli, "Перевіряє розгорнуте")
-    Rel(cli, observe, "Стан і метрики")
-    Rel(app, guards, "Три перевірки до моделі")
-    Rel(guards, counters, "Лічильники частоти й витрат")
-    Rel(counters, redis, "Коли профіль prod")
-    Rel(app, intent, "Яка гілка")
-    Rel(app, loop, "Виконує крок")
-    Rel(app, rag, "Шукає документи")
-    Rel(app, router, "Обирає спеціаліста")
-    Rel(app, mcp, "Викликає інструменти")
-    Rel(app, store, "Читає й пише факти")
-    Rel(store, mem, "Файлова реалізація — коли local")
-    Rel(store, pg, "Реалізація на базі — коли prod")
-    Rel(app, trace, "Кроки запиту")
-    Rel(jobs, pg, "Періодична задача")
+    Rel(learner, app, "Request with a key")
+    Rel(operator, cli, "Verifies what was deployed")
+    Rel(cli, observe, "Health and metrics")
+    Rel(app, guards, "Three checks before the model")
+    Rel(guards, counters, "Rate and spend counters")
+    Rel(counters, redis, "When the profile is prod")
+    Rel(app, intent, "Which branch")
+    Rel(app, loop, "Runs a step")
+    Rel(app, rag, "Searches for documents")
+    Rel(app, router, "Picks a specialist")
+    Rel(app, mcp, "Calls tools")
+    Rel(app, store, "Reads and writes facts")
+    Rel(store, mem, "The file implementation — when local")
+    Rel(store, pg, "The database implementation — when prod")
+    Rel(app, trace, "The steps of a request")
+    Rel(jobs, pg, "A periodic job")
 ```
 
-**Чому `guards.py` окремо від `app.py`.** Три воротарі — це три різні відмови, і саме їхня
-різниця є уроком. Усередині `app.py` вони перетворилися б на три `if` серед зшивання, і теза
-«це не одна річ під назвою безпека» зникла б у деталях реалізації.
+**Why `guards.py` is separate from `app.py`.** Three guards are three different refusals, and
+their difference is the lesson. Inside `app.py` they would have turned into three `if`s among the
+stitching, and the thesis "this is not one thing called security" would have vanished into
+implementation detail.
 
-**Чому `factstore.py` у `shared/`, а не в етапі 5.** Підмінити сховище **всередині** етапу 5
-неможливо без правки: `Memory` приймає шлях, а не сховище, і його перевірки будують клас
-напряму. Тому фабрика стоїть **зовні**, файлову реалізацію бере як є, а контракт, спільний
-для обох, стверджує етап 6 (ADR-0004). Обіцянка етапу 5 виконана наполовину — і це
-записано, а не замовчано.
+**Why `factstore.py` lives in `shared/` and not in stage 5.** The store cannot be swapped
+**inside** stage 5 without an edit: `Memory` takes a path, not a store, and its own checks build
+the class directly. So the factory stands **outside**, takes the file implementation as it is, and
+the contract common to both is asserted by stage 6 (ADR-0004). Stage 5's promise is half kept —
+and that is written down, not passed over in silence.
 
-**Чому `counters.py` у `shared/`, а не в етапі.** Вибір «пам'ять чи Redis» — це розгалуження за
-профілем, а воно за конвенцією курсу живе лише у фабриках `shared/`. Плюс етап 10 візьме той
-самий лічильник.
+**Why `counters.py` lives in `shared/` and not in the stage.** The choice between memory and Redis
+is a branch on the profile, and by the course's convention that lives only in the `shared/`
+factories. Plus stage 10 will take the same counter.
 
 ## 6. Runtime view
 
-**Потік 1 — запит проходить трьох воротарів і доходить до агента (AC-01, AC-02).**
+**Flow 1 — a request passes three guards and reaches the agent (AC-01, AC-02).**
 
 ```mermaid
 sequenceDiagram
@@ -206,168 +209,169 @@ sequenceDiagram
     participant C as counters
     participant I as intent
     participant M as memory
-    participant Ag as агент
+    participant Ag as agent
 
-    L->>A: запит + ключ
-    A->>G: пропустити?
-    G->>G: ключ відомий?
-    G->>C: частота в межах?
-    C-->>G: так
-    G->>C: бюджет не вичерпано?
-    C-->>G: так
-    G-->>A: пропущено, власник=owner
-    A->>I: яка гілка
+    L->>A: request + key
+    A->>G: let it through?
+    G->>G: is the key known?
+    G->>C: is the rate within the limit?
+    C-->>G: yes
+    G->>C: is the budget not used up?
+    C-->>G: yes
+    G-->>A: let through, owner=owner
+    A->>I: which branch
     I-->>A: knowledge / orders / math
-    A->>M: контекст власника
-    M-->>A: факти + причини відкинутих
-    A->>Ag: крок із контекстом
-    Ag-->>A: відповідь
-    A->>C: додати вартість до витрат
-    A-->>L: відповідь + ідентифікатор трейсу
-    Note over A: кожен крок записано з ПРИЧИНОЮ,<br/>не лише з тривалістю
+    A->>M: the owner's context
+    M-->>A: facts + reasons for the discarded ones
+    A->>Ag: a step with the context
+    Ag-->>A: the answer
+    A->>C: add the cost to the spend
+    A-->>L: the answer + the trace identifier
+    Note over A: every step is recorded with a REASON,<br/>not just with a duration
 ```
 
-**Потік 2 — три різні відмови (AC-03, AC-04, AC-05).**
+**Flow 2 — three different refusals (AC-03, AC-04, AC-05).**
 
 ```mermaid
 sequenceDiagram
     actor L as Learner
     participant G as guards
     participant C as counters
-    participant Ag as агент
+    participant Ag as agent
 
-    L->>G: без ключа
-    G-->>L: відмова: не впізнано
-    Note over G,Ag: моделі не викликано
+    L->>G: no key
+    G-->>L: refusal: not recognised
+    Note over G,Ag: the model was not called
 
-    L->>G: ключ дійсний, запит 31-й за хвилину
-    G->>C: частота
-    C-->>G: перевищено
-    G-->>L: відмова: зачекай N секунд
-    Note over G,Ag: моделі не викликано
+    L->>G: valid key, 31st request this minute
+    G->>C: rate
+    C-->>G: exceeded
+    G-->>L: refusal: wait N seconds
+    Note over G,Ag: the model was not called
 
-    L->>G: ключ дійсний, бюджет вичерпано
-    G->>C: витрати
-    C-->>G: межу досягнуто
-    G-->>L: відмова: бюджет вичерпано
-    Note over G,Ag: моделі не викликано
+    L->>G: valid key, budget used up
+    G->>C: spend
+    C-->>G: limit reached
+    G-->>L: refusal: budget used up
+    Note over G,Ag: the model was not called
 ```
 
-**Потік 3 — пастка двох воркерів і її виправлення (AC-07).**
+**Flow 3 — the two-worker trap and its fix (AC-07).**
 
 ```mermaid
 sequenceDiagram
-    participant W1 as воркер 1
-    participant W2 as воркер 2
-    participant J as задача
-    participant S as планувальник
+    participant W1 as worker 1
+    participant W2 as worker 2
+    participant J as job
+    participant S as scheduler
 
-    Note over W1,W2: ДО: планувальник усередині застосунку
-    W1->>J: настав час — виконую
-    W2->>J: настав час — виконую
-    Note over J: виконано ДВІЧІ за один інтервал,<br/>жодної помилки в логах
+    Note over W1,W2: BEFORE: the scheduler inside the application
+    W1->>J: time is up — running it
+    W2->>J: time is up — running it
+    Note over J: run TWICE in one interval,<br/>not one error in the logs
 
-    Note over W1,S: ПІСЛЯ: планувальник окремим процесом
-    S->>J: настав час — виконую
-    Note over J: виконано один раз;<br/>воркери про час не знають
+    Note over W1,S: AFTER: the scheduler as a separate process
+    S->>J: time is up — running it
+    Note over J: run once;<br/>the workers know nothing about the schedule
 ```
 
 ## 7. Deployment view
 
 ```mermaid
 C4Container
-    title Розгортання — одна машина, пʼять контейнерів
+    title Deployment — one machine, five containers
 
-    Person(user, "Learner або Operator")
+    Person(user, "Learner or Operator")
 
-    Container_Boundary(vm, "Одна машина") {
-        Container(proxy, "Зворотний проксі", "Caddy", "TLS, перенаправлення, єдиний вхід")
-        Container(api, "API", "uvicorn, N воркерів", "Сервіс")
-        Container(sched, "Планувальник", "окремий процес", "Рівно один екземпляр")
-        Container(pg, "Postgres", "pgvector", "Факти")
-        Container(vol, "Том трейсів", "JSONL", "Один запит — один запис")
-        Container(redis, "Redis", "", "Лічильники")
+    Container_Boundary(vm, "One machine") {
+        Container(proxy, "Reverse proxy", "Caddy", "TLS, redirects, the single entrance")
+        Container(api, "API", "uvicorn, N workers", "The service")
+        Container(sched, "Scheduler", "a separate process", "Exactly one instance")
+        Container(pg, "Postgres", "pgvector", "Facts")
+        Container(vol, "Trace volume", "JSONL", "One request — one record")
+        Container(redis, "Redis", "", "Counters")
     }
 
     Rel(user, proxy, "HTTPS")
-    Rel(proxy, api, "Внутрішня мережа")
+    Rel(proxy, api, "Internal network")
     Rel(api, pg, "")
     Rel(api, redis, "")
     Rel(sched, pg, "")
 ```
 
-**Локально те саме без TLS і без домену**: `docker compose` піднімає ті самі контейнери,
-`smoke.sh` виконує **той самий** перелік. Різниця лише в адресі й у тому, що перевірка
-сертифіката локально позначається як невиконана, а не як пройдена.
+**Locally the same thing without TLS and without a domain**: `docker compose` brings up the same
+containers, `smoke.sh` runs **the same** list. The only difference is the address, and that
+locally the certificate check is marked as not performed rather than as passed.
 
-**Дані живуть у томах**, а не в контейнерах: перезапуск сервісу не стирає ні фактів, ні
-трейсів (AC-10). Факти — у базі, трейси — файлом JSONL на змонтованому томі (ADR-0008):
-читач має читати трейси очима, і будь-яке інше сховище цю властивість забирає.
+**The data lives on volumes**, not in the containers: restarting the service erases neither the
+facts nor the traces (AC-10). Facts go into the database, traces into a JSONL file on a mounted
+volume (ADR-0008): the learner has to read the traces with their own eyes, and any other store
+takes that property away.
 
 ## 8. Crosscutting concepts
 
-| Аспект | Як вирішено |
+| Concern | How it is solved |
 |---|---|
-| Трейс | Один запит — один трейс; кожен крок несе причину. Кроки етапів 2 і 5 відсутні свідомо (ADR-0005). Пишеться у JSONL на змонтованому томі (ADR-0008) |
-| Метрики | **Теж стан у процесі** — третє обличчя тієї самої причини. Збирач за замовчуванням процесо-локальний, тож за N воркерів видача показує зріз одного з них. Звірка з кількістю трейсів (AC-06b) стверджується для одного воркера; багатопроцесний збирач названо в уроці як те, що робить продакшн |
-| Помилки | Недоступна залежність → названа відмова + стан каже про неї; сервіс не падає цілком (AC-11) |
-| Секрети | Ключі з оточення; у логах, трейсах і відповідях — лише похідний ідентифікатор власника (AC-12) |
-| Конфігурація | Усе через `shared/config.py`; жодного `if profile ==` в етапі |
-| Ізоляція | Ключ визначає власника пам'яті; перевіряється в обидва боки (AC-03b, AC-03c) |
-| Детермінізм | Перевірки проти клієнта в пам'яті, без мережі; підробка провайдера за замовчуванням |
-| Час | Лічильники беруть час параметром там, де це впливає на вердикт — урок етапу 5 |
+| Trace | One request — one trace; every step carries a reason. The steps of stages 2 and 5 are missing deliberately (ADR-0005). Written as JSONL on a mounted volume (ADR-0008) |
+| Metrics | **Process-local state too** — the third face of the same cause. The default collector is process-local, so with N workers the endpoint serves a slice of one of them. The reconciliation against the number of traces (AC-06b) is asserted for one worker; a multi-process collector is named in the lesson as the thing that makes it production |
+| Errors | An unavailable dependency → a named failure + health reports it; the service does not go down as a whole (AC-11) |
+| Secrets | Keys come from the environment; the logs, the traces and the responses carry only a derived owner identifier (AC-12) |
+| Configuration | Everything through `shared/config.py`; not one `if profile ==` in the stage |
+| Isolation | The key determines the owner of the memory; checked in both directions (AC-03b, AC-03c) |
+| Determinism | Checks run against an in-memory client, with no network; the provider is fake by default |
+| Time | Counters take time as a parameter wherever it affects the verdict — stage 5's lesson |
 
 ## 9. Architecture decisions
 
-| # | Рішення | Статус | Де відбилось |
+| # | Decision | Status | Where it shows |
 |---|---|---|---|
-| 0001 | Класифікатор наміру замість повного supervisor | Accepted | §4, §6 |
-| 0002 | Лічильники у спільному сховищі, не в пам'яті процесу | Accepted | §4, §5, §8 |
-| 0003 | Планувальник окремим процесом | Accepted | §4, §6, §7 |
-| 0004 | Пам'ять переїжджає в Postgres за тим самим інтерфейсом | Accepted | §4, §7 |
-| 0005 | Трейсер не протягується в етапи 2 і 5 | Accepted | §4, §8 |
-| 0006 | Ключ у заголовку зі сталим порівнянням | Accepted | §4, §8 |
-| 0007 | TLS через зворотний проксі з автоматичним сертифікатом | Accepted | §4, §7 |
-| 0008 | Трейси лишаються файлом JSONL на томі | Accepted | §3, §7, §8 |
+| 0001 | An intent classifier instead of a full supervisor | Accepted | §4, §6 |
+| 0002 | Counters in shared storage, not in process memory | Accepted | §4, §5, §8 |
+| 0003 | The scheduler as a separate process | Accepted | §4, §6, §7 |
+| 0004 | Memory moves to Postgres behind the same interface | Accepted | §4, §7 |
+| 0005 | The tracer is not threaded through stages 2 and 5 | Accepted | §4, §8 |
+| 0006 | A key in a header with a constant-time comparison | Accepted | §4, §8 |
+| 0007 | TLS through a reverse proxy with an automatic certificate | Accepted | §4, §7 |
+| 0008 | Traces stay a JSONL file on a volume | Accepted | §3, §7, §8 |
 
 ## 10. Quality requirements
 
-| Сценарій | When | Then | How verify |
+| Scenario | When | Then | How verify |
 |---|---|---|---|
-| Три гілки | Три різні запити | Три різні гілки видно у трейсі | integration-перевірка |
-| Три відмови | Запит без ключа / понад ліміт / понад бюджет | Три різні відмови, моделі не викликано | три перевірки |
-| Дзеркальні половини | Дійсний ключ, у межах, у бюджеті | Запит **доходить**; стан каже «живий»; скрипт дає нуль | три перевірки |
-| Пастка воркерів | Планувальник усередині, два воркери | Задача виконана двічі; після винесення — один раз | e2e |
-| Розмір модулів | Підрахунок виконуваних рядків | `app.py` ≤ 120, `guards.py` ≤ 100 | перевірка бюджету |
-| Без Docker | Прогін на машині без контейнерів | Зелено або `НЕ ПЕРЕВІРЕНО`; жодної червоної | `scripts/clean_install.py` |
-| Час набору | `python -m stages.s06_platform.check` | ≤ 60 с (оцінка, не заміряно) | `BUDGET_SECONDS` |
-| Частка відмов | Підрахунок перевірок етапу | ≥ 1/3 мають префікс `ВІДМОВА ·` | лічильник у перевірці |
-| Час смоуку | `deploy/smoke.sh` проти локальної збірки | ≤ 30 с (оцінка, не заміряно) | замір у самому скрипті, число друкується |
+| Three branches | Three different requests | Three different branches visible in the trace | integration check |
+| Three refusals | A request with no key / over the limit / over the budget | Three different refusals, the model is not called | three checks |
+| Mirror halves | A valid key, within the limit, within the budget | The request **gets through**; health says "up"; the script returns zero | three checks |
+| The worker trap | The scheduler inside, two workers | The job runs twice; once it is moved out — once | e2e |
+| Module size | A count of executed lines | `app.py` ≤ 120, `guards.py` ≤ 100 | budget check |
+| Without Docker | A run on a machine with no containers | Green or `NOT EVALUATED`; not one red | `scripts/clean_install.py` |
+| Suite time | `python -m stages.s06_platform.check` | ≤ 60 s (an estimate, not measured) | `BUDGET_SECONDS` |
+| Share of refusals | A count of the stage's checks | ≥ 1/3 carry the `FAILURE ·` prefix | a counter inside the check |
+| Smoke time | `deploy/smoke.sh` against a local build | ≤ 30 s (an estimate, not measured) | measured by the script itself, the number is printed |
 
 ## 11. Risks and technical debt
 
-| Ризик | Тяжкість | Мітигація | Власник |
+| Risk | Severity | Mitigation | Owner |
 |---|---|---|---|
-| **Етап відтворює пастку, якої навчає** | High | Лічильники в спільному сховищі від початку (ADR-0002). Найімовірніша форма провалу: локальний профіль тримає їх у пам'яті процесу, і перевірка, написана лише під локальний профіль, лишається зеленою на проді. Тому потрібна перевірка, що **той самий** лічильник переживає два незалежні екземпляри | Contributor |
-| **`app.py` не влізе у 120 рядків** | High | Досвід усіх п'яти етапів: бюджет спрацьовує, і мітигація вгадує факт, не місце. Тут місце назване наперед: виносити треба **зшивання гілок** (`intent.py` уже окремо), а не воротарів — вони і є урок | Contributor |
-| **Реальної VM немає** | High | AC-08 розділено: механіка перевіряється локально, дійсність сертифіката від публічного центру лишається `НЕ ПЕРЕВІРЕНО`. Не приховується й не оголошується пройденим | Operator |
-| **Перевірки вимагатимуть Docker** | Medium | `NotVerified` як третій стан, як на етапі 4 з MCP. Перевірка, що потребує контейнера, каже про це словами | Contributor |
-| **Бюджетний облік не збігається з рахунком провайдера** | Medium | Названо в §«Чого план не доводить»: рахується **оцінка** за токенами. Запобіжник має спрацювати раніше за катастрофу, а не звести баланс | Operator |
-| **Open question** — чи протягувати трейсер в етапи 2 і 5 | Open question | ADR-0005 фіксує «ні» з причиною; етап 8 читатиме трейси й скаже, чого бракує | Contributor, етап 8 |
-| **Open question** — чи буде реальний деплой | Open question | Усе будується так, щоб працювати в обох режимах | Operator, перед тегом `stage-06` |
-| **Open question** — окремий ендпоінт для читання трейсу | Open question | ADR-0008 фіксує «файл»; етап 8 читатиме трейси й скаже, чи потрібен ендпоінт | Contributor, етап 8 |
-| **Метрики процесо-локальні** | Medium | Збирач за замовчуванням тримає лічильники в памʼяті процесу — третє обличчя причини з ADR-0002. За N воркерів видача показує зріз одного. Звірка AC-06b стверджується для одного воркера; багатопроцесний збирач названо в уроці | Contributor |
-| **Обіцянка етапу 5 виконана наполовину** | Medium | «Тим самим інтерфейсом» виявилось точнішим за код: `Memory` приймає шлях, а не сховище. Фабрика стоїть зовні, контракт стверджує етап 6 (ADR-0004). Урок етапу 5 доведеться уточнити | Contributor, перед тегом `stage-06` |
+| **The stage reproduces the trap it teaches** | High | Counters in shared storage from the start (ADR-0002). The most likely shape of failure: the local profile keeps them in process memory, and a check written for the local profile alone stays green in production. So there has to be a check that **the same** counter survives two independent instances | Contributor |
+| **`app.py` will not fit into 120 lines** | High | The experience of all five stages: the budget fires, and the mitigation guesses the fact, not the place. Here the place is named in advance: what has to move out is **the branch stitching** (`intent.py` is already separate), not the guards — they are the lesson | Contributor |
+| **There is no real VM** | High | AC-08 is split: the mechanics are verified locally, the validity of a certificate from a public authority stays `NOT EVALUATED`. It is neither hidden nor declared passed | Operator |
+| **The checks will require Docker** | Medium | `NotVerified` as a third state, as at stage 4 with MCP. A check that needs a container says so in words | Contributor |
+| **The budget bookkeeping does not match the provider's invoice** | Medium | Named in §"What the plan does not prove": what is counted is an **estimate** from tokens. The guard has to fire before the catastrophe, not balance the books | Operator |
+| **Open question** — whether to thread the tracer through stages 2 and 5 | Open question | ADR-0005 records "no" with a reason; stage 8 will read the traces and say what is missing | Contributor, stage 8 |
+| **Open question** — whether there will be a real deployment | Open question | Everything is built to work in both modes | Operator, before the `stage-06` tag |
+| **Open question** — a separate endpoint for reading a trace | Open question | ADR-0008 records "a file"; stage 8 will read the traces and say whether an endpoint is needed | Contributor, stage 8 |
+| **The metrics are process-local** | Medium | The default collector keeps its counters in process memory — the third face of the cause from ADR-0002. With N workers the endpoint serves a slice of one. The AC-06b reconciliation is asserted for one worker; a multi-process collector is named in the lesson | Contributor |
+| **Stage 5's promise is half kept** | Medium | "Behind the same interface" turned out to be more precise than the code: `Memory` takes a path, not a store. The factory stands outside, the contract is asserted by stage 6 (ADR-0004). Stage 5's lesson will have to be made more precise | Contributor, before the `stage-06` tag |
 
 ## 12. Glossary
 
-| Термін | Значення в цьому етапі |
+| Term | What it means at this stage |
 |---|---|
-| Воротар (guard) | Механізм, що вирішує, чи пускати запит далі. Їх три, і вони різні |
-| Класифікатор наміру | Дешева заміна supervisor: одна класифікація замість циклу передач |
-| Бюджетний запобіжник | Зупинка викликів моделі при досягненні межі витрат за період |
-| Стан (health) | Відповідь про справність сервісу й **кожної** залежності окремо |
-| Метрики | Агрегати: скільки запитів, скільки відмов, яких саме. Не відповідають «чому» |
-| Трейс | Кроки одного запиту з причинами. Відповідає «чому», не «скільки» |
-| Пастка двох воркерів | Стан у пам'яті процесу, який другий процес робить неправдою — мовчки |
-| Смоук (smoke) | Короткий перелік перевірок проти живого сервісу з вердиктом |
+| Guard | The mechanism deciding whether a request goes further. There are three, and they are different |
+| Intent classifier | A cheap replacement for a supervisor: one classification instead of a loop of handovers |
+| Budget guard | Stopping model calls when the spending limit for the period is reached |
+| Health | The answer about whether the service and **each** dependency separately are working |
+| Metrics | Aggregates: how many requests, how many refusals, of which kinds. They do not answer "why" |
+| Trace | The steps of one request with their reasons. Answers "why", not "how many" |
+| The two-worker trap | State in process memory that a second process makes untrue — silently |
+| Smoke | A short list of checks against a live service, with a verdict |

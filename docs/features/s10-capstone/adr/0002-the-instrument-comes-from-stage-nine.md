@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "L"
 ticket: "n/a"
 ---
 
-# 0002 — Інструмент виміру береться з етапу 9, а не пишеться заново
+# 0002 — The measuring instrument is taken from stage 9, not written again
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,43 +15,45 @@ ticket: "n/a"
 
 ## Context
 
-Потрібно рахувати виконані рядки пакета. Такий лічильник уже написаний — `executed_lines` в
-етапі 9, де він міряв ціну риштувань фреймворка.
+The executed lines of a package have to be counted. Such a counter is already written —
+`executed_lines` in stage 9, where it measured the price of a framework's scaffolding.
 
-Спокуса написати свій велика: капстоун міряє **етапи**, а не сторонні пакети, і здається, що
-задача інша.
+The temptation to write a new one is strong: the capstone measures **stages**, not third-party
+packages, and the task feels like a different one.
 
 ## Decision Drivers
 
-- Два визначення слова «виконано» зробили б числа етапів 9 і 10 непорівнянними.
-- Інструмент етапу 9 уже має названі межі: цей вхід, цей потік, прогрів перед виміром.
-- Він уже має власні перевірки, включно з тією, що ловить namespace-пакет із порожнім
-  `origin`.
+- Two definitions of the word "executed" would make the numbers of stages 9 and 10 incomparable.
+- The stage 9 instrument already has its limits named: this input, this thread, a warm-up before
+  the measurement.
+- It already has checks of its own, including the one that catches a namespace package with an
+  empty `origin`.
 
 ## Considered Options
 
-**А. Написати власний лічильник.** Дублює й розходиться на першій же дрібниці.
+**A. Write a counter of our own.** Duplicates, and diverges on the first small detail.
 
-**Б. Винести лічильник у `shared/`.** Правильно за формою й передчасно за суттю: другий
-споживач з'явився щойно, і винесення зробило б його частиною без етапу-джерела.
+**B. Move the counter into `shared/`.** Right in form and premature in substance: the second
+consumer appeared only just now, and moving it would make it a part with no source stage.
 
-**В. Імпортувати з етапу 9.**
+**C. Import it from stage 9.**
 
 ## Decision
 
-**В.** Капстоун імпортує `stages.s09_frameworks.counters.executed_lines`. Це той самий шлях,
-що для решти частин, і той самий доказ: етап 9 отримує ненульове число виконаних рядків, бо
-його код справді працює.
+**C.** The capstone imports `stages.s09_frameworks.counters.executed_lines`. That is the same path
+as for every other part, and the same proof: stage 9 gets a non-zero count of executed lines
+because its code really does run.
 
-Винесення у `shared/` лишається відкритим питанням після курсу.
+Moving it into `shared/` stays an open question for after the course.
 
 ## Consequences
 
-**Добре.** Одне визначення «виконано» на два етапи. Плюс приємний побічний ефект: етап 9 у
-таблиці складання не декоративний — його рядки виконуються під час самого виміру.
+**Good.** One definition of "executed" across two stages. Plus a pleasant side effect: stage 9 is
+not decorative in the assembly table — its lines execute during the measurement itself.
 
-**Ціна.** Капстоун залежить від етапу 9 не лише як від частини, а і як від інструмента. Зміна
-там міняє числа тут — і це правильно: числа мають одне джерело.
+**The price.** The capstone depends on stage 9 not only as a part but as an instrument. A change
+there changes the numbers here — and that is right: the numbers have a single source.
 
-**Межа.** Межі інструмента успадковані разом із ним: `sys.settrace` не бачить інших потоків, а
-число описує один вхід. Обидві названі в уроці капстоуна, а не лише в уроці етапу 9.
+**The limit.** The instrument's limits are inherited along with it: `sys.settrace` does not see
+other threads, and the number describes one input. Both are named in the capstone's lesson, not
+only in the lesson of stage 9.

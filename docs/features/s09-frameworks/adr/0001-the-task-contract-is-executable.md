@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0001 — Контракт задачі виконуваний, а не описаний
+# 0001 — The task contract is executable, not described
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,53 +15,53 @@ ticket: "n/a"
 
 ## Context
 
-Етап порівнює чотири реалізації однієї задачі. Порівняння має сенс лише тоді, коли задача
-**та сама**: той самий вхід, ті самі інструменти, та сама модель, та сама умова зупинки, та
-сама форма результату.
+The stage compares four implementations of one task. The comparison means something only when the
+task is **the same one**: the same input, the same tools, the same model, the same stopping
+condition, the same result shape.
 
-Найпростіше зафіксувати це прозою — списком у README, на який автор кожної реалізації
-подивиться перед написанням. Так роблять майже всі порівняння фреймворків, і саме тому майже
-всі вони міряють вправність автора.
+The easiest way to pin that down is prose — a list in the README that the author of each
+implementation looks at before writing. That is how almost every framework comparison does it, and
+it is exactly why almost all of them measure the author's diligence.
 
-Проблема не в недобросовісності, а в непомітності. Реалізація на CrewAI природно хоче ще один
-крок делегування; реалізація на LangGraph природно хоче окремий вузол валідації. Кожне таке
-відхилення виглядає як «так у цьому фреймворку прийнято» — і кожне робить число з іншої
-колонки неспівмірним. Помітити це, дивлячись на код, майже неможливо: обидві реалізації
-виглядають розумно.
+The problem is not bad faith, it is invisibility. A CrewAI implementation naturally wants one more
+delegation step; a LangGraph implementation naturally wants a separate validation node. Every such
+deviation looks like "that is how it is done in this framework" — and every one of them makes the
+number in a neighbouring column incomparable. Spotting it by looking at the code is nearly
+impossible: both implementations look sensible.
 
 ## Decision Drivers
 
-- Різниця в числах має означати різницю **фреймворків**, а не авторів.
-- Відхилення мусить бути **спіймане**, а не помічене.
-- Автор нової реалізації має дізнатись про порушення від прогону, а не від рев'юера.
+- A difference in the numbers must mean a difference between **frameworks**, not between authors.
+- A deviation must be **caught**, not noticed.
+- The author of a new implementation must learn about a violation from the run, not from a reviewer.
 
 ## Considered Options
 
-**А. Прозовий контракт у README.** Дешево, звично, нічого не ловить.
+**A. A prose contract in the README.** Cheap, familiar, catches nothing.
 
-**Б. Порівняння еталонного виводу.** Усі реалізації мають дати той самий рядок. Ловить
-відхилення результату — і не ловить відхилення **шляху**: реалізація, що покликала зайвий
-інструмент і дійшла того самого тексту, проходить.
+**B. Comparing against a reference output.** Every implementation must produce the same string.
+It catches a deviation in the result — and does not catch a deviation in the **path**: an
+implementation that called an extra tool and arrived at the same text passes.
 
-**В. Виконуваний контракт.** Функція, що приймає результат і трейс реалізації й повертає
-перелік порушених елементів. Реалізація-порушник не отримує рядка з числами.
+**C. An executable contract.** A function that takes an implementation's result and trace and
+returns the list of violated elements. A violating implementation gets no row of numbers.
 
 ## Decision
 
-**В.** Контракт — це код, який виконується на кожній реалізації перед тим, як її числа
-потрапляють у таблицю. Він перевіряє всі п'ять елементів, і **шлях** серед них: набір
-викликаних інструментів і умова, за якою прогін зупинився.
+**C.** The contract is code that runs against every implementation before its numbers reach the
+table. It checks all five elements, and the **path** among them: the set of tools called and the
+condition the run stopped on.
 
-Порушник не викидається мовчки й не виправляється: у таблиці лишається його рядок **без
-чисел**, із назвою порушеного елемента.
+A violator is neither dropped silently nor patched up: its row stays in the table **without
+numbers**, naming the element it violated.
 
 ## Consequences
 
-**Добре.** Нечесне порівняння стало неможливим тихо. Автор нової реалізації дізнається про
-відхилення за секунди й від прогону.
+**Good.** An unfair comparison stopped being possible quietly. The author of a new implementation
+learns about a deviation within seconds, and from the run.
 
-**Ціна.** Контракт обмежує реалізації: те, що «прийнято» у фреймворку, доводиться не робити.
-Це і є ціна порівнянності, і вона свідома.
+**The price.** The contract constrains the implementations: what is "done this way" in a framework
+has to be left undone. That is the price of comparability, and it is deliberate.
 
-**Межа.** Контракт не робить реалізації однаково гарними — лише однаково задачними. Автор,
-що написав незграбний LangGraph, отримає чесне число за незграбний LangGraph.
+**The limit.** The contract does not make the implementations equally good — only equally on-task.
+An author who wrote a clumsy LangGraph gets an honest number for a clumsy LangGraph.

@@ -1,25 +1,27 @@
-# Розв'язки — етап 4
+# Solutions — stage 4
 
-Зазирай **після** власної спроби.
+Look **after** your own attempt.
 
-| Файл | Вправа | Що показує |
+| File | Exercise | What it shows |
 |---|---|---|
-| [`exercise_1_naive_parsers.py`](exercise_1_naive_parsers.py) | 1 | Три парсери на п'яти відповідях. Останній рядок таблиці — той, заради якого все це |
+| [`exercise_1_naive_parsers.py`](exercise_1_naive_parsers.py) | 1 | Three parsers over five responses. The last row of the table is what all of it is for |
 
 ```bash
 python -m stages.s04_mcp.solutions.exercise_1_naive_parsers
 ```
 
-## Чому розв'язок один
+## Why there is only one solution
 
-Решта вправ дають однозначно червону перевірку з читабельним повідомленням — вивід перевірки
-і є розбір. Окремий скрипт має сенс лише там, де **зелений результат гірший за червоний**.
+The rest of the exercises produce an unambiguously red check with a readable message — the
+check's output is the walkthrough. A separate script only makes sense where **a green result is
+worse than a red one**.
 
-Вправа 1 саме така. `json.loads` на всій відповіді падає — і це чесно. Регулярка по тексту
-не падає **ніколи**: вона повертає структуру правильної форми з неправильним змістом, і
-жоден лог про це не скаже. Побачити різницю можна лише поставивши обидва поруч.
+Exercise 1 is exactly that. `json.loads` over the whole response fails — and that is honest. A
+regex over the text **never** fails: it returns a structure of the right shape with the wrong
+contents, and no log will say a word about it. The only way to see the difference is to put both
+side by side.
 
-Числа всіх вправ закріплені машинно:
+The numbers of every exercise are pinned by machine:
 
 ```bash
 python scripts/mutate.py s04 --expect

@@ -35,13 +35,18 @@ if spec_acs - rows:
 if rows - spec_acs:
     bad.append(f"рядок плану без AC у §5: {rows - spec_acs}")
 
-for section in (
-    "## 6.1 Security",
-    "### Чого цей план свідомо не доводить",
-    "### Прийняті припущення",
-):
-    if section not in t:
-        bad.append(f"немає розділу: {section}")
+# Обидва написання кожного розділу, і це не хвіст сумісності: репозиторій переїжджає на
+# англійську (ADR-0008) поетапно, а специфікація без цих розділів — неповна незалежно від
+# мови. Вимагати лише нового написання означало б червонити ще не перекладені етапи;
+# вимагати лише старого — мовчки пропускати перекладені.
+REQUIRED = (
+    ("## 6.1 Security",),
+    ("### What this plan deliberately does not prove", "### Чого цей план свідомо не доводить"),
+    ("### Assumptions taken", "### Прийняті припущення"),
+)
+for spellings in REQUIRED:
+    if not any(s in t for s in spellings):
+        bad.append(f"немає розділу: {spellings[0]}")
 
 print(f"US: {len(us)} | AC: {len(acs)} | рядків покриття: {len(rows)} | типи: {len(types)}")
 print("\n".join("ЗБІЙ · " + b for b in bad) if bad else "self-check чистий в обидва напрямки")

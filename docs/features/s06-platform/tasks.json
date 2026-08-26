@@ -3,7 +3,7 @@
   "tasks": [
     {
       "id": "T1",
-      "title": "Фабрика лічильників: у пам'яті й у спільному сховищі за одним контрактом",
+      "title": "The counters factory: in memory and in a shared store behind one contract",
       "layer": "infra",
       "deps": [],
       "acs": [
@@ -13,28 +13,28 @@
         "AC-05b",
         "AC-07b"
       ],
-      "dod": "Обидві реалізації проходять один набір тверджень про контракт; перевірка, що два незалежні екземпляри бачать одне число, червоніє на процесо-локальній реалізації",
+      "dod": "Both implementations pass one set of assertions about the contract; the check that two independent instances see the same number goes red on the process-local implementation",
       "files_hint": [
         "shared/counters.py"
       ]
     },
     {
       "id": "T2",
-      "title": "Фабрика сховища фактів: файл етапу 5 і база за одним набором методів",
+      "title": "The fact-store factory: the stage 5 file and a database behind one set of methods",
       "layer": "infra",
       "deps": [],
       "acs": [
         "AC-03c",
         "AC-10"
       ],
-      "dod": "Обидві реалізації проходять один набір тверджень; етап 5 не змінено жодним рядком, його 42 перевірки лишаються зеленими",
+      "dod": "Both implementations pass one set of assertions; stage 5 is not changed by a single line, its 42 checks stay green",
       "files_hint": [
         "shared/factstore.py"
       ]
     },
     {
       "id": "T3",
-      "title": "Міграція: таблиця фактів із власником у ключі",
+      "title": "Migration: the facts table with the owner in the key",
       "layer": "migration",
       "deps": [
         "T2"
@@ -42,14 +42,14 @@
       "acs": [
         "AC-10"
       ],
-      "dod": "Міграція застосовується й відкочується чисто; фільтр власника — умова запиту, а не фільтрація в пам'яті",
+      "dod": "The migration applies and rolls back cleanly; the owner filter is a condition of the query, not filtering in memory",
       "files_hint": [
         "docs/features/s06-platform/migrations/"
       ]
     },
     {
       "id": "T4",
-      "title": "Три воротарі: ключ, частота, бюджет — три різні відмови",
+      "title": "Three guards: the key, the rate, the budget — three different refusals",
       "layer": "app",
       "deps": [
         "T1"
@@ -60,27 +60,27 @@
         "AC-12",
         "AC-13"
       ],
-      "dod": "Кожна відмова відрізняється від інших і у відповіді, і в метриках; жодна не доходить до моделі; ключ не трапляється ні в логу, ні у трейсі, ні у відповіді",
+      "dod": "Each refusal differs from the others both in the response and in the metrics; none of them reaches the model; the key appears neither in the log, nor in the trace, nor in the response",
       "files_hint": [
         "stages/s06_platform/guards.py"
       ]
     },
     {
       "id": "T5",
-      "title": "Класифікатор наміру: одна гілка за один виклик",
+      "title": "The intent classifier: one branch per call",
       "layer": "app",
       "deps": [],
       "acs": [
         "AC-01"
       ],
-      "dod": "Три різні запити дають три різні гілки; гілка потрапляє у трейс першим кроком; помилка на складеному запиті названа числом, а не словами",
+      "dod": "Three different requests give three different branches; the branch lands in the trace as the first step; the error on a compound request is named with a number rather than in words",
       "files_hint": [
         "stages/s06_platform/intent.py"
       ]
     },
     {
       "id": "T6",
-      "title": "Стан і метрики: справність кожної залежності окремо",
+      "title": "Health and metrics: the health of every dependency separately",
       "layer": "ports",
       "deps": [
         "T1",
@@ -92,14 +92,14 @@
         "AC-06c",
         "AC-11"
       ],
-      "dod": "Стан називає кожну залежність окремо й доступний без ключа; метрики закриті ключем і розрізняють типи відмов; несправна залежність дає названу помилку, а не падіння",
+      "dod": "Health names every dependency separately and is available with no key; the metrics are closed behind a key and tell the kinds of failure apart; a broken dependency gives a named error rather than a crash",
       "files_hint": [
         "stages/s06_platform/observe.py"
       ]
     },
     {
       "id": "T7",
-      "title": "Зшивання: воротарі, гілка, пам'ять, агент, трейс запиту",
+      "title": "The wiring: the guards, the branch, memory, the agent, the request's trace",
       "layer": "wiring",
       "deps": [
         "T4",
@@ -109,14 +109,14 @@
       "acs": [
         "AC-02"
       ],
-      "dod": "Трейс несе кроки сервісу в порядку виконання, кожен із причиною; трейс знаходиться за ідентифікатором; app.py ≤ 120 виконуваних рядків",
+      "dod": "The trace carries the service's steps in execution order, each with a reason; a trace is found by its identifier; app.py is ≤ 120 executable lines",
       "files_hint": [
         "stages/s06_platform/app.py"
       ]
     },
     {
       "id": "T8",
-      "title": "Пастка двох воркерів: планувальник усередині й окремо",
+      "title": "The two-worker trap: the scheduler inside and in its own process",
       "layer": "app",
       "deps": [
         "T7"
@@ -125,14 +125,14 @@
         "AC-07",
         "AC-07b"
       ],
-      "dod": "З увімкненим прапорцем задача виконується двічі за інтервал і це видно числом; з вимкненим — один раз; та сама пара доводиться для ліміту частоти",
+      "dod": "With the flag on, the job runs twice per interval and that is visible as a number; with it off, once; the same pair is proved for the rate limit",
       "files_hint": [
         "stages/s06_platform/jobs.py"
       ]
     },
     {
       "id": "T9",
-      "title": "Розгортання: продакшн-збірка, проксі з TLS, скрипт перевірки",
+      "title": "Deployment: the production build, a TLS proxy, the smoke script",
       "layer": "infra",
       "deps": [
         "T7",
@@ -143,7 +143,7 @@
         "AC-09",
         "AC-09b"
       ],
-      "dod": "smoke.sh виконує той самий перелік проти localhost і проти домену, дає нуль на справній збірці й ненуль на зламаній; перевірка публічного сертифіката позначена НЕ ПЕРЕВІРЕНО без машини",
+      "dod": "smoke.sh runs the same list against localhost and against the domain, gives zero on a healthy build and non-zero on a broken one; the check on a public certificate is marked NOT EVALUATED without a machine",
       "files_hint": [
         "deploy/docker-compose.prod.yml",
         "deploy/Caddyfile",
@@ -153,7 +153,7 @@
     },
     {
       "id": "T10",
-      "title": "Демо: сцени проти сервісу без мережі",
+      "title": "Demo: the scenes against the service with no network",
       "layer": "docs",
       "deps": [
         "T8"
@@ -166,14 +166,14 @@
         "AC-06",
         "AC-07"
       ],
-      "dod": "Демо працює без ключа й без контейнерів; кожна сцена лишає слід у виводі й крок у трейсі; e2e-перевірка стверджує тіла сцен, а не заголовки",
+      "dod": "The demo works with no key and no containers; every scene leaves a trail in the output and a step in the trace; the e2e check asserts the scenes' bodies, not their headers",
       "files_hint": [
         "stages/s06_platform/run.py"
       ]
     },
     {
       "id": "T11",
-      "title": "Перевірки до повного покриття таблиці й мутації",
+      "title": "Checks up to full coverage of the table, and the mutations",
       "layer": "tests",
       "deps": [
         "T9",
@@ -182,7 +182,7 @@
       "acs": [
         "AC-14"
       ],
-      "dod": "Кожен із 22 критеріїв має перевірку; частка відмов ≥ 1/3; набір зелений або НЕ ПЕРЕВІРЕНО без Docker, жодної червоної; кожна мутація ловиться перевіркою, яка про неї стверджує",
+      "dod": "Each of the 22 criteria has a check; the share of failure modes is ≥ 1/3; the suite is green or NOT EVALUATED without Docker, none red; every mutation is caught by the check that asserts about it",
       "files_hint": [
         "stages/s06_platform/check.py",
         "stages/s06_platform/mutations.json"
@@ -190,7 +190,7 @@
     },
     {
       "id": "T12",
-      "title": "Урок, англійська карта, вправи, чекліст, розв'язки",
+      "title": "The lesson, the English map, exercises, the checklist, the solutions",
       "layer": "docs",
       "deps": [
         "T11"
@@ -199,7 +199,7 @@
         "AC-07",
         "AC-07b"
       ],
-      "dod": "Урок ≤ 2500 слів; усі числа в прозі звіряються перевіркою; вправи мають заміряні числа червоних; чекліст закриває три рівні",
+      "dod": "The lesson is ≤ 2500 words; every number in the prose is reconciled by a check; the exercises have measured counts of red; the checklist covers three levels",
       "files_hint": [
         "stages/s06_platform/README.md",
         "stages/s06_platform/README.en.md",
@@ -211,7 +211,7 @@
     },
     {
       "id": "T13",
-      "title": "Глосарій, статуси й карта архітектури",
+      "title": "The glossary, the statuses and the architecture map",
       "layer": "docs",
       "deps": [
         "T12"
@@ -219,7 +219,7 @@
       "acs": [
         "AC-14"
       ],
-      "dod": "Терміни етапу в GLOSSARY; статус оновлено в CURRICULUM і README; docs/architecture-map.md відображає систему, а не скелет",
+      "dod": "The stage's terms in GLOSSARY; the status updated in CURRICULUM and README; docs/architecture-map.md reflects the system rather than the skeleton",
       "files_hint": [
         "GLOSSARY.md",
         "CURRICULUM.md",

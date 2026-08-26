@@ -2,7 +2,7 @@
 
 Запуск: ``python -m stages.s01_agent_loop.check``
 
-Перевірки з префіксом ``ВІДМОВА ·`` перевіряють режими відмови — те, що станеться, коли піде
+Перевірки з префіксом ``FAILURE ·`` перевіряють режими відмови — те, що станеться, коли піде
 не так. Саме заради них існує підробний клієнт: на справжній моделі «ліміт кроків спрацював»
 перевірити неможливо, бо вона недетермінована.
 """
@@ -137,7 +137,7 @@ TWO_RETURNS = [
 
 
 def check_gate_blocks_the_whole_step_not_one_call() -> None:
-    """ВІДМОВА · gate: крок із кількома незворотними діями блокується ЦІЛКОМ"""
+    """FAILURE · gate: крок із кількома незворотними діями блокується ЦІЛКОМ"""
     tools, done = _spy("initiate_return", irreversible=True)
     result, kinds, _ = _drive(TWO_RETURNS, tools=tools)
 
@@ -157,7 +157,7 @@ def check_confirmation_covers_every_action_it_showed() -> None:
 
 
 def check_non_object_arguments_do_not_crash_the_run() -> None:
-    """ВІДМОВА · validate: JSON, що не є об'єктом, — відмова кроку, а не виняток"""
+    """FAILURE · validate: JSON, що не є об'єктом, — відмова кроку, а не виняток"""
     for raw in ("null", "42", '"Kyiv"', "[1,2]"):
         result, kinds, _ = _drive([tool_call("get_weather", raw), text("виправляюсь")])
         assert result.answer, f"прогін упав на аргументах {raw}"
@@ -166,7 +166,7 @@ def check_non_object_arguments_do_not_crash_the_run() -> None:
 
 
 def check_unknown_fields_rejected_without_explicit_flag() -> None:
-    """ВІДМОВА · validate: fail-closed — схема без additionalProperties теж захищена"""
+    """FAILURE · validate: fail-closed — схема без additionalProperties теж захищена"""
     schema = {"type": "object", "properties": {"days": {"type": "integer"}}, "required": ["days"]}
     ok, reason = validate_arguments(schema, {"days": 3, "extra": "x"})
     assert not ok, "зайве поле пройшло у схемі без явного additionalProperties"
@@ -177,7 +177,7 @@ def check_unknown_fields_rejected_without_explicit_flag() -> None:
 
 
 def check_failing_tool_becomes_a_step_result() -> None:
-    """ВІДМОВА · loop: виняток усередині інструмента не вбиває прогін"""
+    """FAILURE · loop: виняток усередині інструмента не вбиває прогін"""
     tools, _ = _spy("get_weather", boom=True)
     result, kinds, client = _drive(
         [tool_call("get_weather", {"city": "Київ"}), text("спробую пізніше")], tools=tools
@@ -189,7 +189,7 @@ def check_failing_tool_becomes_a_step_result() -> None:
 
 
 def check_unknown_tool_is_reported_not_fatal() -> None:
-    """ВІДМОВА · loop: вигадане ім'я інструмента не валить прогін"""
+    """FAILURE · loop: вигадане ім'я інструмента не валить прогін"""
     result, kinds, client = _drive([tool_call("delete_everything", {}), text("такого не маю")])
     assert result.answer and "tool_unknown" in kinds, (result, kinds)
     reply = [m for m in client.calls[-1]["messages"] if m.get("role") == "tool"][-1]["content"]
@@ -197,7 +197,7 @@ def check_unknown_tool_is_reported_not_fatal() -> None:
 
 
 def check_broken_json_arguments_are_reported() -> None:
-    """ВІДМОВА · loop: недописаний JSON в аргументах — відмова кроку"""
+    """FAILURE · loop: недописаний JSON в аргументах — відмова кроку"""
     result, kinds, _ = _drive([tool_call("get_weather", '{"city": '), text("виправляюсь")])
     assert result.answer and "tool_rejected" in kinds, (result, kinds)
 
@@ -219,7 +219,7 @@ def check_one_step_covers_all_tools_it_requested() -> None:
 
 
 def check_empty_answer_is_not_success() -> None:
-    """ВІДМОВА · loop: порожня відповідь моделі не вважається успіхом"""
+    """FAILURE · loop: порожня відповідь моделі не вважається успіхом"""
     result, _, _ = _drive([text("")])
     assert not result.ok, "порожній рядок не є відповіддю"
 
@@ -297,7 +297,7 @@ def _spy_return_tool() -> tuple[dict, list]:
 
 
 def check_irreversible_tool_is_blocked_without_confirmation() -> None:
-    """ВІДМОВА · gate: незворотна дія не виконується без підтвердження"""
+    """FAILURE · gate: незворотна дія не виконується без підтвердження"""
     tools, calls = _spy_return_tool()
     client = FakeLLM(
         script=[
@@ -374,7 +374,7 @@ def check_valid_arguments_pass() -> None:
 
 
 def check_missing_required_field_is_rejected() -> None:
-    """ВІДМОВА · validate: відсутнє обов'язкове поле не проходить"""
+    """FAILURE · validate: відсутнє обов'язкове поле не проходить"""
     ok, reason = validate_arguments(RETURN_SCHEMA, {"order_id": "ord_4472"})
     assert not ok
     assert "reason" in reason, reason
@@ -382,14 +382,14 @@ def check_missing_required_field_is_rejected() -> None:
 
 
 def check_unknown_field_is_rejected() -> None:
-    """ВІДМОВА · validate: зайве поле не проходить мовчки"""
+    """FAILURE · validate: зайве поле не проходить мовчки"""
     ok, reason = validate_arguments(WEATHER_SCHEMA, {"city": "Львів", "units": "metric"})
     assert not ok
     assert "units" in reason, reason
 
 
 def check_wrong_type_is_never_coerced() -> None:
-    """ВІДМОВА · validate: тип не приводиться — рядок замість числа це відмова"""
+    """FAILURE · validate: тип не приводиться — рядок замість числа це відмова"""
     schema = {
         "type": "object",
         "properties": {"days": {"type": "integer"}},
@@ -467,7 +467,7 @@ def check_loop_sends_tool_schemas() -> None:
 
 
 def check_step_limit_stops_a_runaway_loop() -> None:
-    """ВІДМОВА · loop: нескінченний цикл зупиняється лімітом, а не сам собою"""
+    """FAILURE · loop: нескінченний цикл зупиняється лімітом, а не сам собою"""
     client = FakeLLM.always_calling("get_weather", {"city": "Київ"})
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "t.jsonl"
@@ -480,7 +480,7 @@ def check_step_limit_stops_a_runaway_loop() -> None:
 
 
 def check_invalid_arguments_never_reach_the_tool() -> None:
-    """ВІДМОВА · loop: криві аргументи не доходять до функції"""
+    """FAILURE · loop: криві аргументи не доходять до функції"""
     called: list[str] = []
     spy = Tool(
         name="get_weather",
@@ -515,7 +515,7 @@ def check_invalid_arguments_never_reach_the_tool() -> None:
 
 
 def check_rejection_is_returned_to_the_model() -> None:
-    """ВІДМОВА · loop: відмова валідації повертається моделі, а не гасить прогін"""
+    """FAILURE · loop: відмова валідації повертається моделі, а не гасить прогін"""
     client = FakeLLM(
         script=[
             tool_call("get_weather", {"city": 42}),
@@ -540,7 +540,7 @@ def check_stage_covers_at_least_three_failure_modes() -> None:
     assert all(docs), "є перевірка без docstring — у виводі буде голе ім'я функції"
     assert len(set(docs)) == len(docs), "є перевірки з однаковим описом"
 
-    failure = [d for d in docs if d.startswith("ВІДМОВА ·")]
+    failure = [d for d in docs if d.startswith("FAILURE ·")]
     assert len(failure) >= 3, f"режимів відмови лише {len(failure)}: {failure}"
 
     covered = " ".join(failure).lower()
@@ -549,7 +549,7 @@ def check_stage_covers_at_least_three_failure_modes() -> None:
 
 
 def check_broken_code_makes_the_check_run_fail_loudly() -> None:
-    """ВІДМОВА · checks: зламана перевірка не може пройти тихо"""
+    """FAILURE · checks: зламана перевірка не може пройти тихо"""
 
     def deliberately_broken() -> None:
         """навмисно зламана"""

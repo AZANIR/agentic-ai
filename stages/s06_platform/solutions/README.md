@@ -1,21 +1,22 @@
-# Розв'язки — етап 6
+# Solutions — stage 6
 
-Зазирай **після** власної спроби.
+Look **after** your own attempt.
 
-| Файл | Вправа | Що показує |
+| File | Exercise | What it shows |
 |---|---|---|
-| [`exercise_1_two_workers.py`](exercise_1_two_workers.py) | 1, 14 | Три обличчя одного стану в пам'яті процесу, поруч і числами |
+| [`exercise_1_two_workers.py`](exercise_1_two_workers.py) | 1, 14 | The three faces of one piece of state in process memory, side by side and as numbers |
 
 ```bash
 python -m stages.s06_platform.solutions.exercise_1_two_workers
 ```
 
-## Чому розв'язок один
+## Why there is only one solution
 
-Решта вправ дають однозначно червону перевірку з читабельним повідомленням — вивід перевірки
-і є розбір. Окремий скрипт має сенс лише там, де **зелений результат гірший за червоний**.
+The rest of the exercises produce an unambiguously red check with a readable message — the
+check's output is the walkthrough. A separate script only makes sense where **a green result is
+worse than a red one**.
 
-Вправа 1 саме така, і вона найменш переконлива з усіх шістнадцяти. Лічильник у пам'яті
-процесу не ламається: запити проходять, відмови приходять, метрики рахуються. Побачити ваду
-можна лише поставивши поруч друге число — і саме тому червона перевірка тут пояснює менше,
-ніж три рядки виводу.
+Exercise 1 is exactly that, and it is the least convincing of all sixteen. A counter in process
+memory does not break: requests go through, refusals arrive, metrics get counted. The only way to
+see the defect is to put a second number next to it — and that is precisely why the red check here
+explains less than three lines of output.

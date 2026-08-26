@@ -1,19 +1,19 @@
-# Трекер — s06-platform
+# Tracker — s06-platform
 
-| # | Задача | Стан |
+| # | Task | Status |
 |---|---|---|
-| T1 | Фабрика лічильників: у пам'яті й у спільному сховищі за одним контрактом | `done` |
-| T2 | Фабрика сховища фактів: файл етапу 5 і база за одним набором методів | `done` |
-| T3 | Міграція: таблиця фактів із власником у ключі | `done` |
-| T4 | Три воротарі: ключ, частота, бюджет — три різні відмови | `done` |
-| T5 | Класифікатор наміру: одна гілка за один виклик | `done` |
-| T6 | Стан і метрики: справність кожної залежності окремо | `done` |
-| T7 | Зшивання: воротарі, гілка, пам'ять, агент, трейс запиту | `done` |
-| T8 | Пастка двох воркерів: планувальник усередині й окремо | `done` |
-| T9 | Розгортання: продакшн-збірка, проксі з TLS, скрипт перевірки | `done` |
-| T10 | Демо: сцени проти сервісу без мережі | `done` |
-| T11 | Перевірки до повного покриття таблиці й мутації | `done` |
-| T12 | Урок, англійська карта, вправи, чекліст, розв'язки | `done` |
-| T13 | Глосарій, статуси й карта архітектури | `done` |
+| T1 | Counter factory: in memory and in a shared store behind one contract | `done` |
+| T2 | Fact store factory: stage 5's file and a database behind one set of methods | `done` |
+| T3 | Migration: a facts table with the owner in the key | `done` |
+| T4 | Three guards: key, rate, budget — three different refusals | `done` |
+| T5 | Intent classifier: one branch per one call | `done` |
+| T6 | Health and metrics: every dependency's health on its own | `done` |
+| T7 | Wiring: guards, branch, memory, agent, the request's trace | `done` |
+| T8 | The two-worker trap: the scheduler inside and on its own | `done` |
+| T9 | Deployment: a production build, a proxy with TLS, a check script | `done` |
+| T10 | Demo: scenes against the service with no network | `done` |
+| T11 | Checks up to full coverage of the table, and mutations | `done` |
+| T12 | Lesson, English map, exercises, checklist, solutions | `done` |
+| T13 | Glossary, statuses and the architecture map | `done` |
 
-Стани: `todo` -> `doing` -> `done`. `blocked` пишеться з причиною й тим, чого бракує.
+States: `todo` -> `doing` -> `done`. `blocked` is written down with the reason and with what is missing.

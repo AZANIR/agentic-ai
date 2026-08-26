@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "S"
@@ -8,7 +8,7 @@ ticket: "n/a"
 ---
 
 
-# 0001 — stdio й підпроцес, а не HTTP
+# 0001 — stdio and a subprocess, not HTTP
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -16,42 +16,44 @@ ticket: "n/a"
 
 ## Context
 
-MCP описує кілька транспортів. Курс має вибрати один для етапу, де протокол уводиться вперше.
+MCP describes several transports. The course has to pick one for the stage where the protocol is
+introduced for the first time.
 
 ## Considered options
 
-1. **stdio, сервер підпроцесом.**
-2. **HTTP на локальному порту** — ближче до того, як воно виглядає в продакшні.
-3. **Мок замість транспорту** — найшвидше й найдетермінованіше.
+1. **stdio, the server as a subprocess.**
+2. **HTTP on a local port** — closer to what it looks like in production.
+3. **A mock instead of a transport** — the fastest and the most deterministic.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 3 відпадає першою, і причина не в чистоті. **Половина уроку етапу — це розбір
-відповіді**, а на моку розбирати нічого: мок повертає те, що йому сказали повернути, у тій
-формі, у якій зручно. Текст навколо даних, обрив посеред виклику, процес, який не піднявся, —
-усе це існує лише тоді, коли межа справжня.
+Option 3 is the first one out, and the reason is not purity. **Half of the stage's lesson is
+parsing the response**, and on a mock there is nothing to parse: a mock returns what it was told
+to return, in whatever form is convenient. Text around the data, a break mid-call, a process that
+never came up — all of that exists only when the boundary is real.
 
-Option 2 дає ту саму справжність і додає порт. Порт означає: конфлікт із зайнятим портом на
-чужій машині, брандмауер, «а якщо я в контейнері». Курс обіцяє офлайн і без налаштувань, і
-HTTP цю обіцянку не порушує лише доти, доки все йде добре.
+Option 2 gives the same reality and adds a port. A port means: a clash with a busy port on
+somebody else's machine, a firewall, "what if I am in a container". The course promises offline
+and no configuration, and HTTP keeps that promise only for as long as everything goes well.
 
-stdio дає межу процесу без жодного з цих питань: два канали, `stdin` і `stdout`, і жодного
-зовнішнього ресурсу. Читач бачить справжній підпроцес і справжній обмін.
+stdio gives a process boundary with none of those questions: two channels, `stdin` and `stdout`,
+and not one external resource. The reader sees a real subprocess and a real exchange.
 
-**Ціна названа прямо:** підняття процесу коштує секунди, і перевірки етапу стають найповільнішими
-в курсі. NFR-5 підняв межу до восьми секунд свідомо — вдавати, що ціни немає, означало б або
-не піднімати сервер, або її приховати.
+**The price is named plainly:** bringing a process up costs seconds, and the stage's checks
+become the slowest in the course. NFR-5 raised the bound to eight seconds deliberately —
+pretending there is no price would mean either not starting the server or hiding that price.
 
 ## Consequences
 
 **Positive**
-- Межа процесу справжня, з усіма її режимами відмови.
-- Ані портів, ані мережі, ані налаштувань: етап проходиться офлайн.
-- HTTP-транспорт на етапі 6 читатиметься як заміна транспорту, а не як поява протоколу.
+- The process boundary is real, with all of its failure modes.
+- No ports, no network, no configuration: the stage can be completed offline.
+- The HTTP transport at stage 6 will read as a change of transport rather than as the arrival of
+  a protocol.
 
 **Negative**
-- Найповільніші перевірки в курсі.
-- stdio не показує автентифікації — вона приходить на етапі 6, і до того часу читач може
-  вирішити, що її не буває.
+- The slowest checks in the course.
+- stdio shows no authentication — that arrives at stage 6, and until then the reader may decide
+  there is no such thing.

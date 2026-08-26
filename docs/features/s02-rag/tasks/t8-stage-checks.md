@@ -1,6 +1,6 @@
 ---
 id: T8
-title: "Перевірки етапу за таблицею покриття"
+title: "The stage checks following the coverage table"
 layer: "tests"
 deps: ["T4", "T5", "T6", "T7"]
 acs: ["AC-01", "AC-02", "AC-03", "AC-04", "AC-05", "AC-06", "AC-08", "AC-09", "AC-08b"]
@@ -10,27 +10,27 @@ estimate: "M"
 status: "todo"
 ---
 
-# T8 — Перевірки етапу за таблицею покриття
+# T8 — The stage checks following the coverage table
 
 ## Why
 
-Виконує `## Test plan` зі [spec.md](../spec.md).
+Carries out `## Test plan` from [spec.md](../spec.md).
 
 ## What
 
-`check.py`: тринадцять перевірок за таблицею покриття, ≥6 на режими відмови. Перевірки з трейсом пишуть у тимчасову теку. Контрольний набір «дослівне проти синонімів» — у тексті перевірки, поруч із твердженням про розрив.
+`check.py`: thirteen checks following the coverage table, ≥6 on failure modes. Checks with a trace write into a temporary directory. The "literal versus synonyms" control set lives in the text of the check, next to the statement about the gap.
 
 ## Definition of Done
 
-- [ ] Тринадцять перевірок відповідають тринадцяти рядкам таблиці покриття
-- [ ] ≥ 6 позначені як режими відмови
-- [ ] Прогін офлайн, без ключа, ≤ 2 с
-- [ ] AC-05b присутній окремим рядком: дозволений документ не зник із видачі
-- [ ] Робочий файл трейсів не забруднюється
-- [ ] lint чистий
+- [ ] Thirteen checks match the thirteen rows of the coverage table
+- [ ] ≥ 6 are marked as failure modes
+- [ ] The run is offline, with no key, ≤ 2 s
+- [ ] AC-05b is present as a row of its own: the permitted document did not disappear from the results
+- [ ] The working trace file is not polluted
+- [ ] lint clean
 
 ## Notes
 
-AC-05b — не дубль AC-05. Без нього фільтр після відбору пройшов би все.
+AC-05b is not a duplicate of AC-05. Without it a filter applied after the selection would pass everything.
 
-Блокується: T4, T5, T6, T7
+Blocked by: T4, T5, T6, T7

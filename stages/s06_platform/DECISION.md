@@ -1,100 +1,104 @@
-# Чекліст: що має бути **до** першого деплою
+# Checklist: what has to exist **before** the first deploy
 
-Не «що добре б мати». Кожен пункт тут коштував конкретної поломки — або в цьому етапі, або
-на етапах, які його готували.
+Not "what would be nice to have". Every item here cost a specific breakage — either on this stage
+or on the stages that led up to it.
 
-## Порядок навмисний
+## The order is deliberate
 
-Пункти йдуть у порядку **вартості помилки**, а не складності. Перші три ламають сервіс тихо;
-останні — гучно, і тому дешевше.
+The items go in order of **the cost of the mistake**, not of difficulty. The first three break the
+service quietly; the last ones break it loudly, and are therefore cheaper.
 
-## 1. Стан має бути там, де його бачать усі процеси
+## 1. State has to live where every process can see it
 
-**Питання:** де живе кожен лічильник, кеш і розклад — і що станеться при другому воркері?
+**The question:** where does each counter, cache and schedule live — and what happens when there
+is a second worker?
 
-Не «чи буде другий воркер». Він буде: перезапуск під час оновлення, автоматичне масштабування,
-випадковий `--workers 2` у команді. Стан у пам'яті процесу переживає рівно до цієї миті й
-ламається **мовчки**.
+Not "will there be a second worker". There will be: a restart during an upgrade, autoscaling, an
+accidental `--workers 2` in a command. State in process memory survives exactly until that moment
+and breaks **silently**.
 
-Перевірка одним рядком: *два незалежні екземпляри бачать одне число?*
+The one-line check: *do two independent instances see one number?*
 
-## 2. Міграції застосовує хтось один
+## 2. Migrations are applied by exactly one thing
 
-**Питання:** хто саме виконує міграції, і скільки разів?
+**The question:** who exactly runs the migrations, and how many times?
 
-Усередині старту сервісу вони виконуються стільки разів, скільки воркерів. Це та сама пастка,
-що з планувальником, у місці, де ціна вища: два процеси, що одночасно змінюють схему, — це не
-подвоєна задача, а зіпсована база.
+Inside the service's startup they run as many times as there are workers. This is the same trap as
+with the scheduler, in a place where the price is higher: two processes changing the schema at
+once is not a doubled job but a corrupted database.
 
-## 3. Невдалий запит не має отруювати з'єднання
+## 3. A failed query must not poison the connection
 
-**Питання:** що робить код, коли запит до бази впав?
+**The question:** what does the code do when a query to the database fails?
 
-Без відкату транзакція лишається в аварійному стані, і **кожен наступний запит падає, навіть
-коли причина зникла**. Сервіс не оживає після виправлення — його доводиться перезапускати, і
-причина цього неочевидна.
+Without a rollback the transaction stays in an aborted state, and **every subsequent query fails,
+even once the cause is gone**. The service does not come back to life after the fix — it has to be
+restarted, and the reason for that is not obvious.
 
-## 4. Ключ не має потрапляти в те, що записують
+## 4. The key must not end up in anything that gets written down
 
-**Питання:** пройди логи, трейси, метрики й відповіді. Де там ключ?
+**The question:** walk the logs, the traces, the metrics and the responses. Where is the key in
+there?
 
-У трейсі, у базі, у метриках, у повідомленні про помилку. Похідний ідентифікатор власника
-робить те саме й не є ключем.
+In the trace, in the database, in the metrics, in an error message. A derived owner identifier does
+the same job and is not a key.
 
-## 5. Три відмови мають бути трьома
+## 5. Three refusals have to be three
 
-**Питання:** чи розрізняє клієнт «тебе не впізнано», «зачекай» і «гроші скінчилися»?
+**The question:** does the client tell "you were not recognised", "wait" and "the money ran out"
+apart?
 
-І чи розрізняють їх **метрики**. «3 % відхилено» — це три різні дії оператора, злиті в одне
-число.
+And do the **metrics** tell them apart. "3 % rejected" is three different operator actions merged
+into one number.
 
-## 6. Стан має вміти сказати «зламано»
+## 6. Health has to be able to say "broken"
 
-**Питання:** що поверне `/healthz`, якщо база недоступна?
+**The question:** what will `/healthz` return if the database is unreachable?
 
-Якщо `up` — ендпоінт не потрібен: він завжди каже те саме. Стан має називати **кожну**
-залежність окремо, і несправна має робити весь сервіс `down`.
+If it is `up`, the endpoint is not needed: it always says the same thing. Health has to name
+**every** dependency separately, and an unhealthy one has to make the whole service `down`.
 
-Дзеркальна половина того самого питання: а справний сервіс справді каже `up`? Монітор, що
-кричить завжди, — та сама вада, що воротар, який нікого не пускає.
+The mirrored half of the same question: does a healthy service actually say `up`? A monitor that
+always screams is the same defect as a gate that lets nobody through.
 
-## 7. Дані мають пережити перезапуск
+## 7. Data has to survive a restart
 
-**Питання:** що зникне після `docker compose up -d --build`?
+**The question:** what disappears after `docker compose up -d --build`?
 
-Усе, що лежить у шарі контейнера. Том — не деталь розгортання, а вимога.
+Everything sitting in the container layer. A volume is not a deployment detail but a requirement.
 
-І одразу друге: **чи має процес право писати в цей том?** Том належить root, якщо каталог не
-створено в образі з правильним власником.
+And immediately the second one: **does the process have the right to write to that volume?** The
+volume belongs to root if the directory was not created in the image with the right owner.
 
-## 8. Секрети мають жити на машині
+## 8. Secrets have to live on the machine
 
-**Питання:** що станеться, якщо репозиторій стане публічним?
+**The question:** what happens if the repository becomes public?
 
-Файл оточення — у `.gitignore`, приклад — у репозиторії, справжній — на сервері.
+The environment file is in `.gitignore`, the example is in the repository, the real one is on the
+server.
 
-## 9. Має бути один спосіб перевірити, що воно працює
+## 9. There has to be one way to check that it works
 
-**Питання:** як ти дізнаєшся, що деплой удався?
+**The question:** how will you know the deploy succeeded?
 
-«Здається, працює» — не відповідь. Один скрипт, той самий перелік проти будь-якої адреси,
-ненульовий код на збої. Те, чого перевірити не можна, позначається **третім станом**, а не
-зеленим із натяжкою.
+"Seems to work" is not an answer. One script, the same list against any address, a non-zero exit
+code on failure. What cannot be checked is marked as a **third state**, not as a green with an
+asterisk.
 
-## 10. Має бути записано, що робити, коли впало
+## 10. What to do when it falls over has to be written down
 
-**Питання:** ти о третій ночі. Що читаєш?
+**The question:** it is three in the morning. What do you read?
 
-`RUNBOOK.md`, написаний **після** справжніх поломок, а не з уяви. Кожен розділ у ньому тут —
-це те, що справді ламалось під час першого розгортання цього етапу.
+`RUNBOOK.md`, written **after** real breakages rather than out of imagination. Every section in it
+here is something that genuinely broke during this stage's first deploy.
 
-## Чого в цьому чеклісті свідомо немає
+## What is deliberately not in this checklist
 
-**Резервного копіювання.** Воно потрібне й приходить на етапі 10 разом із дашбордом і
-навантажувальним тестом — тобто разом із рештою того, що робиться **після** першого деплою,
-а не замість нього.
+**Backups.** They are needed, and they arrive on stage 10 together with the dashboard and the load
+test — that is, together with the rest of what is done **after** the first deploy, not instead of
+it.
 
-**Автоматичного розгортання.** Термінал і два файли. CI, що деплоїть сам, має сенс тоді, коли
-деплой уже нудний.
+**Automated deployment.** A terminal and two files. CI that deploys by itself makes sense once
+deploying is already boring.
 
-**Мультитенантності.** Один ключ — один власник. Ролі й квоти на команду — інший продукт.
+**Multitenancy.** One key, one owner. Roles and per-team quotas are a different product.

@@ -1,48 +1,48 @@
-# Вправи етапу 5 — зламай і подивись, що почервоніє
+# Stage 5 exercises — break it and see what goes red
 
-Перед кожною вправою прогони набір і переконайся, що він зелений:
+Before every exercise, run the suite and make sure it is green:
 
 ```bash
 python -m stages.s05_memory.check
 ```
 
-Потім зламай код, як написано, і подивись **які саме** перевірки впали. Число в кожній
-вправі — заміряне, не вгадане; звірка автоматична:
+Then break the code as written and look at **which** checks failed. The number in each exercise
+is measured, not guessed; the comparison is automatic:
 
 ```bash
 python scripts/mutate.py s05 --expect
 ```
 
-**Читай не кількість, а назви.** Мутація, спіймана випадковою перевіркою, — це гірше, ніж
-спіймана тією, яка про неї стверджує.
+**Read the names, not the count.** A mutation caught by an incidental check is worse than one
+caught by the check that claims to be about it.
 
 ---
 
-## Вправа 1 · Прибери фільтр власника
+## Exercise 1 · Remove the owner filter
 
-`long_term.py`, у `context_for`:
+`long_term.py`, in `context_for`:
 
 ```python
-mine = [f for f in self.all_facts() if f.owner == owner]   # було
-mine = list(self.all_facts())                              # стало
+mine = [f for f in self.all_facts() if f.owner == owner]   # before
+mine = list(self.all_facts())                              # after
 ```
 
-**Червоних: 3.**
+**Reds: 3.**
 
-Найочевидніша з одинадцяти: чужі факти йдуть у контекст, і обидві перевірки ізоляції це
-бачать — тепер бачать. До рев'ю перша з них була **мертвою**: фікстура казала
-«Банков**у**», а ассерт шукав «Банков**а**», і збігу не буває ніколи, тож `not in`
-виконувалось завжди. Перевірка з правильним твердженням, яку неможливо було зробити
-червоною жодною мутацією.
+The most obvious of the eleven: somebody else's facts go into the context, and both isolation
+checks see it — see it *now*. Before the review the first of them was **dead**: the fixture said
+`Банкову` while the assertion looked for `Банкова` — the same street name in a different
+grammatical case, so a match never happens and `not in` was satisfied every time. A check with
+the right claim that no mutation could ever turn red.
 
-Ця вправа тут не заради складності, а як опора для наступної.
+This exercise is here not for its difficulty but as the footing for the next one.
 
 ---
 
-## Вправа 2 · Постав фільтр власника ПІСЛЯ відбору
+## Exercise 2 · Put the owner filter AFTER the selection
 
-Те саме, але тонше. Замість того, щоб прибрати фільтр, перенеси його — спершу відбери
-найкращі `limit` фактів **з усіх**, потім лиши свої:
+The same thing, but subtler. Instead of removing the filter, move it — first select the best
+`limit` facts **out of all of them**, then keep your own:
 
 ```python
 every = [f for f in self.all_facts() if is_active(f, now=now)]
@@ -51,190 +51,193 @@ top = sorted(zip(every_scores, every, strict=True), key=lambda p: p[0], reverse=
 ranked = [(s, f) for s, f in top if f.owner == owner]
 ```
 
-**Червоних: 2** — і серед них та, що треба: «дзеркальна: фільтр власника не звузив видачу до
-порожньої».
+**Reds: 2** — and among them the one that matters: "mirrored: the owner filter did not narrow the
+result to an empty one".
 
-Це найважливіша вправа етапу. **Витоку немає** — чуже в контекст не потрапляє. Зате чужі
-факти займають слоти, їх прибирають, і **власна відповідь зникає**. Пам'ять поводиться так,
-ніби нічого не знає, і в логах усе чисто.
+This is the most important exercise of the stage. **There is no leak** — nothing of somebody
+else's reaches the context. But their facts do take slots, the slots get removed, and **your own
+answer disappears**. Memory behaves as if it knows nothing, and the logs are clean.
 
-Перевірка, яка стверджує лише «чуже не дійшло», цю ваду не бачить взагалі — на порожній
-видачі вона зелена. Тому перевірок дві.
+A check that claims only "theirs did not arrive" does not see this defect at all — on an empty
+result it is green. Hence two checks.
 
-> **Історія цієї вправи.** Перша її редакція давала **нуль червоних**, і виглядало це так,
-> ніби перевірка слабка. Насправді слабкою була мутація: вона лишала `mine` уже
-> відфільтрованим, тож чужі факти слотів не займали й вада не відтворювалась. Інструмент,
-> яким перевіряють перевірки, бреше тим самим способом, що й вони.
+> **The history of this exercise.** Its first draft produced **zero reds**, and it looked as
+> though the check was weak. In fact the mutation was weak: it left `mine` already filtered, so
+> somebody else's facts took no slots and the defect did not reproduce. The instrument you check
+> the checks with lies in exactly the same way they do.
 
 ---
 
-## Вправа 3 · Переписуй переказ замість накопичувати
+## Exercise 3 · Rewrite the summary instead of accumulating it
 
-`short_term.py`, у `compress`:
+`short_term.py`, in `compress`:
 
 ```python
-self.summary = f"{self.summary}\n{addition}".strip() if self.summary else addition  # було
-self.summary = addition                                                             # стало
+self.summary = f"{self.summary}\n{addition}".strip() if self.summary else addition  # before
+self.summary = addition                                                             # after
 ```
 
-**Червоних: 1.**
+**Reds: 1.**
 
-Друга за важливістю. Помилки немає **жодної**: код працює, переказ читається, розмова
-виглядає осмисленою. Просто половина її зникла.
+The second most important. There is **no** error at all: the code works, the summary reads well,
+the conversation looks coherent. Half of it has simply vanished.
 
-Спробуй помітити це очима у виводі демо — не вийде. Саме тому перевірка стверджує не «переказ
-не порожній», а «у переказі є слід ОБОХ стиснень».
+Try to spot that by eye in the demo output — you will not. That is exactly why the check claims
+not "the summary is not empty" but "the summary carries a trace of BOTH compressions".
 
 ---
 
-## Вправа 4 · Не перевіряй термін придатності
+## Exercise 4 · Do not check the expiry
 
-`facts.py`, у `is_active`:
+`facts.py`, in `is_active`:
 
 ```python
-return expires is None or now <= expires   # було
-return True                                # стало
+return expires is None or now <= expires   # before
+return True                                # after
 ```
 
-**Червоних: 1.**
+**Reds: 1.**
 
-Протухлий факт вертається у видачу. У продакшні це виглядає як агент, що вперто повторює
-торішню акцію.
+A stale fact comes back in the result. In production it looks like an agent stubbornly repeating
+last year's promotion.
 
 ---
 
-## Вправа 5 · Хай замінений факт лишається активним
+## Exercise 5 · Let a replaced fact stay active
 
-`facts.py`, у `is_active`:
+`facts.py`, in `is_active`:
 
 ```python
-if fact.status != ACTIVE:   # було
-if False:                   # стало
+if fact.status != ACTIVE:   # before
+if False:                   # after
     return False
 ```
 
-**Червоних: 1.**
+**Reds: 1.**
 
-Обидві адреси одночасно в контексті. Модель побачить дві правди й обере одну — і ти не
-дізнаєшся яку.
+Both addresses in the context at once. The model will see two truths and pick one — and you will
+not find out which.
 
 ---
 
-## Вправа 6 · Вимкни поріг релевантності
+## Exercise 6 · Switch off the relevance threshold
 
 `long_term.py`:
 
 ```python
-if score >= self.threshold and len(taken) < limit:   # було
-if score >= 0.0 and len(taken) < limit:              # стало
+if score >= self.threshold and len(taken) < limit:   # before
+if score >= 0.0 and len(taken) < limit:              # after
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Поріг стоїть поруч із усім, тож зачіпає кілька перевірок — і це не робить вправу
-найважливішою. Вада від цього не стає гіршою за ті, що дають одну червону.
+The threshold sits next to everything, so it touches several checks — and that does not make the
+exercise the most important one. The defect does not become worse than those that produce a
+single red.
 
 ---
 
-## Вправа 7 · Хай зіпсований рядок стає фактом
+## Exercise 7 · Let a corrupted line become a fact
 
-`facts.py`, у `from_line`:
+`facts.py`, in `from_line`:
 
 ```python
-missing = [name for name in _REQUIRED if name not in data or data[name] == ""]  # було
-missing = []                                                                   # стало
+missing = [name for name in _REQUIRED if name not in data or data[name] == ""]  # before
+missing = []                                                                   # after
 ```
 
-**Червоних: 2.**
+**Reds: 2.**
 
-Запис без власника проходить далі — тобто факт без власника бере участь у вибірці.
-Зіпсований рядок має бути **названий і пропущений**, а не перетворений на факт із дірками.
+A record with no owner passes through — that is, a fact with no owner takes part in retrieval. A
+corrupted line has to be **named and skipped**, not turned into a fact with holes in it.
 
-Зверни увагу на сам вираз: перевіряється **присутність** ключа, а не істинність значення.
-Перша редакція писала `not data.get(name)` — і оголошувала зіпсованим запис зі
-`stored_at = 0.0`, тобто факт, записаний рівно в епоху. Нуль — це значення, а не
-відсутність, і `remember()` потім стирав такий рядок як нерозбірний.
+Look at the expression itself: what is checked is the **presence** of the key, not the
+truthiness of the value. The first draft wrote `not data.get(name)` — and declared corrupt a
+record with `stored_at = 0.0`, that is, a fact written exactly at the epoch. Zero is a value, not
+an absence, and `remember()` would then wipe such a line as unparseable.
 
 ---
 
-## Вправа 8 · Хай секрет перестане бути правилом
+## Exercise 8 · Let the secret stop being a rule
 
 `decision.py`:
 
 ```python
-applies=lambda s: s.secret,   # було
-applies=lambda s: False,      # стало
+applies=lambda s: s.secret,   # before
+applies=lambda s: False,      # after
 ```
 
-**Червоних: 4.**
+**Reds: 4.**
 
-Правило лишилось у списку — і не вмикається ніколи. Це **мертве правило**: виглядає як
-робота й не робить нічого.
+The rule stayed in the list — and never fires. This is a **dead rule**: it looks like work and
+does nothing.
 
-Зверни увагу, що серед червоних є «жодне правило не лишається без ситуації». Перевірка
-«кожна ситуація має відповідь» на цій мутації лишається **зеленою** — усі шість реплік
-далі отримують відповідь, просто пароль тепер зберігається.
+Note that among the reds is "no rule is left without a situation". The check "every situation has
+an answer" stays **green** under this mutation — all six lines still get an answer, it is just
+that the password is now stored.
 
 ---
 
-## Вправа 9 · Хай хвіст вікна теж переказується
+## Exercise 9 · Let the tail of the window be summarised too
 
-`short_term.py`, у `overflow`:
+`short_term.py`, in `overflow`:
 
 ```python
-return self.messages[: -self.size] if len(self.messages) > self.size else []   # було
-return list(self.messages)                                                     # стало
+return self.messages[: -self.size] if len(self.messages) > self.size else []   # before
+return list(self.messages)                                                     # after
 ```
 
-**Червоних: 3.**
+**Reds: 3.**
 
-Дослівного хвоста більше немає — модель відповідає на переказ останньої репліки замість
-самої репліки. Одна з тих вад, які на коротких прикладах непомітні й вилазять на довгих.
+There is no verbatim tail any more — the model answers a summary of the last turn instead of the
+turn itself. One of those defects that are invisible on short examples and surface on long ones.
 
 ---
 
-## Вправа 10 · Нормалізуй оцінку за питанням, а не за об'єднанням
+## Exercise 10 · Normalise the score by the question rather than the union
 
-`retrieval.py`, у `Overlap._one`:
+`retrieval.py`, in `Overlap._one`:
 
 ```python
-union = asked | seen                                       # було
+union = asked | seen                                       # before
 return len(asked & seen) / len(union) if union else 0.0
 
-return len(asked & seen) / len(asked) if asked else 0.0    # стало
+return len(asked & seen) / len(asked) if asked else 0.0    # after
 ```
 
-**Червоних: 1.**
+**Reds: 1.**
 
-Найтонша з одинадцяти. Ділення на питання виглядає природніше — «яку частку питання
-покрив факт» — і дає **1.00** будь-якому текстові, що просто переказує питання.
+The subtlest of the eleven. Dividing by the question looks more natural — "what share of the
+question did the fact cover" — and gives **1.00** to any text that merely restates the question.
 
-Наслідок: факт «Куди доставляти замовлення. Це найважливіше, кота звати Мурчик» обходить
-справжню адресу й стає першим у контексті. Текст факту пише користувач. Тобто користувач
-керує порядком видачі власним текстом — і жодного витоку, жодної помилки при цьому немає.
+The consequence: the fact "Where to deliver the order. This is the most important thing, the cat
+is called Murchyk" goes around the real address and becomes first in the context. The text of a
+fact is written by the user. That is, the user controls the order of the results with their own
+text — and there is no leak and no error in the process.
 
 ---
 
-## Вправа 11 · Клади текст факту в промпт як є
+## Exercise 11 · Put the fact's text into the prompt as it is
 
-`long_term.py`, у `_safe`:
+`long_term.py`, in `_safe`:
 
 ```python
-for marker in (OPEN_FACTS, CLOSE_FACTS):   # було
+for marker in (OPEN_FACTS, CLOSE_FACTS):   # before
     value = value.replace(marker, "")
 return one_line(value)
 
-return value                               # стало
+return value                               # after
 ```
 
-**Червоних: 1.**
+**Reds: 1.**
 
-Факт, у тексті якого стоїть сам роздільник `=== КІНЕЦЬ ДАНИХ ===`, закриває блок даних
-достроково — і решта його тексту опиняється у промпті **поза** блоком, тобто там, де
-модель читає інструкції.
+A fact whose text contains the delimiter `=== КІНЕЦЬ ДАНИХ ===` itself closes the data block
+early — and the rest of its text ends up in the prompt **outside** the block, that is, where the
+model reads instructions.
 
-У файлі пам'яті це невидиме: запис лишається одним рядком коректного JSON. Вада існує
-рівно в момент складання промпту, і побачити її можна лише подивившись на промпт:
+In the memory file this is invisible: the record stays one line of valid JSON. The defect exists
+exactly at the moment the prompt is assembled, and the only way to see it is to look at the
+prompt:
 
 ```bash
 python -m stages.s05_memory.run --prompt
@@ -242,14 +245,15 @@ python -m stages.s05_memory.run --prompt
 
 ---
 
-## Що робити далі
+## What to do next
 
-Спробуй **свою** мутацію: зламай щось і подивись, чи хтось помітить. Якщо набір лишився
-зеленим — ти знайшов дірку в перевірках, і це цінніше за будь-яку з одинадцяти вправ вище.
+Try **your own** mutation: break something and see whether anybody notices. If the suite stayed
+green — you have found a hole in the checks, and that is worth more than any of the eleven
+exercises above.
 
-Так знайшли вісім із цих одинадцяти. Незалежне рев'ю в чистому контексті прочитало код і
-перевірки й спитало про кожну: **що саме має зламатись, щоб вона почервоніла**. Відповідь
-«нічого» знайшлась чотири рази.
+That is how eight of these eleven were found. An independent review in clean context read the
+code and the checks and asked about each one: **what exactly has to break for it to go red**. The
+answer "nothing" came up four times.
 
-Додай її у `mutations.json` разом із перевіркою, яка її ловить. Знахідка закривається
-**парою**: правка й мутація, що цю правку відкочує.
+Add yours to `mutations.json` together with the check that catches it. A finding is closed by a
+**pair**: the fix, and the mutation that reverts that fix.

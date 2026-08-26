@@ -1,20 +1,20 @@
 # Epic — s01-agent-loop
 
 > **Spec:** [spec.md](../spec.md) · **Design:** [sad.md](../sad.md) · **ADRs:** [adr/](../adr/)
-> Даних-моделі й контракту API цей етап не має — він нічого не персистить і нічого не публікує.
+> This stage has no data model and no API contract — it persists nothing and publishes nothing.
 
 ## Goal
 
-Побудувати цикл агента з нуля разом із трьома захисними механізмами, які успадкують усі
-дев'ять наступних етапів. Наприкінці Learner має робочий агент, запущений власноруч, і може
-словами пояснити, чому модель не виконує функції сама — [spec §2](../spec.md).
+Build an agent loop from scratch together with the three guards that all nine following stages
+will inherit. By the end the Learner has a working agent they started themselves, and can explain
+in words why the model does not execute functions on its own — [spec §2](../spec.md).
 
 ## Scope
 
-- **In:** шари `app` (реєстр, валідація, цикл, гейт), `ports` (демо), `tests` (перевірки),
-  `docs` (урок, вправи, глосарій). Поверхні — `cli` + `library-sdk`.
-- **Out:** фреймворки (етап 3), справжні сервіси (етап 4), пам'ять між сесіями (етап 5),
-  вимірювання затримки (етап 7), оцінка якості моделі (етап 8) — [spec §3](../spec.md).
+- **In:** the `app` layer (registry, validation, loop, gate), `ports` (the demo), `tests` (the
+  checks), `docs` (lesson, exercises, glossary). Surfaces — `cli` + `library-sdk`.
+- **Out:** frameworks (stage 3), real services (stage 4), memory between sessions (stage 5),
+  latency measurement (stage 7), model-quality evaluation (stage 8) — [spec §3](../spec.md).
 
 ## Task map
 
@@ -48,21 +48,23 @@ See [tracker.md](./tracker.md) for status. Machine contract: [tasks.json](../tas
 
 | # | Task | Layer | Blocked by | DoD (short) |
 |---|---|---|---|---|
-| T1 | Реєстр трьох інструментів зі схемами й познакою незворотності | app | — | Реєстр повертає три записи; кожен має функцію, схему й прапорець |
-| T2 | Валідація аргументів інструмента проти оголошеної схеми | app | — | Три випадки невідповідності дають зрозуміле пояснення українською |
-| T3 | Цикл ReAct із трасуванням і лімітом кроків | app | T1, T2 | Щасливий шлях: модель обирає інструмент, отримує результат, дає відповідь |
-| T4 | Гейт підтвердження незворотної дії | app | T3 | Без підтвердження незворотна функція не викликається жодного разу |
-| T5 | Демо: чотири сценарії підряд і банер джерела відповідей | ports | T3, T4 | Запуск без ключа завершується успішно, без мережевих звернень |
-| T6 | Перевірки етапу: щасливі шляхи і три режими відмови | tests | T3, T4 | Дев'ять перевірок відповідають дев'яти рядкам таблиці покриття |
-| T7 | Урок етапу: канон статті, міст на NovaShop, «що зламати» | docs | T5, T6 | Урок ≤ 2500 слів (spec §6: ≤ 25 хв читання) |
-| T8 | Вправи, еталонні розв'язки й чекліст етапу | docs | T7 | Чотири завдання, кожне з явним очікуваним результатом |
-| T9 | Терміни етапу в глосарій, статус етапу в програму | docs | T7 | Кожен виділений термін уроку має визначення в глосарії (KPI 100%) |
+| T1 | A registry of three tools with schemas and an irreversibility flag | app | — | The registry returns three entries; each has a function, a schema and a flag |
+| T2 | Validate tool arguments against the declared schema | app | — | Three kinds of mismatch produce a comprehensible explanation |
+| T3 | The ReAct loop with tracing and a step limit | app | T1, T2 | Happy path: the model picks a tool, gets a result, gives an answer |
+| T4 | The confirmation gate on an irreversible action | app | T3 | Without confirmation the irreversible function is never called |
+| T5 | The demo: four scenarios in a row and a banner naming the source of answers | ports | T3, T4 | A run with no key finishes successfully, with no network calls |
+| T6 | Stage checks: happy paths and three failure modes | tests | T3, T4 | Nine checks match the nine rows of the coverage table |
+| T7 | The stage lesson: the article's canon, the bridge to NovaShop, "what to break" | docs | T5, T6 | The lesson is ≤ 2500 words (spec §6: ≤ 25 min reading) |
+| T8 | Exercises, reference solutions and the stage checklist | docs | T7 | Four exercises, each with an explicit expected result |
+| T9 | The stage's terms into the glossary, the stage's status into the curriculum | docs | T7 | Every highlighted term of the lesson has a glossary definition (KPI 100%) |
 
 ## Risks / Hard rules
 
-- Модуль циклу ≤ 120 рядків, модуль валідації ≤ 60 рядків виконуваного коду — [spec §6](../spec.md).
-  Перевищення означає, що гейт треба виносити окремим модулем, а не роздувати ліміт ([sad §11](../sad.md)).
-- Жодного `if profile == ...` у коді етапу — розгалуження живе у фабриках `shared/`.
-- Жодного прямого створення клієнта моделі — лише через фабрику у `shared`.
-- Усе працює офлайн і без API-ключа. Перевірка, що потребує мережі, — зламана перевірка.
-- Приведення типів у валідації заборонене ([ADR-0003](../adr/0003-hand-written-argument-validation-inside-the-stage.md)).
+- The loop module ≤ 120 lines, the validation module ≤ 60 lines of executable code —
+  [spec §6](../spec.md). Going over means the gate has to move out into its own module rather than
+  the limit being inflated ([sad §11](../sad.md)).
+- No `if profile == ...` in stage code — the branching lives in the factories under `shared/`.
+- No direct construction of a model client — only through the factory in `shared`.
+- Everything works offline and with no API key. A check that needs the network is a broken check.
+- Type coercion in validation is forbidden
+  ([ADR-0003](../adr/0003-hand-written-argument-validation-inside-the-stage.md)).

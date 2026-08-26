@@ -1,237 +1,245 @@
-# Етап 5 — Пам'ять: чому «зберігати все» робить відповідь гіршою
+# Stage 5 — Memory: why "store everything" makes the answer worse
 
-Агент етапів 1–4 забуває все між запитами. Кожен прогін починається з нуля: він не знає, як
-тебе звати, куди ти просив доставляти й що питав хвилину тому.
+The agent of stages 1–4 forgets everything between requests. Every run starts from zero: it does
+not know your name, where you asked to have things delivered, or what you asked a minute ago.
 
-Цей етап дає йому пам'ять — і показує, що складне тут не збереження.
+This stage gives it memory — and shows that the hard part here is not the storing.
 
-## Що ти зможеш після цього етапу
+## What you will be able to do after this stage
 
-- Розрізняти короткочасну й довготривалу пам'ять і не плутати їхні задачі
-- Витягати факти з розмови, зберігати їх і діставати **лише потрібні**
-- Розв'язувати суперечності й протухання, не втрачаючи історії
-- Бачити, що вибірка з пам'яті — та сама задача, що пошук на етапі 2
-- Пояснити, чому чекліст «що запам'ятовувати» цінний **порядком**, а не правилами
+- Tell short-term and long-term memory apart and not confuse their jobs
+- Extract facts from a conversation, store them, and retrieve **only the needed ones**
+- Resolve contradictions and staleness without losing the history
+- See that retrieval from memory is the same problem as search on stage 2
+- Explain why the "what to remember" checklist is valuable for its **order**, not its rules
 
-## Запусти перед читанням
+## Run this before reading
 
 ```bash
 python -m stages.s05_memory.run
 ```
 
-Шість сцен. Дивись на **третю** — там факт «Учора був дощ» лежить у пам'яті й **не
-потрапляє** у відповідь, і поруч написано, чому саме. Решта сцен показують, що пам'ять
-працює; ця показує, що вона не спрацьовує там, де не має.
+Six scenes. Watch the **third** — the fact "It rained yesterday" is sitting in memory and does
+**not** reach the answer, with the reason printed next to it. The other scenes show that memory
+works; this one shows that it does not fire where it should not.
 
 ```bash
-python -m stages.s05_memory.run --prompt   # як факти лягають у промпт
-python -m stages.s05_memory.check          # 42 перевірки
+python -m stages.s05_memory.run --prompt   # how facts enter the prompt
+python -m stages.s05_memory.check          # 42 checks
 ```
 
-## Частина 1. Модель не пам'ятає нічого
+## Part 1. The model remembers nothing
 
-Це найважливіше, що варто зрозуміти до коду.
+This is the most important thing to understand before the code.
 
-Виклик моделі не має стану. Ти надсилаєш повідомлення — отримуєш відповідь; наступний
-виклик про попередній не знає нічого. **Усе, що виглядає як пам'ять, хтось поклав у контекст
-перед викликом.** ChatGPT, який «пам'ятає» твоє ім'я, — це код, який дістав ім'я зі сховища
-й дописав його в промпт.
+A model call has no state. You send messages — you get a reply; the next call knows nothing about
+the previous one. **Everything that looks like memory is something somebody put into the context
+before the call.** ChatGPT that "remembers" your name is code that fetched the name out of a
+store and appended it to the prompt.
 
-Отже пам'ять — це не властивість моделі, а **система навколо неї**. І в цієї системи є два
-різні механізми, які постійно плутають:
+So memory is not a property of the model but a **system around it**. And that system has two
+different mechanisms that people constantly conflate:
 
-| | Короткочасна | Довготривала |
+| | Short-term | Long-term |
 |---|---|---|
-| Задача | що сказали **в цій розмові** | що варто знати **завжди** |
-| Живе | один прогін | переживає сесію |
-| Механізм | вікно + переказ витісненого | витяг → запис → вибірка |
-| Файл | `short_term.py` | `long_term.py` |
+| Question | what was said **in this conversation** | what is worth knowing **always** |
+| Lifetime | one run | survives the session |
+| Mechanism | window + summary of what fell out | extract → store → retrieve |
+| File | `short_term.py` | `long_term.py` |
 
-Вони не замінюють одна одну. Довготривала не знає, про що йшлося три репліки тому;
-короткочасна не переживе перезапуск.
+They do not substitute for one another. Long-term memory does not know what was said three turns
+ago; short-term memory will not survive a restart.
 
-## Частина 2. Найважливіше речення всього етапу
+## Part 2. The most important sentence of the whole stage
 
-> **Показати, що факт зберігся, легко. Показати, що нерелевантний факт НЕ дійшов, — власне
-> робота.**
+> **Showing that a fact was stored is easy. Showing that an irrelevant fact did NOT arrive is
+> the actual work.**
 
-Записати факт у файл — це двадцять рядків. Дістати **саме те, що стосується питання**, — це
-те, заради чого етап існує.
+Writing a fact into a file is twenty lines. Retrieving **exactly what bears on the question** is
+what the stage exists for.
 
-Причина в тому, як псується погана пам'ять. Вона не падає. Вона кладе в контекст чотири
-факти замість одного, модель бачить більше шуму, і відповідь стає трохи гіршою. Потім ще
-трохи. Помилки немає ніде — є **деградація**, у якої англійська назва прижилась і
-українською: *context rot*.
+The reason is in how bad memory goes wrong. It does not crash. It puts four facts into the
+context instead of one, the model sees more noise, and the answer gets slightly worse. Then
+slightly worse again. There is no error anywhere — there is **degradation**, which the field
+calls *context rot*.
 
-Обмеження на контекст є лише на токени. На дурниці обмеження немає — його ставиш ти.
+The limit on context is only on tokens. There is no limit on nonsense — you are the limit.
 
-## Частина 3. Читаємо код — шість файлів
+## Part 3. Reading the code — six files
 
-### `facts.py` — чотири умови в одному місці
+### `facts.py` — four conditions in one place
 
-Запис факту плаский навмисно: власник, тема, текст, час, термін, статус. Ані зв'язків, ані
-вкладеності — граф знань це окрема задача з окремою ціною.
+The fact record is flat deliberately: owner, topic, text, time, expiry, status. No relationships,
+no nesting — a knowledge graph is a separate problem with a separate price.
 
-Головне тут — **чотири умови зібрані разом**:
+The point here is that the **four conditions are gathered together**:
 
 ```
-власник     факт належить тому, хто питає
-статус      факт не замінений новішим
-термін      факт не протух
-поріг       факт достатньо релевантний питанню   (це вже у retrieval)
+owner       the fact belongs to whoever is asking
+status      the fact has not been replaced by a newer one
+expiry      the fact has not gone stale
+threshold   the fact is relevant enough to the question   (that one lives in retrieval)
 ```
 
-Розкидані по місцях використання, вони перестають читатися як одне правило — і тоді дуже
-легко забути одну в новому місці. Забута умова в пам'яті означає або витік, або **мовчазне
-зникнення відповіді**.
+Scattered across their call sites, they stop reading as one rule — and then it becomes very easy
+to forget one of them in a new place. A forgotten condition in memory means either a leak or the
+**silent disappearance of an answer**.
 
-Час подається **параметром** і ніде не береться з годинника. Це не зручність для тестів:
-функція, що читає `datetime.now()` усередині, робить пам'ять недетермінованою, а перевірку
-TTL — такою, що проходить уночі й падає вдень.
+Time is passed **as a parameter** and is never read from the clock. This is not a convenience for
+tests: a function that reads `datetime.now()` inside makes memory non-deterministic, and makes
+the TTL check one that passes at night and fails during the day.
 
-### `short_term.py` — пастка, яку не видно на око
+### `short_term.py` — the trap you cannot see by eye
 
-Останні N повідомлень лишаються **дослівно**, старіше стискається в переказ. Дослівний хвіст
-важливий: модель відповідає саме на останні репліки, і переказувати їх — це втрата там, де
-втрачати нічого не треба.
+The last N messages stay **verbatim**, anything older is compressed into a summary. The verbatim
+tail matters: the model answers precisely the most recent turns, and summarising those is a loss
+where nothing needed losing.
 
-Пастка — **стиснути переказ удруге**. Найпростіша реалізація бере «все, що поза вікном»,
-разом із попереднім переказом, і стискає ще раз.
+The trap is **compressing the summary a second time**. The simplest implementation takes
+"everything outside the window", the previous summary included, and compresses it again.
 
-Наслідок помітити неможливо: текст лишається зв'язним і поступово перестає бути правдою.
-Після третього стиснення переказ описує розмову, якої не було. Тому переказ **накопичується**,
-а стискаються лише нові витіснені репліки.
+The consequence is impossible to spot: the text stays coherent and gradually stops being true.
+After the third compression the summary describes a conversation that never happened. So the
+summary **accumulates**, and only newly evicted turns get compressed.
 
-### `retrieval.py` — це та сама задача, що пошук
+### `retrieval.py` — this is the same problem as search
 
-Не схожа, не споріднена — **та сама**. Є питання, є набір текстів, треба оцінити, які з них
-стосуються питання, і взяти найкращі понад порогом. Це дослівний опис етапу 2.
+Not similar, not related — **the same**. There is a question, there is a set of texts, you have
+to score which of them bear on the question, and take the best ones above a threshold. That is a
+verbatim description of stage 2.
 
-Тому реалізацій дві під одним інтерфейсом: словникова (спільні слова) і семантична (косинус
-на ембеддері етапу 2). Друга не обов'язкова — етап проходиться без неї.
+Hence two implementations behind one interface: lexical (shared words) and semantic (cosine over
+stage 2's embedder). The second is optional — the stage can be completed without it.
 
-Межа словникової вибірки видна числом: «яка моя адреса» проти «Доставляти замовлення на
-Хрещатик» дає рівно **0.00** — спільних слів немає, і жодного розуміння теж.
+The limit of lexical retrieval is visible as a number: "what is my address" against "Deliver
+orders to Khreshchatyk" gives exactly **0.00** — no shared words, and no understanding either.
 
-**Чого тут чесно немає.** Семантична вибірка на дефолтному ембеддері цю межу **не**
-долає: `hash-words` теж пословний, і на тому самому питанні він дає ті самі 0.00. Він
-показує іншу річ — що **шкали різні**: там, де словникова дає 0.50, косинус дає 0.52, і
-поріг у 0.15 для першої другій не підходить узагалі. Справжні синоніми з'являються лише
-на `EMBEDDINGS_PROVIDER=fastembed` або `openai`. Урок, який обіцяв би більше, обіцяв би
-неправду — і саме таку обіцянку тут спочатку й було написано.
+**What is honestly not here.** Semantic retrieval on the default embedder does **not** clear that
+limit: `hash-words` is word-based too, and on the same question it gives the same 0.00. What it
+does show is something else — that **the scales differ**: where the lexical one gives 0.50, the
+cosine gives 0.52, and a threshold of 0.15 for the first does not suit the second at all. Real
+synonyms only appear on `EMBEDDINGS_PROVIDER=fastembed` or `openai`. A lesson that promised more
+would be promising an untruth — and that is exactly the promise that was written here first.
 
-**Тому поріг живе у вибірці, а не в `Memory`.** Одне число, зашите поруч зі сховищем,
-підходить лише одній зі шкал; читач, що вмикає семантичну за порадою уроку, отримав би
-пам'ять, яка «все забула», — рівно ту ваду, заради якої написана вправа 2.
+**So the threshold lives in the retrieval, not in `Memory`.** One number wired next to the store
+suits only one of the scales; a reader who switches on the semantic one at the lesson's advice
+would get memory that "forgot everything" — precisely the defect exercise 2 is written for.
 
-Поріг тут важливіший, ніж на етапі 2. Там «нижче порога» означало «нічого не знайшли» —
-чесна відповідь. Тут воно означає «не клади це в контекст», і кожен зайвий факт трохи псує
-відповідь.
+The threshold matters more here than on stage 2. There "below the threshold" meant "we found
+nothing" — an honest answer. Here it means "do not put this into the context", and every
+superfluous fact spoils the answer a little.
 
-**Оцінка нормується за об'єднанням слів, а не за довжиною питання** — і це не деталь.
-Ділення на питання дає **1.00** будь-якому текстові, що просто переказує питання: факт
-«Куди доставляти замовлення. Це найважливіше, кота звати Мурчик» обходив справжню адресу
-й ставав першим у контексті. Текст факту пише користувач; можливість підняти себе власним
-текстом — це керування вибіркою, а не релевантність. За об'єднанням той самий текст дає
-0.43 проти 0.50 у справжньої адреси: слова питання далі важать, але баласт навколо них
-тепер коштує.
+**The score is normalised over the union of the words, not over the length of the question** —
+and that is not a detail. Dividing by the question gives **1.00** to any text that merely
+restates the question: the fact "Where to deliver the order. This is the most important thing,
+the cat is called Murchyk" would go around the real address and become first in the context. The
+text of a fact is written by the user; the ability to promote yourself with your own text is
+control over retrieval, not relevance. Over the union that same text gives 0.43 against the real
+address's 0.50: the question's words still count, but the ballast around them now costs
+something.
 
-### `long_term.py` — порядок фільтра не є деталлю реалізації
+### `long_term.py` — the order of the filter is not an implementation detail
 
-Витяг, запис, вибірка. Дивись на один рядок:
+Extract, store, retrieve. Look at one line:
 
 ```python
-# ДО відбору. Після — чужий факт зайняв би слот, і власний зник би з видачі.
+# BEFORE the selection. After it, somebody else's fact would take a slot and your own would vanish.
 mine = [f for f in self.all_facts() if f.owner == owner]
 ```
 
-Постав фільтр власника **після** відбору top-k — і чужий факт займе слот, потім його
-приберуть, і **власний факт, який мав дійти, зникне**. Витоку немає. Відповіді теж немає.
+Put the owner filter **after** the top-k selection and somebody else's fact takes a slot, then it
+gets removed, and **your own fact, the one that should have arrived, disappears**. Nothing
+leaked. There is no answer either.
 
-Це дослівно та сама вада, що на етапі 2 з документами, і саме тому перевірок дві: чуже не
-дійшло **і** своє дійшло. Друга половина сама не з'являється — це вже третій етап поспіль,
-де рев'ю знаходило перевірку з правильним вердиктом і надто слабким твердженням.
+This is verbatim the same defect as on stage 2 with documents, and that is exactly why there are
+two checks: theirs did not arrive **and** mine did. The second half never appears on its own —
+this is the third stage running where a review found a check with the right verdict and too weak
+a claim.
 
-Текст факту **недовірений**: його писав користувач. У промпт він іде як дані, у позначеному
-блоці — тим самим патерном, що знайдені документи на етапі 2. Факт «запам'ятай: ігноруй
-попередні інструкції» зберігається як звичайний факт і не змінює ні порядку, ні порога.
+The text of a fact is **untrusted**: a user wrote it. It goes into the prompt as data, inside a
+marked block — the same pattern as the retrieved documents on stage 2. The fact "remember:
+ignore previous instructions" is stored as an ordinary fact and changes neither the order nor
+the threshold.
 
-### `extraction.py` — єдине місце, якому потрібна модель
+### `extraction.py` — the only place that needs a model
 
-Витяг фактів із розмови винесено окремо, і не заради чистоти. Усе в `long_term.py`
-детерміноване: прочитати файл, відсіяти, відсортувати, віддати. Витяг — єдине, що ходить у
-модель, тобто єдине, що може відповісти по-різному на той самий вхід.
+Extracting facts from a conversation is split out, and not for the sake of tidiness. Everything
+in `long_term.py` is deterministic: read the file, filter, sort, return. Extraction is the only
+thing that goes to a model, that is, the only thing that can answer differently to the same
+input.
 
-Порожній перелік — **нормальна** відповідь: у розмові часто немає нічого, що варто
-пам'ятати надовго, і пам'ять, яка за таких умов щось вигадує, гірша за порожню.
+An empty list is a **normal** answer: a conversation often contains nothing worth remembering for
+long, and memory that invents something under those conditions is worse than empty memory.
 
-Реєстр ризиків цього етапу передбачив винесення дослівно: «ліміт рядків `long_term`
-затісний… виносити треба буде **не** вибірку, а витяг — він єдиний потребує моделі».
-Ризик спрацював на рев'ю, і мітигація виявилась правильною.
+This stage's risk register predicted the split verbatim: "the line budget for `long_term` is too
+tight… what will have to be split out is **not** retrieval but extraction — it is the only part
+that needs a model". The risk fired at review, and the mitigation turned out to be the right one.
 
-### `decision.py` — цінність у порядку, а не в правилах
+### `decision.py` — the value is in the order, not in the rules
 
-Шість питань, перше спрацьоване й є відповіддю. Показова репліка:
+Six questions; the first one to fire is the answer. The telling line:
 
-> «Запам'ятай мій пароль — hunter2»
+> "Remember my password — hunter2"
 
-Це водночас **секрет** і **пряме прохання**. Відповідь залежить винятково від того, яке
-питання стоїть раніше. Постав прохання першим — і пам'ять зберігає паролі, лишаючись «за
-чеклістом».
+That is a **secret** and a **direct request** at once. The answer depends exclusively on which
+question comes first. Put the request first — and memory stores passwords while staying "by the
+checklist".
 
-Код тут **не класифікує** — чи є репліка секретом, вирішує людина або модель. Код тримає
-порядок і правило «перше, що спрацювало». Виглядає як мало; але класифікація помиляється
-помітно, а порядок — ні.
+The code here **does not classify** — whether a line is a secret is decided by a human or a
+model. The code holds the order and the "first one to fire" rule. It looks like very little; but
+classification errs visibly, and order does not.
 
-Проза чекліста — у [`DECISION.md`](DECISION.md), і окрема перевірка стверджує, що вона не
-розійшлася з кодом. Ця перевірка знайшла розходження на першому ж прогоні.
+The checklist's prose is in [`DECISION.md`](DECISION.md), and a separate check asserts that it
+has not drifted from the code. That check found a divergence on its very first run.
 
-## Частина 4. Суперечність і протухання
+## Part 4. Contradiction and staleness
 
-Дві адреси одночасно не існують як стан. Коли приходить новий факт тієї ж теми того ж
-власника, старий отримує статус `replaced` — і **лишається у файлі**. Видалення при записі
-було б дешевшим і втратило б відповідь на «а що було раніше».
+Two addresses do not exist simultaneously as a state. When a new fact on the same topic from the
+same owner arrives, the old one gets status `replaced` — and **stays in the file**. Deleting on
+write would have been cheaper and would have lost the answer to "so what was it before".
 
-Суперечність визначається **за темою**, не за змістом. Порівняння змісту — це вже вивід, і
-воно потребує моделі; тема дає передбачуване правило за нуль викликів. Ціна названа чесно:
-два факти різних тем, які суперечать одне одному, цей механізм не побачить.
+A contradiction is decided **by topic**, not by content. Comparing content is already inference,
+and it needs a model; the topic gives a predictable rule for zero calls. The price is stated
+honestly: two facts under different topics that contradict each other are invisible to this
+mechanism.
 
-Протухання перевіряється **при вибірці**, а не видаленням при записі — з тієї ж причини:
-історія цінна, а видалене неможливо пояснити.
+Staleness is checked **on retrieval**, not by deleting on write — for the same reason: the
+history is valuable, and you cannot explain something that has been deleted.
 
-## Частина 5. Що зламати
+## Part 5. What to break
 
 ```bash
-python scripts/mutate.py s05          # усі дев'ять мутацій
-python scripts/mutate.py s05 --expect # ще й звірити з обіцяними числами
+python scripts/mutate.py s05          # all eleven mutations
+python scripts/mutate.py s05 --expect # and check them against the promised numbers
 ```
 
-Дев'ять вправ у [`exercises.md`](exercises.md). Найцікавіші дві ламають код так, що він
-**працює й лишається неправильним**: фільтр власника після відбору (відповідь тихо зникає) і
-переписування переказу замість накопичення (жодної помилки взагалі).
+Eleven exercises in [`exercises.md`](exercises.md). The two most interesting break the code so that
+it **works and stays wrong**: the owner filter after the selection (the answer quietly
+disappears) and rewriting the summary instead of accumulating it (no error whatsoever).
 
-Розбір — там само.
+The walkthrough is in the same place.
 
-## Межі цього етапу — щоб ти не переніс їх у продакшн
+## The limits of this stage — so you do not carry them into production
 
-- **Файл, не база.** Один запис на рядок, читається очима. Етап 6 замінить сховище тим
-  самим інтерфейсом — і саме тому інтерфейс тут вузький.
-- **Один процес.** Двоє одночасних записів у цей файл дадуть втрату; блокування — задача
-  сховища, не пам'яті.
-- **Суперечність за темою.** Названо вище; не мітигується, а обмежується.
-- **Власник — поле запису, не автентифікація.** Хто такий `olena`, вирішує виклик. Автен-
-  тифікація приходить на етапі 6, і до того легко вирішити, що її не буває.
-- **Вибірка лінійна.** Усі факти читаються щоразу. На сотні записів це нормально, на
-  мільйонах — ні; оптимізація живе на етапі 8.
+- **A file, not a database.** One record per line, readable by eye. Stage 6 swaps the store
+  behind the same interface — and that is exactly why the interface is narrow here.
+- **One process.** Two concurrent writes to this file lose data; locking is the store's job, not
+  memory's.
+- **Contradiction by topic.** Named above; not mitigated but bounded.
+- **Owner is a field of the record, not authentication.** Who `olena` is, the caller decides.
+  Authentication arrives on stage 6, and until then it is easy to decide it does not exist.
+- **Retrieval is linear.** Every fact is read every time. Fine for hundreds of records, wrong for
+  millions; optimisation lives in stage 8.
 
-## Числа
+## Numbers
 
-**перевірок: 42, з них на режими відмови: 27.** Модулі: `long_term.py` — 79 із 90
-дозволених рядків, `short_term.py` — 37 із 50. Набір іде менш ніж секунду: жодна перевірка тут не
-піднімає процесу й не ходить у мережу.
+**42 checks, 27 of them on failure modes.** Modules: `long_term.py` — 79 of 90 lines allowed,
+`short_term.py` — 37 of 50, and the three without a budget: `facts.py` — 56, `retrieval.py` — 35,
+`decision.py` — 22. The suite runs in under a second: not a single check here spawns a
+process or goes to the network.
 
-## Далі
+## Next
 
-Етап 6 — **продакшн**: пам'ять переїжджає у справжнє сховище, з'являються міграції,
-автентифікація й розгортання. Питання етапу: що з написаного досі виживе перехід, і скільки
-коштує кожна річ, яку ми тут відклали.
+Stage 6 — **production**: memory moves into a real store, and migrations, authentication and
+deployment appear. The stage's questions: what of everything written so far survives the
+crossing, and what each thing we deferred here costs.

@@ -1,56 +1,60 @@
-# Чекліст — етап 8
+# Checklist — stage 8
 
-Три рівні. Пройти означає закрити всі три, а не перший.
+Three levels. Passing means closing all three, not the first.
 
-## Я зрозумів
+## I understood
 
-- [ ] Можу назвати три рівні оцінювання й сказати, що бачить кожен, чого не бачать двоє інших.
-- [ ] Можу сформулювати правило приписування дефекта рівню одним реченням — і сказати, що
-      ламається, коли воно неоднозначне.
-- [ ] Розумію, чому зведеного бала немає. Підказка: що саме треба обрати, щоб його порахувати.
-- [ ] Можу пояснити, чому «не оцінено» — окремий стан, а не сірий відтінок «провалено».
-- [ ] Можу назвати **два** різні способи, якими ламається частка, порахована від оцінених, — і
-      сказати, який із них ніхто ніколи не знаходить.
-- [ ] Розумію, чому детектор біасу стоїть **над** суддею, а не всередині.
-- [ ] Можу пояснити, чому в length bias порога немає **й бути не може**. Підказка: чим друга
-      відповідь пари відрізняється від першої.
-- [ ] Знаю, чого цей етап **не** обіцяє: що двадцять один кейс дає статистику.
+- [ ] I can name the three levels of evaluation and say what each of them sees that the other
+      two do not.
+- [ ] I can state the rule for attributing a defect to a level in one sentence — and say what
+      breaks when it is ambiguous.
+- [ ] I understand why there is no combined score. Hint: what exactly you would have to choose
+      in order to compute one.
+- [ ] I can explain why "unscored" is a state of its own rather than a grey shade of "failed".
+- [ ] I can name **two** different ways in which a share counted from the evaluated breaks —
+      and say which of them nobody ever finds.
+- [ ] I understand why the bias detector sits **above** the judge rather than inside it.
+- [ ] I can explain why length bias has no threshold **and cannot have one**. Hint: how the
+      second answer of the pair differs from the first.
+- [ ] I know what this stage does **not** promise: that twenty-one cases give you statistics.
 
-## Я запустив
+## I ran
 
-- [ ] `python -m stages.s08_eval.run` — вісім сцен; шосту прочитав уважно, вона про те, чому
-      четверта й п'ята чогось варті.
-- [ ] `python -m stages.s08_eval.check` — усі зелені; перевірок: 31, з них на режими
-      відмови: 15.
-- [ ] `python scripts/mutate.py s08 --expect` — числа у вправах збігаються з прогоном.
-- [ ] Зробив вправу 2 і прогнав розв'язок. Побачив, що при корельованих відмовах улеслива
-      частка доходить до **100 %** при чесних 24 % і п'яти оцінених кейсах із двадцяти одного.
-- [ ] Зробив вправу 6 і спитав себе, чи відрізнив би нуль знахідок від зламаного детектора,
-      маючи на руках лише звіт.
-- [ ] Подивився на вправу 9 і зрозумів, чому перевірка **сама** перевертає рядки трейсу.
+- [ ] `python -m stages.s08_eval.run` — eight scenes; I read the sixth one carefully, it is
+      about why the fourth and the fifth are worth anything.
+- [ ] `python -m stages.s08_eval.check` — all green; 31 checks, 15 of them on failure modes.
+- [ ] `python scripts/mutate.py s08 --expect` — the numbers in the exercises match the run.
+- [ ] I did exercise 2 and ran the solution. I saw that under correlated failures the
+      flattering share reaches **100 %** with an honest 24 % and five evaluated cases out of
+      twenty-one.
+- [ ] I did exercise 6 and asked myself whether I would tell zero findings from a broken
+      detector with nothing but the report in my hands.
+- [ ] I looked at exercise 9 and understood why the check **itself** reverses the lines of the
+      trace.
 
-## Я пояснив
+## I explained
 
-Не собі — вголос, іншій людині або в текст.
+Not to myself — out loud, to another person or in writing.
 
-- [ ] **Чому агент, що дійшов правильно, і агент, що дійшов випадково, — це не одне й те саме,
-      якщо відповідь однакова?**
-- [ ] **Чому «зелений звіт» на бідному трейсі гірший за червоний?**
-      Підказка: у який бік тягне помилка й хто її шукатиме.
-- [ ] **Чому вердикт судді не є істиною?** І що саме треба показати, щоб це не було
-      риторикою.
-- [ ] **Чому нуль знахідок біасу нічого не доводить без дзеркального прогону?**
-- [ ] **Чому детермінований семплер — це ще не правильний семплер?**
-      Підказка: яка перевірка його не спіймає й хто в результаті надішле рахунок.
-- [ ] **Навіщо розбирати записаний звіт, якщо його щойно згенерувала та сама програма?**
-      Підказка: чим тотожність відрізняється від рівності двох джерел.
+- [ ] **Why are an agent that arrived correctly and an agent that arrived by accident not the
+      same thing, if the answer is identical?**
+- [ ] **Why is a "green report" on a poor trace worse than a red one?**
+      Hint: which way the mistake pulls and who will go looking for it.
+- [ ] **Why is the judge's verdict not the truth?** And what exactly has to be shown so that
+      this is not rhetoric.
+- [ ] **Why does zero bias findings prove nothing without the mirror run?**
+- [ ] **Why is a deterministic sampler not yet a correct sampler?**
+      Hint: which check will not catch it and who ends up sending the bill.
+- [ ] **Why parse the written report back if the same program has just generated it?**
+      Hint: how an identity differs from an equality of two sources.
 
-## Я готовий далі
+## I am ready to move on
 
-- [ ] Можу назвати шість меж етапу — і жодна з них не сюрприз.
-- [ ] Можу сказати, чого трасуванню бракує для оцінювання, **числом**: скільки різних полів
-      позначають прогін і скільки етапів не позначають його ніяк. І чому `phase` етапу 4 до
-      цього переліку не належить.
-- [ ] Розумію, чому вимогу до сховища трейсів сформулював саме цей етап, а не етап 6, — і чому
-      відповіддю стало «нічого не змінюємо».
-- [ ] Розумію, чому оцінювання не стоїть у гарячому шляху й що саме за це заплачено.
+- [ ] I can name the stage's six limits — and none of them is a surprise.
+- [ ] I can say what tracing lacks for evaluation as a **number**: how many different fields
+      mark a run and how many stages mark it with nothing at all. And why stage 4's `phase`
+      does not belong on that list.
+- [ ] I understand why it was this stage rather than stage 6 that formulated the requirement
+      for the trace store — and why the answer turned out to be "we change nothing".
+- [ ] I understand why evaluation does not stand in the hot path and what exactly was paid for
+      that.

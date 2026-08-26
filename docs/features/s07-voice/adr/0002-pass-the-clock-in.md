@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0002 — Час подається годинником-параметром, а не читається з системного
+# 0002 — Time is passed in as a clock parameter, not read from the system one
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -15,52 +15,55 @@ ticket: "n/a"
 
 ## Context
 
-Етап 5 уже ухвалив, що час подається параметром: інакше перевірка TTL проходить уночі
-й падає вдень. Тут те саме рішення потрібне з іншої причини — **сильнішої**.
+Stage 5 already decided that time is passed in as a parameter: otherwise the TTL check passes at
+night and fails during the day. Here the same decision is needed for a different reason — a
+**stronger** one.
 
-Перевірка, що міряє час справжнім годинником, залежить від навантаження машини. Вона
-проходить дев'ять разів і падає десятий, і це найгірший вид перевірки: її вимикають.
+A check that measures time with a real clock depends on the machine's load. It passes nine times
+and fails the tenth, and that is the worst kind of check: it gets disabled.
 
-А разом із нею зникає **єдиний доказ головної тези етапу**.
+And with it disappears **the only evidence for the stage's main thesis**.
 
 ## Decision drivers
 
-- NFR-6: нуль мигтінь із двадцяти прогонів поспіль.
-- Мигтлива перевірка гірша за відсутню: відсутню видно, мигтливу вимикають.
-- Числа мають бути однакові в авторів і читачів, інакше про них не можна говорити.
-- Реальний режим усе одно потребує справжнього годинника — тож джерело має бути
-  **підмінним**, а не вигаданим назавжди.
+- NFR-6: zero flickers out of twenty consecutive runs.
+- A flickering check is worse than a missing one: a missing one is visible, a flickering one gets
+  disabled.
+- The numbers have to be the same for authors and for readers, otherwise they cannot be talked
+  about.
+- Live mode needs a real clock anyway — so the source has to be **swappable**, not faked once and
+  for all.
 
 ## Considered options
 
-1. **Годинник — параметр**, підроблений за замовчуванням, справжній за прапорцем.
-2. **Справжній годинник** плюс широкі допуски в перевірках.
-3. **Мокати `time.perf_counter`** у перевірках.
+1. **The clock is a parameter**, fake by default, real behind a flag.
+2. **A real clock** plus wide tolerances in the checks.
+3. **Mock `time.perf_counter`** in the checks.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 виглядає простішою й ховає ціну в допусках. Допуск, широкий настільки, щоб
-не мигтіти на завантаженій машині, вже не розрізняє батч і стрімінг — тобто перевірка
-перестає доводити те, заради чого написана.
+Option 2 looks simpler and hides its price in the tolerances. A tolerance wide enough not to
+flicker on a loaded machine no longer distinguishes batch from streaming — that is, the check
+stops proving the thing it was written for.
 
-Option 3 працює й робить перевірку залежною від того, **де саме** код кличе годинник.
-Перенеси виклик на рядок вище — мок промахнеться, і перевірка мовчки перестане міряти.
+Option 3 works, and it makes the check depend on **where exactly** the code calls the clock. Move
+the call one line up and the mock misses, and the check silently stops measuring.
 
-**Підроблений годинник не спить.** `sleep(200)` рухає лічильник на 200 і повертає
-керування негайно. Тобто прогін, що «займає» 1500 мс, виконується за мілісекунди — і
-перевірка на двадцять прогонів (NFR-6) стає безкоштовною.
+**The fake clock does not sleep.** `sleep(200)` moves the counter by 200 and returns control
+immediately. So a run that "takes" 1500 ms executes in milliseconds — and the twenty-run check
+(NFR-6) becomes free.
 
 ## Consequences
 
 **Positive**
-- Ті самі дані завжди дають те саме число. Мигтіння неможливе за побудовою.
-- Двадцять прогонів поспіль коштують мілісекунди.
-- Реальний режим бере справжній годинник тим самим інтерфейсом.
+- The same data always gives the same number. A flicker is impossible by construction.
+- Twenty consecutive runs cost milliseconds.
+- Live mode takes a real clock through the same interface.
 
 **Negative**
-- Конвеєр не має права кликати `time` напряму — і за цим має стежити перевірка,
-  інакше правило проживе до першого зручного випадку.
-- Підроблений час не ловить справжніх ефектів: конкуренції за процесор, пауз
-  збирача сміття, мережевих затримок. Етап про них і не стверджує.
+- The pipeline has no right to call `time` directly — and a check has to watch for that,
+  otherwise the rule lives until the first convenient exception.
+- Fake time does not catch real effects: contention for the processor, garbage-collector pauses,
+  network delays. The stage makes no claim about them either.

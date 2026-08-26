@@ -1,26 +1,27 @@
-# Розв'язки — етап 10
+# Solutions — stage 10
 
-Зазирай **після** власної спроби.
+Look **after** your own attempt.
 
-| Файл | Вправа | Що показує |
+| File | Exercise | What it shows |
 |---|---|---|
-| [`exercise_4_what_the_warmup_hides.py`](exercise_4_what_the_warmup_hides.py) | 4 | Той самий вимір холодним і теплим процесом — і скільки зайвого їде в ціну одного запиту |
+| [`exercise_4_what_the_warmup_hides.py`](exercise_4_what_the_warmup_hides.py) | 4 | The same measurement in a cold and a warm process — and how much extra rides into the price of one request |
 
 ```bash
 python -m stages.s10_capstone.solutions.exercise_4_what_the_warmup_hides
 ```
 
-## Чому розв'язок один
+## Why there is only one solution
 
-Решта вправ дають однозначно червону перевірку з читабельним повідомленням — вивід перевірки і
-є розбір.
+The remaining exercises produce an unambiguously red check with a readable message — the check's
+output *is* the walkthrough.
 
-Вправа 4 інша, і саме тому вона тут. Червона перевірка каже «роботу виконано 1 раз — прогріву
-немає» і на цьому зупиняється. **Наскільки** міняється число, вона сказати не може: поки черга
-дійде до виміру, попередні перевірки все поімпортували, і ефекту вже немає.
+Exercise 4 is different, and that is why it is here. The red check says "the work was executed once
+— there is no warm-up" and stops there. **How much** the number changes it cannot say: by the time
+its turn comes, the earlier checks have imported everything, and the effect is already gone.
 
-Тому розв'язок міряє у **свіжому процесі** — там, де перший виклик справді перший. Різниця
-виходить 234 проти 166: **сорок один відсоток**, і весь у бік «складання дороге».
+So the solution measures in a **fresh process** — where the first call really is the first. The
+difference comes out as 234 against 166: **forty-one percent**, all of it in the direction of
+"assembly is expensive".
 
-Це і є найкорисніший урок вправи: набір перевірок може ховати ефект просто **порядком свого
-прогону**. Перевірка була чесна; умови, у яких вона працювала, — ні.
+That is the most useful lesson of the exercise: a suite of checks can hide an effect simply by the
+**order in which it runs**. The check was honest; the conditions it ran under were not.

@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0005 — Жодного зведеного бала: висновок має форму «обмеження → інструмент»
+# 0005 — No aggregate score: the conclusion has the shape "constraint → tool"
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,41 +15,41 @@ ticket: "n/a"
 
 ## Context
 
-Порівняльна таблиця природно хоче підсумкового рядка. Читач хоче знати, який брати.
+A comparison table naturally wants a bottom line. The reader wants to know which one to take.
 
-Зведений бал вимагає ваг: скільки коштує рядок коду проти токена, скільки — можливість
-відповісти «чому цей крок». Будь-який набір ваг є думкою про те, чиє обмеження важливіше, — і
-ця думка, вбудована в число, перестає бути обговорюваною.
+An aggregate score requires weights: what a line of code costs against a token, what it costs to be
+able to answer "why did this step run". Any set of weights is an opinion about whose constraint
+matters more — and that opinion, baked into a number, stops being arguable.
 
-Це та сама заборона, що на етапі 8, і з тієї самої причини.
+This is the same ban as on stage 8, and for the same reason.
 
 ## Decision Drivers
 
-- Читач має обирати в **своїй** задачі, а не в цій таблиці.
-- Рекомендація має бути перевірюваною: спиратись на колонку, а не на враження.
-- Етап не має права оголошувати переможця, бо не знає обмежень читача.
+- The reader has to choose within **their own** task, not within this table.
+- The recommendation must be checkable: it has to rest on a column, not on an impression.
+- The stage has no right to declare a winner, because it does not know the reader's constraints.
 
 ## Considered Options
 
-**А. Зведений бал із вагами.** Ховає думку в числі.
+**A. An aggregate score with weights.** Hides an opinion inside a number.
 
-**Б. Жодного висновку — сама таблиця.** Чесно й безкорисно: читач по неї й прийшов.
+**B. No conclusion at all — just the table.** Honest and useless: the table is what the reader came
+for.
 
-**В. Перелік «якщо твоє обмеження таке — бери це», де кожен рядок посилається на колонку.**
+**C. A list of "if your constraint is this — take that", where every line cites a column.**
 
 ## Decision
 
-**В.** У таблиці немає ані зведеного бала, ані слова «найкращий». Замість них — перелік
-правил вигляду «обмеження → інструмент», і кожне правило називає **колонку**, з якої воно
-виведене.
+**C.** The table carries neither an aggregate score nor the word "best". In their place is a list of
+rules shaped "constraint → tool", and every rule names the **column** it was derived from.
 
 ## Consequences
 
-**Добре.** Правило застосовне до задачі, якої в таблиці немає, — а саме такою буде задача
-читача.
+**Good.** A rule applies to a task that is not in the table — and the reader's task will be exactly
+that kind.
 
-**Ціна.** Відповідь довша за одне слово. Читач, що прийшов по «беріть X», піде розчарованим —
-і це правильний бік компромісу для навчального етапу.
+**The price.** The answer is longer than one word. A reader who came for "take X" leaves
+disappointed — and that is the right side of the trade-off for a teaching stage.
 
-**Межа.** Правила виведені з **цих** вимірів. Змінилась задача — змінюються колонки, і
-правило треба виводити заново; урок каже це прямо.
+**The limit.** The rules are derived from **these** measurements. Change the task and the columns
+change, and the rule has to be derived again; the lesson says so outright.

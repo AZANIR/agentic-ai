@@ -1,50 +1,53 @@
-# Чекліст — етап 7
+# Checklist — stage 7
 
-Три рівні. Пройти означає закрити всі три, а не перший.
+Three levels. Passing means closing all three, not the first.
 
-## Я зрозумів
+## I understood
 
-- [ ] Можу пояснити, чому міряють час до **першого звуку**, а не загальну тривалість.
-- [ ] Можу назвати **дві** частини виграшу стрімінгу й сказати, яка з них не зменшує
-      загального часу. Підказка: масштабується з довжиною репліки лише одна.
-- [ ] Розумію, чому p95 показують поруч із середнім, а не замість нього.
-- [ ] Можу сказати, чому p95 береться найближчим рангом, а не інтерполяцією — і чому
-      саме `ceil`, а не `round`. Підказка: на скількох розмірах вибірки вони різні.
-- [ ] Можу пояснити, чому «сума кроків = загальний час» у стрімінгу має третій доданок
-      і чому він мусить бути нулем.
-- [ ] Можу назвати **дві** умови barge-in і що ламається, коли лишити одну.
-- [ ] Розумію, чому підроблений годинник важливіший за підроблені моделі.
-- [ ] Знаю, чого цей етап **не** обіцяє: що ці числа отримає й моя машина.
+- [ ] I can explain why the measurement is time to the **first sound** rather than total
+      duration.
+- [ ] I can name the **two** parts of streaming's gain and say which of them does not reduce
+      total time. Hint: only one of them scales with utterance length.
+- [ ] I understand why p95 is shown next to the mean rather than instead of it.
+- [ ] I can say why p95 is taken by nearest rank rather than by interpolation — and why
+      `ceil` rather than `round`. Hint: on how many sample sizes they differ.
+- [ ] I can explain why "sum of steps = total time" has a third term in streaming and why
+      that term has to be zero.
+- [ ] I can name the **two** conditions of barge-in and what breaks when only one is kept.
+- [ ] I understand why the fake clock matters more than the fake models.
+- [ ] I know what this stage does **not** promise: that my machine will get these numbers too.
 
-## Я запустив
+## I ran
 
-- [ ] `python -m stages.s07_voice.run` — сім сцен; третю прочитав уважно.
-- [ ] `python -m stages.s07_voice.check` — усі зелені; перевірок: 44, з них на режими відмови: 37.
-- [ ] `python scripts/mutate.py s07 --expect` — числа у вправах збігаються з прогоном.
-- [ ] Зробив вправу 4 і побачив, що відношення падає з 3.5x до 1.7x — тобто більша частина
-      виграшу береться не з фрагментів. У повідомленні перевірки це число з двома
-      знаками: 1.69.
-- [ ] Зробив вправу 1 і зрозумів, чому підроблений годинник не має спати.
-- [ ] Покрутив пороги barge-in і знайшов пару, за якої «угу» не перериває, а «стоп» — перериває.
+- [ ] `python -m stages.s07_voice.run` — seven scenes; I read the third one carefully.
+- [ ] `python -m stages.s07_voice.check` — all green; 44 checks, 37 of them on failure modes.
+- [ ] `python scripts/mutate.py s07 --expect` — the numbers in the exercises match the run.
+- [ ] I did exercise 4 and saw the ratio fall from 3.5x to 1.7x — that is, most of the gain
+      does not come from the chunks. In the check's message that number has two decimals:
+      1.69.
+- [ ] I did exercise 1 and understood why the fake clock must not sleep.
+- [ ] I moved the barge-in thresholds around and found a pair where "uh-huh" does not
+      interrupt but "stop" does.
 
-## Я пояснив
+## I explained
 
-Не собі — вголос, іншій людині або в текст.
+Not to myself — out loud, to another person or in writing.
 
-- [ ] **Чому число «після» без числа «до» нічого не варте?**
-- [ ] **Чому «стрімінг швидший» — це не результат?**
-      Підказка: що саме стало швидшим і що лишилось незмінним.
-- [ ] **Чому перевірка часу зі справжнім годинником гірша за її відсутність?**
-      Підказка: що станеться після третього мигтіння.
-- [ ] **Чому детектор лише за рівнем зламаний, хоча й «працює»?**
-- [ ] **Коли prefetch не варто вмикати?**
-      Підказка: яку частку запитів інструмент не потрібен.
-- [ ] **Навіщо звіряти розклад із трейсом, якщо обидва рахує та сама програма?**
-      Підказка: що означає збіг двох незалежних механізмів.
+- [ ] **Why is a number after worth nothing without a number before?**
+- [ ] **Why is "streaming is faster" not a result?**
+      Hint: what exactly got faster and what stayed the same.
+- [ ] **Why is a timing check with a real clock worse than no check at all?**
+      Hint: what happens after the third flicker.
+- [ ] **Why is a detector that goes by level alone broken, even though it "works"?**
+- [ ] **When is prefetch not worth turning on?**
+      Hint: what share of requests do not need the tool.
+- [ ] **Why reconcile the breakdown against the trace if the same program computes both?**
+      Hint: what it means when two independent mechanisms agree.
 
-## Я готовий далі
+## I am ready to move on
 
-- [ ] Можу назвати сім обмежень етапу — і жодне з них не сюрприз.
-- [ ] Розумію, чому живий режим написано, але позначено `НЕ ПЕРЕВІРЕНО`, і що саме
-      довелося б зробити, щоб зняти цю позначку.
-- [ ] Розумію, чому голос **не** зшито із сервісом етапу 6 і коли це має сенс зробити.
+- [ ] I can name the stage's seven limits — and none of them is a surprise.
+- [ ] I understand why live mode is written but marked `NOT EVALUATED`, and what exactly it
+      would take to remove that mark.
+- [ ] I understand why voice is **not** stitched into stage 6's service and when doing so
+      makes sense.

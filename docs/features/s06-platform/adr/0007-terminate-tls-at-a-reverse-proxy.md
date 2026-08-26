@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0007 — TLS завершується на зворотному проксі
+# 0007 — TLS terminates at a reverse proxy
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -15,48 +15,48 @@ ticket: "n/a"
 
 ## Context
 
-Сервіс має відповідати за HTTPS. Варіантів рівно два: сертифікат усередині застосунку або
-зворотний проксі перед ним.
+The service has to answer over HTTPS. There are exactly two options: a certificate inside the
+application, or a reverse proxy in front of it.
 
-Питання виглядає інфраструктурним і має пряме навчальне значення: читач має побачити, що
-**сервіс не знає про TLS нічого** — і чому це правильно.
+The question looks like infrastructure and has a direct teaching value: the reader has to see that
+**the service knows nothing about TLS** — and why that is right.
 
 ## Decision drivers
 
-- Сертифікати мають оновлюватись автоматично; ручне оновлення забувають.
-- Перенаправлення з незашифрованого зʼєднання — вимога AC-08.
-- Локально ні домену, ні публічного сертифіката немає (C-3).
-- Застосунок, що вміє TLS, доводиться перезапускати на кожне оновлення сертифіката.
+- Certificates have to renew automatically; a manual renewal gets forgotten.
+- Redirecting from an unencrypted connection is required by AC-08.
+- Locally there is neither a domain nor a public certificate (C-3).
+- An application that speaks TLS has to be restarted on every certificate renewal.
 
 ## Considered options
 
-1. **Зворотний проксі** з автоматичним отриманням сертифіката.
-2. **TLS усередині застосунку** з файлами сертифікатів.
-3. **Проксі + окремий клієнт центру сертифікації** у вигляді ще одного процесу.
+1. **A reverse proxy** that obtains the certificate automatically.
+2. **TLS inside the application**, with certificate files.
+3. **A proxy plus a separate certificate-authority client** as one more process.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 змішує дві задачі в одному процесі: сервіс починає знати про домени й строки
-дії, а оновлення сертифіката стає перезапуском сервісу.
+Option 2 mixes two jobs in one process: the service starts knowing about domains and expiry dates,
+and renewing a certificate becomes restarting the service.
 
-Option 3 — це Option 1, розібраний на дві частини вручну. Має сенс там, де проксі вже
-стоїть і його не обирають; тут обирають.
+Option 3 is Option 1 taken apart into two pieces by hand. It makes sense where the proxy is already
+in place and nobody is choosing it; here it is being chosen.
 
-**Локально працює той самий проксі** з внутрішнім сертифікатом. Це важливо: `smoke.sh`
-виконує **той самий** перелік проти localhost і проти домену, тож механіка перевіряється
-локально. Неперевіреним лишається рівно одне — довіра до сертифіката з боку публічного
-центру, і саме воно позначається `НЕ ПЕРЕВІРЕНО`.
+**Locally the same proxy runs** with an internal certificate. That matters: `smoke.sh` runs **the
+same** list against localhost and against the domain, so the mechanics are checked locally. Exactly
+one thing stays unverified — trust in the certificate from a public authority, and that is what
+gets marked `NOT EVALUATED`.
 
 ## Consequences
 
 **Positive**
-- Застосунок про TLS не знає нічого; сертифікат оновлюється без його перезапуску.
-- Той самий конфігураційний файл працює локально й на домені.
-- Перенаправлення й заголовки безпеки — два рядки, а не бібліотека.
+- The application knows nothing about TLS; the certificate renews without restarting it.
+- The same configuration file works locally and on the domain.
+- The redirect and the security headers are two lines, not a library.
 
 **Negative**
-- Ще один контейнер у розгортанні.
-- Локальний сертифікат самопідписаний, тож клієнт має його або приймати, або ігнорувати —
-  і `smoke.sh` мусить це розрізняти явно, а не мовчки вимикати перевірку.
+- One more container in the deployment.
+- The local certificate is self-signed, so the client has either to accept it or to ignore it — and
+  `smoke.sh` has to draw that distinction explicitly, rather than switching the check off silently.

@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-23"
 feature_size: "S"
 ticket: "n/a"
 ---
 
-# 0002 — Підтверджувати незворотну дію окремим повторним запуском
+# 0002 — Confirm an irreversible action by a separate repeat run
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -15,59 +15,64 @@ ticket: "n/a"
 
 ## Context
 
-Стаття-джерело називає третім і найнебезпечнішим режимом відмови ситуацію, коли агент
-самостійно виконує незворотну дію, хибно зрозумівши задачу. Етап 1 вводить гейт підтвердження
-як окремий захисний механізм; спосіб підтвердження треба зафіксувати, бо з тексту специфікації
-два інженери напишуть різні речі — один інтерактивний запит, інший прапорець.
+The source article names as its third and most dangerous failure mode the situation where an
+agent performs an irreversible action on its own after misreading the task. Stage 1 introduces
+the confirmation gate as a separate guard; the manner of confirming has to be fixed, because from
+the specification's text two engineers would write different things — one an interactive prompt,
+the other a flag.
 
-Гейт успадковують етапи 6 і 10, де незворотним інструментом стає справжнє оформлення повернення
-на публічному ендпоінті.
+The gate is inherited by stages 6 and 10, where the irreversible tool becomes a real return
+filed through a public endpoint.
 
 ## Decision drivers
 
-- Перевірка етапу має лишатися детермінованою й офлайн (ADR репозиторію 0006).
-- CI не має інтерактивного вводу: `input()` там читає кінець потоку і падає.
-- Читач має побачити гейт як **явний стан системи**, а не як діалог, що промайнув у консолі.
-- Механізм має масштабуватись до етапу 6, де взагалі немає консолі й людини поруч.
+- The stage's checks have to stay deterministic and offline (repository ADR 0006).
+- CI has no interactive input: `input()` there reads end-of-stream and fails.
+- The reader has to see the gate as **an explicit state of the system**, not as a dialogue that
+  flashed past in the console.
+- The mechanism has to scale to stage 6, where there is no console and no human nearby at all.
 
 ## Considered options
 
-1. **Два окремі прогони** — перший зупиняється й повідомляє, як підтвердити; другий виконує.
-2. **Інтерактивний запит y/n у консолі** — ближче до того, як це виглядає в CLI-агентах.
-3. **Callback-функція підтвердження** — цикл приймає викликаний об'єкт; демо передає
-   інтерактивний, перевірка — сталий.
+1. **Two separate runs** — the first stops and states how to confirm; the second executes.
+2. **An interactive y/n prompt in the console** — closer to how it looks in CLI agents.
+3. **A confirmation callback** — the loop takes a callable; the demo passes an interactive one,
+   the checks a constant one.
 
 ## Decision outcome
 
-**Chosen:** Option 1. Вирішальний аргумент — не простота, а **відтворюваність**: підтвердження
-стає звичайним аргументом прогону, тож перевірка описує обидва стани трьома рядками, без
-мокування стандартного вводу. Варіант 2 змусив би вводити мокування `stdin` на першому ж етапі
-курсу — це перша магія, якої читач не зрозуміє, і вона з'явилася б заради косметики.
+**Chosen:** Option 1. The deciding argument is not simplicity but **reproducibility**:
+confirmation becomes an ordinary argument of the run, so a check describes both states in three
+lines, with no mocking of standard input. Option 2 would force mocking `stdin` into the very
+first stage of the course — the first piece of magic the reader would not understand, and it
+would have appeared for the sake of cosmetics.
 
-Варіант 3 технічно найкращий і саме до нього етап 6 і прийде — але на етапі 1 він вводить
-поняття callback раніше, ніж читач побачив звичайний виклик функції. Свідомо відкладено.
+Option 3 is technically the best and is exactly where stage 6 will end up — but at stage 1 it
+introduces the notion of a callback before the reader has seen an ordinary function call.
+Deliberately deferred.
 
 ## Consequences
 
 **Positive**
-- Перевірка гейта пишеться без жодного мокування — два виклики з різним аргументом.
-- Гейт видно як стан, а не як подію: перший прогін лишає в трейсі запис «дію не виконано».
-- Працює однаково в терміналі, у CI та в імпортованому вигляді.
+- The gate's check is written with no mocking at all — two calls with a different argument.
+- The gate is visible as a state, not as an event: the first run leaves a record in the trace
+  saying "the action was not performed".
+- It works identically in a terminal, in CI and when imported.
 
 **Negative**
-- Менш схоже на живий CLI-агент, до якого читач звик. Урок має це прямо назвати, інакше
-  виглядатиме як недоробка.
-- Два прогони означають, що стан підтвердження не переживає прогін — для етапу 1 це неважливо,
-  для етапу 6 знадобиться справжнє зберігання.
+- Less like the live CLI agent the reader is used to. The lesson has to name that outright, or it
+  will look like an unfinished feature.
+- Two runs mean the confirmation state does not survive the run — irrelevant for stage 1, but
+  stage 6 will need real storage.
 
 **Neutral**
-- Перехід на callback (варіант 3) — заміна одного параметра; підготовлений, але не зроблений.
-- Познака незворотності живе в реєстрі інструментів, а не списком імен у циклі, тож додати
-  четвертий незворотний інструмент можна без правки циклу.
+- Moving to a callback (option 3) is a swap of one parameter; prepared but not done.
+- The irreversibility flag lives in the tool registry rather than as a list of names inside the
+  loop, so a fourth irreversible tool can be added without editing the loop.
 
 ## Links
 
-- Спека: [[../spec.md]] AC-04, §6.1 (abuse cases)
+- Spec: [[../spec.md]] AC-04, §6.1 (abuse cases)
 - SAD: [[../sad.md]] §4, §6 (flow 2), §8
-- Стаття-джерело: [What is an AI Agent? The Simplest Explanation You’ll Find](https://blog.gopenai.com/what-is-an-ai-agent-the-simplest-explanation-youll-find-e7b176a31c44) — режим відмови 3
-- Пов'язані ADR: [[0001-split-stage-into-four-responsibility-modules]]
+- Stage article: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/three_guards_every_agent_loop_needs) — failure mode 3
+- Related ADRs: [[0001-split-stage-into-four-responsibility-modules]]

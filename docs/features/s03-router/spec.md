@@ -1,6 +1,6 @@
 ---
 status: Draft
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "S"
@@ -8,301 +8,311 @@ feature_size: "S"
 
 # Spec — s03-router
 
-> **Glossary:** [CONTEXT](../../../CONTEXT.md) (ролі + доменні об'єкти), [GLOSSARY](../../../GLOSSARY.md) (терміни курсу)
-> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §9 (s03) · `CURRICULUM.md` · `PLAYBOOK.md` · етапи 1–2 як зразок структури й як джерело спеціалістів · стаття-джерело #3 (Multi-Agent Router with LangGraph)
+> **Glossary:** [CONTEXT](../../../CONTEXT.md) (roles + domain objects), [GLOSSARY](../../../GLOSSARY.md) (course terms)
+> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §9 (s03) · `CURRICULUM.md` · `PLAYBOOK.md` · stages 1–2 as the structural model and as the source of the specialists · source article #3 (Multi-Agent Router with LangGraph)
 
 ## 1. Context
 
-Після етапів 1–2 у Learner є агент із циклом, трьома захистами й пошуком по базі знань. Далі
-починається спокуса, яку проходять усі: додати цьому агентові ще інструментів. Потім ще. Опис
-кожного йде в той самий промпт, реєстр росте, і в якийсь момент модель починає обирати гірше,
-ніж обирала на п'яти інструментах.
+After stages 1–2 the Learner has an agent with a loop, three safeguards and search over a
+knowledge base. What follows is the temptation everybody goes through: give that agent more
+tools. Then a few more. Every description goes into the same prompt, the registry grows, and at
+some point the model starts choosing worse than it did with five tools.
 
-Найпоширеніша реакція на це — переписати промпт. Вона не працює, бо проблема не в промпті:
-одна модель тримає в голові один опис задачі, і що ширший той опис, то розмитіший вибір.
+The commonest reaction is to rewrite the prompt. It does not work, because the problem is not in
+the prompt: one model holds one description of the task in its head, and the broader that
+description, the blurrier the choice.
 
-**Supervisor — це той самий агент, у якого інструменти є агентами.** Одне речення, і воно ж
-головне, що має лишитись після етапу. Ніякої нової архітектури не з'являється: той самий цикл
-етапу 1, той самий реєстр, просто за назвою інструмента стоїть не функція, а інший агент зі
-своїм вузьким набором.
+**A supervisor is that same agent, with agents for tools.** One sentence, and it is also the main
+thing that should survive the stage. No new architecture appears: the same loop as stage 1, the
+same registry — it is just that behind a tool's name stands another agent with its own narrow set
+rather than a function.
 
-Обраний підхід: **спершу власний міні-граф на ~60 рядків, потім той самий результат на
-LangGraph.** Порядок навмисний. Читач, який побачив LangGraph першим, запам'ятає його як
-магію; читач, який спершу написав маршрутизацію сам, побачить у бібліотеці впізнавані частини
-й зрозуміє, за що саме платить.
+The chosen approach: **our own mini-graph of ~60 lines first, then the same result on
+LangGraph.** The order is deliberate. A reader who sees LangGraph first will remember it as
+magic; a reader who wrote the routing themselves first will see recognisable parts in the library
+and understand exactly what they are paying for.
 
-Етап додає до курсу **два уроки, яких немає в статті-джерелі**, і обидва з практики: рівень
-доступу питальника мусить пережити передачу задачі спеціалісту, і цикл ревізій без ліміту —
-це рахунок, а не якість. Обидва стають окремими критеріями приймання.
+The stage adds **two lessons that are not in the source article**, both from practice: the
+asker's access level has to survive the handoff of a task to a specialist, and a revision loop
+with no limit is a bill, not quality. Both become acceptance criteria of their own.
 
-Ухвалено на глибині інтерв'ю `easy`: рішення зафіксовані в дизайн-специфікації курсу.
-Прийняті припущення — у §8.
+Adopted at interview depth `easy`: the decisions are pinned in the course design specification.
+The assumptions taken are in §8.
 
 ## 2. Goals
 
-- Читач може пояснити, чому один роздутий агент програє трьом вузьким, і назвати межу, за якою
-  це починається.
-- Читач бачить схему стану як **рішення**, а не як структуру даних, і розуміє, чому змінити її
-  згодом дорожче за все інше в графі.
-- Читач має робочий чекліст «коли supervisor надлишковий» — бо в більшості випадків він саме
-  надлишковий.
+- The reader can explain why one bloated agent loses to three narrow ones, and can name the
+  boundary at which that starts.
+- The reader sees the state schema as a **decision** rather than as a data structure, and
+  understands why changing it later costs more than anything else in the graph.
+- The reader has a working checklist for "when a supervisor is superfluous" — because in most
+  cases it is exactly that.
 
 ## 3. Non-goals
 
-- **Не будуємо фреймворк.** Міні-граф існує, щоб показати механіку, і не претендує на
-  придатність. Порівняння фреймворків — окремий етап 9.
-- **Не робимо агентів автономнішими.** Спеціалісти лишаються вузькими; жоден не отримує права
-  викликати іншого спеціаліста напряму.
-- **Не додаємо пам'яті між запитами.** Стан живе один прогін; пам'ять — етап 5.
-- **Не виносимо спеціалістів у процеси чи сервіси.** Усе в одному процесі; мережа з'являється
-  на етапі 4 (MCP) і на етапі 6 (деплой).
-- **Не вчимо LangGraph.** Бібліотека тут — друга реалізація тієї самої задачі, щоб було з чим
-  порівняти власний код, а не предмет вивчення.
+- **We are not building a framework.** The mini-graph exists to show the mechanics and makes no
+  claim to fitness. Comparing frameworks is stage 9, separately.
+- **We are not making the agents more autonomous.** Specialists stay narrow; none of them gets
+  the right to call another specialist directly.
+- **We are not adding memory between requests.** The state lives for one run; memory is stage 5.
+- **We are not moving specialists into processes or services.** Everything is in one process; the
+  network appears at stage 4 (MCP) and at stage 6 (deployment).
+- **We are not teaching LangGraph.** The library is here as a second implementation of the same
+  task, so that there is something to compare our own code against — not as a subject of study.
 
 ## 4. User stories
 
-### US-01: Побачити маршрутизацію на власні очі
+### US-01: See routing with your own eyes
 
 **As a** Learner
-**I want** побачити, як шість різних запитів потрапляють до трьох різних спеціалістів
-**So that** маршрутизація перестала бути словом і стала видимою послідовністю кроків
+**I want** to see six different requests reach three different specialists
+**So that** routing stops being a word and becomes a visible sequence of steps
 
-### US-02: Зрозуміти, чому схема стану — найдорожче рішення
-
-**As a** Learner
-**I want** побачити, що саме лежить у стані й хто його читає
-**So that** я міг оцінити, у скільки обійдеться додати туди поле через півроку
-
-### US-03: Побачити, як зупиняється цикл ревізій
+### US-02: Understand why the state schema is the most expensive decision
 
 **As a** Learner
-**I want** побачити прогін, у якому спеціаліст не задовольнив supervisor'а, і той відправив
-задачу назад — доти, доки не спрацював ліміт
-**So that** я будував цикли з лімітом одразу, а не після рахунку
+**I want** to see what exactly lies in the state and who reads it
+**So that** I can judge what it will cost to add a field to it six months from now
 
-### US-04: Побачити запит, для якого спеціаліста немає
-
-**As a** Learner
-**I want** поставити питання поза компетенцією всіх спеціалістів
-**So that** я знав, що система скаже чесно, а не вигадає маршрут
-
-### US-05: Переконатися, що права доступу переживають передачу
+### US-03: See how the revision loop stops
 
 **As a** Learner
-**I want** побачити, що рівень доступу питальника доїжджає до спеціаліста знань незміненим
-**So that** передача задачі не ставала місцем, де контроль доступу тихо зникає
+**I want** to see a run in which a specialist did not satisfy the supervisor and the task went
+back — until the limit fired
+**So that** I build loops with a limit from the start, rather than after the bill
 
-### US-06: Отримати те саме на LangGraph
-
-**As a** Learner
-**I want** запустити ту саму задачу на LangGraph і порівняти маршрут
-**So that** я бачив, що бібліотека робить те саме, і розумів, за що плачу залежністю
-
-### US-07: Дійти до рішення «чи потрібен тут supervisor»
+### US-04: See a request for which there is no specialist
 
 **As a** Learner
-**I want** чекліст, який на конкретній ситуації дає одну відповідь
-**So that** я не будував граф із трьох агентів там, де вистачає одного з трьома інструментами
+**I want** to ask a question outside the competence of every specialist
+**So that** I know the system will say so honestly rather than invent a route
 
-### US-08: Перевірити маршрутизацію детерміновано
+### US-05: Confirm that access rights survive the handoff
 
 **As a** Learner
-**I want** прогнати перевірки офлайн і без ключа
-**So that** я міг ламати код і бачити, що саме зламалось
+**I want** to see the asker's access level arrive at the knowledge specialist unchanged
+**So that** the handoff of a task does not become the place where access control quietly
+disappears
+
+### US-06: Get the same thing on LangGraph
+
+**As a** Learner
+**I want** to run the same task on LangGraph and compare the route
+**So that** I can see that the library does the same thing, and understand what I am paying for
+with the dependency
+
+### US-07: Reach a decision on "is a supervisor needed here"
+
+**As a** Learner
+**I want** a checklist that gives one answer for a concrete situation
+**So that** I do not build a graph of three agents where one agent with three tools is enough
+
+### US-08: Check routing deterministically
+
+**As a** Learner
+**I want** to run the checks offline and with no key
+**So that** I can break the code and see exactly what broke
 
 ## 5. Acceptance criteria
 
 ### AC-01 (US-01) — happy path
 
-**Given** шість запитів NovaShop: два про замовлення, два про правила магазину, два про
-підрахунок сум
-**When** Learner запускає демо
-**Then** кожен запит потрапляє до **очікуваного** спеціаліста, і маршрут кожного видно в
-консолі як послідовність вузлів; жоден запит не обробляється двома спеціалістами одночасно
+**Given** six NovaShop requests: two about orders, two about the shop's rules, two about
+totalling sums
+**When** the Learner runs the demo
+**Then** every request reaches its **expected** specialist, and each one's route is visible in
+the console as a sequence of nodes; no request is handled by two specialists at once
 
 ### AC-02 (US-02) — domain invariant
 
-**Given** будь-який прогін графа
-**When** він завершився — успішно, лімітом чи відмовою
-**Then** стан містить лічильник передач, повний список пройдених вузлів і причину завершення;
-**жоден вузол не читає полів, яких немає у схемі стану**, і кожна передача записана
+**Given** any run of the graph
+**When** it has finished — successfully, on the limit, or with a refusal
+**Then** the state holds the handoff counter, the full list of visited nodes and the finish
+reason; **no node reads a field that is absent from the state schema**, and every handoff is
+recorded
 
 ### AC-03 (US-03) — error
 
-**Given** спеціаліст, чия відповідь не задовольняє supervisor'а, і ліміт ревізій
-**When** Learner запускає цей сценарій
-**Then** прогін завершується **на ліміті**, а не циклом без кінця; результат позначений як
-незавершений, названо кількість витрачених ревізій, і часткова відповідь не видається за
-готову
+**Given** a specialist whose answer does not satisfy the supervisor, and a revision limit
+**When** the Learner runs that scenario
+**Then** the run finishes **on the limit** rather than looping forever; the result is marked
+unfinished, the number of revisions spent is named, and a partial answer is not passed off as a
+finished one
 
 ### AC-04 (US-04) — error
 
-**Given** запит, який не належить жодному спеціалістові
-**When** supervisor його розглядає
-**Then** прогін завершується чесною відмовою з переліком доступних компетенцій; **жодного
-спеціаліста не викликано**, і у відповіді не з'являється вигаданої назви вузла
+**Given** a request that belongs to no specialist
+**When** the supervisor considers it
+**Then** the run finishes with an honest refusal listing the available competences; **no
+specialist is called**, and no invented node name appears in the answer
 
 ### AC-05 (US-05) — authorization
 
-**Given** питальник із рівнем доступу покупця й запит, найближчий документ до якого —
-внутрішній
-**When** supervisor передає задачу спеціалістові знань
-**Then** рівень доступу доїжджає до пошуку **незміненим**, і внутрішній документ у відповідь
-не потрапляє — ні через спеціаліста, ні через текст, який supervisor складає наприкінці
+**Given** an asker with a shopper's access level, and a request whose closest document is an
+internal one
+**When** the supervisor hands the task to the knowledge specialist
+**Then** the access level arrives at the search **unchanged**, and the internal document does not
+end up in the answer — neither through the specialist nor through the text the supervisor
+assembles at the end
 
-> Дзеркальна половина цієї властивості — окремий критерій AC-05b. Розділені навмисно: тест на
-> витік лишається зеленим, коли права загубилися й видача стала порожньою.
+> The mirror half of this property is a criterion of its own, AC-05b. Deliberately split: a leak
+> test stays green when the rights have been lost and the result set has gone empty.
 
 ### AC-02b (US-02) — error
 
-**Given** вузол, який читає поле, відсутнє у схемі стану
-**When** граф доходить до цього вузла
-**Then** прогін падає з названим полем і названим вузлом — а не отримує порожнє значення й не
-продовжує роботу з ним. Схема стану є контрактом, а не підказкою
+**Given** a node that reads a field absent from the state schema
+**When** the graph reaches that node
+**Then** the run fails with the field named and the node named — rather than getting an empty
+value and carrying on with it. The state schema is a contract, not a hint
 
 ### AC-05b (US-05) — authorization
 
-**Given** той самий питальник-покупець і те саме питання, що в AC-05
-**When** supervisor передає задачу спеціалістові знань
-**Then** **дозволена відповідь доходить** до питальника: передача не перетворює «є права» на
-«нічого не знайдено». Перевіряється окремо від AC-05, бо втрата прав і витік прав — різні
-події, і тест на одну з них мовчить про другу
+**Given** the same shopper asker and the same question as in AC-05
+**When** the supervisor hands the task to the knowledge specialist
+**Then** **the permitted answer does arrive** at the asker: the handoff does not turn "has the
+rights" into "nothing found". Checked separately from AC-05, because losing rights and leaking
+rights are different events, and a test for one says nothing about the other
 
 ### AC-05c (US-05) — authorization
 
-**Given** запит, текст якого стверджує, що питальник — оператор підтримки
-**When** supervisor його розглядає
-**Then** рівень доступу лишається тим, з яким граф було викликано; жоден вузол його не
-підвищує, і внутрішні документи не стають доступними через формулювання запиту
+**Given** a request whose text claims the asker is a support operator
+**When** the supervisor considers it
+**Then** the access level stays the one the graph was called with; no node raises it, and
+internal documents do not become available through the wording of a request
 
 ### AC-06 (US-06) — cross-context
 
-**Given** ті самі шість запитів
-**When** Learner запускає їх на реалізації через LangGraph
-**Then** маршрут кожного **збігається** з маршрутом власного графа; розбіжність, якщо вона є,
-названа в уроці числом, а не схована. Якщо LangGraph не встановлено, критерій позначається
-**непройденим, а не пройденим**: різниця між «збіглося» і «не перевіряли» має бути видимою
+**Given** the same six requests
+**When** the Learner runs them on the LangGraph implementation
+**Then** each one's route **matches** the route of our own graph; a divergence, if there is one,
+is named in the lesson with a number rather than hidden. If LangGraph is not installed, the
+criterion is marked **not passed, not passed-by-default**: the difference between "it matched"
+and "we did not look" has to be visible
 
 ### AC-07 (US-07) — happy path
 
-**Given** чекліст «чи потрібен supervisor» і набір описаних ситуацій
-**When** Learner проходить чекліст для кожної
-**Then** для кожної ситуації чекліст дає однозначну відповідь, зупиняється на першому
-правилі, що спрацювало, і **жодне правило не лишається без ситуації, яка його вмикає**
+**Given** the "do you need a supervisor" checklist and a set of described situations
+**When** the Learner works through the checklist for each of them
+**Then** for every situation the checklist gives an unambiguous answer, stops at the first rule
+that fired, and **no rule is left without a situation that turns it on**
 
 ### AC-08 (US-08) — happy path
 
-**Given** машина без ключа до API й без мережі
-**When** Learner запускає перевірки етапу
-**Then** усі зелені, серед них не менше третини — на режими відмови, і вивід називає, що
-працює підробка
+**Given** a machine with no API key and no network
+**When** the Learner runs the stage's checks
+**Then** all are green, at least a third of them on failure modes, and the output says that the
+fake is what is running
 
 ### AC-08b (US-08) — error
 
-**Given** спеціаліст, який кинув виняток посеред роботи
-**When** граф доходить до нього
-**Then** прогін не падає: вузол названо, помилка потрапляє у стан і в трейс, supervisor
-отримує це як результат кроку й вирішує далі сам
+**Given** a specialist that raised an exception mid-work
+**When** the graph reaches it
+**Then** the run does not fall over: the node is named, the error lands in the state and in the
+trace, the supervisor receives it as the result of a step and decides what to do next itself
 
 ## 6. Non-functional requirements
 
-| # | Вимога | Ціль | Як міряємо |
+| # | Requirement | Target | How we measure |
 |---|---|---|---|
-| NFR-1 | Розмір власного графа | ≤ 80 виконуваних рядків | підрахунок рядків у перевірці |
-| NFR-2 | Час уроку | ≤ 30 хв читання, ≤ 2500 слів | `wc -w` у перевірці звірки |
-| NFR-3 | Прогін перевірок | ≤ 5 с, офлайн, без ключа | замір у виводі `check_all` |
-| NFR-4 | Частка режимів відмови | ≥ 1/3 перевірок етапу | лічильник у перевірці |
-| NFR-5 | LangGraph необов'язковий | перевірки етапу зелені **без** встановленого LangGraph | прогін у CI без extra `[s03]` |
+| NFR-1 | Size of our own graph | ≤ 80 executable lines | line count in a check |
+| NFR-2 | Lesson time | ≤ 30 min of reading, ≤ 2500 words | `wc -w` in the reconciliation check |
+| NFR-3 | Check run | ≤ 5 s, offline, no key | measurement in the `check_all` output |
+| NFR-4 | Share of failure modes | ≥ 1/3 of the stage's checks | a counter in a check |
+| NFR-5 | LangGraph optional | the stage's checks are green **without** LangGraph installed | a CI run without the `[s03]` extra |
 
-NFR-5 — не зручність, а вимога курсу: читач має пройти етап до кінця, нічого не встановивши,
-і лише потім побачити бібліотеку.
+NFR-5 is not a convenience but a requirement of the course: the reader must be able to complete
+the stage having installed nothing, and only then see the library.
 
 ## 6.1 Security / privacy
 
-**Передача задачі — це місце, де права доступу зникають найтихіше.** Спеціаліст отримує
-задачу, а не питальника; якщо рівень доступу не передати явно, спеціаліст візьме дефолт. У
-кращому випадку це «нічого не знайдено» для того, кому можна; у гіршому — навпаки.
+**A handoff is the place where access rights disappear most quietly.** A specialist receives a
+task, not an asker; if the access level is not passed explicitly, the specialist will take the
+default. In the best case that is "nothing found" for someone who was allowed to see it; in the
+worst case, the reverse.
 
-Тому рівень доступу:
+Therefore the access level:
 
-- **є полем схеми стану**, а не аргументом, який хтось передає при виклику;
-- **не входить до опису жодного інструмента**, тобто модель не може його назвати чи змінити;
-- перевіряється **в обидва боки** — заборонене не дійшло і дозволене дійшло (урок етапу 2).
+- **is a field of the state schema**, not an argument somebody passes at call time;
+- **does not appear in any tool's description**, meaning the model can neither name it nor change
+  it;
+- is checked **in both directions** — the forbidden thing did not arrive and the permitted thing
+  did (the lesson of stage 2).
 
-**Абʼюз-кейс:** запит, сформульований так, щоб supervisor вирішив, що питальник — оператор.
-Це не має мати жодного ефекту: рівень доступу приходить із виклику графа, а не з тексту
-запиту, і жоден вузол не має права його підвищити.
+**Abuse case:** a request worded so that the supervisor decides the asker is an operator. This
+must have no effect at all: the access level comes from the graph call, not from the text of the
+request, and no node has the right to raise it.
 
 ## 7. Metrics / KPIs
 
-| # | Показник | Ціль |
+| # | Indicator | Target |
 |---|---|---|
-| QG-1 | Запити з AC-01, що дійшли до правильного спеціаліста | 6 із 6 |
-| QG-2 | Прогони, що завершились без явної причини завершення | 0 |
-| QG-3 | Розбіжність маршрутів між власним графом і LangGraph | 0 запитів, або названа числом |
-| QG-4 | Перевірки на режими відмови | ≥ 1/3 від усіх |
+| QG-1 | Requests from AC-01 that reached the right specialist | 6 out of 6 |
+| QG-2 | Runs that finished with no explicit finish reason | 0 |
+| QG-3 | Route divergence between our own graph and LangGraph | 0 requests, or named with a number |
+| QG-4 | Checks on failure modes | ≥ 1/3 of the total |
 
 ## 8. Open questions
 
-Немає відкритих питань, які блокують реалізацію.
+There are no open questions blocking implementation.
 
-### Прийняті припущення (глибина `easy`)
+### Assumptions taken (depth `easy`)
 
-Ухвалені без окремого запиту, на підставі дизайн-специфікації курсу. Кожне можна відхилити
-одним рядком, і тоді воно стає окремим питанням.
+Adopted without a separate request, on the basis of the course design specification. Each one can
+be rejected in a single line, at which point it becomes a question of its own.
 
-| # | Припущення | Підстава |
+| # | Assumption | Grounds |
 |---|---|---|
-| 1 | Три спеціалісти: замовлення, знання, підрахунки | Мінімум, на якому видно різницю маршрутів; менше — маршрутизація вироджується |
-| 2 | Спеціаліст замовлень — це агент етапу 1, спеціаліст знань — пошук етапу 2 | Етап має показати, що supervisor складається з уже написаного, а не з нового |
-| 3 | Маршрутизація рішенням моделі, не регулярками | Регулярний вираз ховає саме те, заради чого етап існує; детермінізм дає підробка |
-| 4 | Ліміт ревізій — конфігурований, дефолт малий | Той самий патерн, що й ліміт кроків на етапі 1 |
-| 5 | LangGraph — окремий extra `[s03]`, не базова залежність | NFR-5: етап проходиться без встановлення |
-| 6 | Чекліст «чи потрібен supervisor» — кодом, як `decision.py` етапу 2 | Проза й код не мають розходитись мовчки |
+| 1 | Three specialists: orders, knowledge, totals | The minimum at which the difference between routes is visible; any fewer and routing degenerates |
+| 2 | The orders specialist is the stage 1 agent, the knowledge specialist is the stage 2 search | The stage has to show that a supervisor is assembled from what is already written, not from something new |
+| 3 | Routing by a model's decision, not by regular expressions | A regular expression hides the very thing the stage exists for; determinism comes from the fake |
+| 4 | The revision limit is configurable, with a small default | The same pattern as the step limit at stage 1 |
+| 5 | LangGraph is a separate `[s03]` extra, not a base dependency | NFR-5: the stage can be completed without installing it |
+| 6 | The "do you need a supervisor" checklist lives in code, like stage 2's `decision.py` | Prose and code must not drift apart silently |
 
 ## Test plan
 
-Розмір S + маршрут `quick` → план живе тут.
+Size S + route `quick` → the plan lives here.
 
-**Рівні.** Етап не володіє зовнішньою залежністю: спеціалісти локальні, модель підроблена.
-`integration` і `contract` порожні **за побудовою**. Лишаються `unit` і `e2e`.
+**Levels.** The stage owns no external dependency: the specialists are local, the model is faked.
+`integration` and `contract` are empty **by construction**. That leaves `unit` and `e2e`.
 
-### Покриття критеріїв
+### Criteria coverage
 
-| AC | Тест | Рівень | Що доводить |
+| AC | Test | Level | What it proves |
 |---|---|---|---|
-| AC-01 | `six queries reach their expected specialists` | e2e | Шість запитів, шість очікуваних маршрутів, видимих у трейсі |
-| AC-02 | `state carries the handoff counter and the visited path` | unit | Стан несе лічильник, шлях і причину завершення |
-| AC-02b | `no node reads a field absent from the state schema` | unit | **ВІДМОВА.** Вузол, що читає невідоме поле, падає названо, а не мовчки дає `None` |
-| AC-03 | `revision loop stops at the limit` | unit | **ВІДМОВА.** Ліміт спрацював, ревізії полічені, результат позначений незавершеним |
-| AC-04 | `query with no specialist is refused honestly` | unit | **ВІДМОВА.** Жодного спеціаліста не викликано; назва вузла не вигадана |
-| AC-05 | `access level survives the handoff` | unit | **ВІДМОВА.** Внутрішній документ не дійшов до покупця |
-| AC-05b | `permitted answer also survives the handoff` | unit | **ВІДМОВА.** Дзеркальна: передача не перетворила «є права» на «не знайдено» |
-| AC-05c | `request text cannot raise the access level` | unit | **ВІДМОВА.** Абʼюз-кейс §6.1: рівень доступу приходить із виклику, не з тексту |
-| AC-06 | `langgraph route matches the hand-rolled one` | e2e | Ті самі шість запитів, ті самі маршрути; пропускається, якщо LangGraph не встановлено |
-| AC-07 | `supervisor checklist answers every situation` | unit | Кожна ситуація має одну відповідь; кожне правило має ситуацію |
-| AC-08 | `checks run offline and cover failure modes` | e2e | Прогін офлайн; частка відмов ≥ 1/3 |
-| AC-08b | `a specialist that raises does not kill the graph` | unit | **ВІДМОВА.** Вузол названо, помилка у стані й у трейсі |
+| AC-01 | `six queries reach their expected specialists` | e2e | Six requests, six expected routes, visible in the trace |
+| AC-02 | `state carries the handoff counter and the visited path` | unit | The state carries the counter, the path and the finish reason |
+| AC-02b | `no node reads a field absent from the state schema` | unit | **FAILURE.** A node reading an unknown field fails by name rather than silently yielding `None` |
+| AC-03 | `revision loop stops at the limit` | unit | **FAILURE.** The limit fired, the revisions are counted, the result is marked unfinished |
+| AC-04 | `query with no specialist is refused honestly` | unit | **FAILURE.** No specialist was called; the node name is not invented |
+| AC-05 | `access level survives the handoff` | unit | **FAILURE.** The internal document did not reach the shopper |
+| AC-05b | `permitted answer also survives the handoff` | unit | **FAILURE.** The mirror case: the handoff did not turn "has the rights" into "not found" |
+| AC-05c | `request text cannot raise the access level` | unit | **FAILURE.** The abuse case from §6.1: the access level comes from the call, not from the text |
+| AC-06 | `langgraph route matches the hand-rolled one` | e2e | The same six requests, the same routes; skipped if LangGraph is not installed |
+| AC-07 | `supervisor checklist answers every situation` | unit | Every situation has one answer; every rule has a situation |
+| AC-08 | `checks run offline and cover failure modes` | e2e | An offline run; the share of failure modes ≥ 1/3 |
+| AC-08b | `a specialist that raises does not kill the graph` | unit | **FAILURE.** The node is named, the error is in the state and in the trace |
 
-Кожен критерій відмови й авторизації має **власний рядок**.
+Every failure and authorization criterion has **a row of its own**.
 
-### Чого цей план свідомо не доводить
+### What this plan deliberately does not prove
 
-**AC-01 доводить, що маршрут правильний на підробленій моделі.** Справжня модель маршрутизує
-інакше й іноді гірше; це предмет вимірювання, тобто етапу 8. Ручний чекліст із реальним
-провайдером — в уроці.
+**AC-01 proves that the route is right on a faked model.** A real model routes differently and
+sometimes worse; that is a subject for measurement, which is to say for stage 8. The manual
+checklist against a real provider is in the lesson.
 
-**AC-06 не доводить, що LangGraph кращий чи гірший.** Він доводить, що результат той самий.
-Порівняння фреймворків — етап 9, і робити його тут означало б порівнювати на одному прикладі.
+**AC-06 does not prove that LangGraph is better or worse.** It proves that the result is the
+same. Comparing frameworks is stage 9, and doing it here would mean comparing on a single
+example.
 
-**AC-05b — найважливіший рядок таблиці**, і він тут із досвіду етапу 2. Без нього передача,
-яка втратила рівень доступу й звузила видачу до порожньої, пройшла б усі перевірки: витоку
-справді немає, просто відповідь зникла.
+**AC-05b is the most important row in the table**, and it is here from the experience of stage 2.
+Without it, a handoff that lost the access level and narrowed the result set to empty would pass
+every check: there really is no leak — the answer has simply disappeared.
 
-### Інтеграційна стратегія
+### Integration strategy
 
-`<!-- N/A: етап не володіє зовнішньою залежністю; спеціалісти й модель локальні -->`
+`<!-- N/A: the stage owns no external dependency; the specialists and the model are local -->`
 
-### Навантаження
+### Load
 
-`<!-- N/A: жоден NFR не несе числа пропускної здатності -->`
+`<!-- N/A: no NFR carries a throughput number -->`

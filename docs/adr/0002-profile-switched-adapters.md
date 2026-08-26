@@ -1,69 +1,70 @@
 ---
 status: Accepted
-owner: "Власник репозиторію"
+owner: "Repository owner"
 reviewers: []
 updated_at: "2026-08-22"
-feature_size: "n/a (фундаментальне рішення репозиторію)"
+feature_size: "n/a (foundational decision for the repository)"
 ticket: "n/a"
 ---
 
-# 0002 — Перемикати оточення адаптерами за APP_PROFILE, а не окремими кодовими базами
+# 0002 — Switch environments with adapters behind APP_PROFILE, not with separate codebases
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
-- **Deciders:** власник репозиторію
+- **Deciders:** repository owner
 
 ## Context
 
-Репозиторій має жити в двох режимах одночасно: навчальному (усе локально, безкоштовно,
-детерміновано, без API-ключа) і продакшн (той самий код на VM за HTTPS, з реальним LLM, Postgres,
-Redis, метриками). Це два дуже різні набори залежностей і поведінки для однієї й тієї ж логіки.
+The repository has to live in two modes at once: teaching (everything local, free,
+deterministic, no API key) and production (the same code on a VM behind HTTPS, with a real LLM,
+Postgres, Redis and metrics). Those are two very different sets of dependencies and behaviours
+for one and the same logic.
 
 ## Decision drivers
 
-- Читач має пройти весь курс без платіжної картки (карта: Constraints).
-- Той самий код має тримати реальний трафік — інакше читач вчиться на коді, який ніколи не деплоїли.
-- Перевірки мають бути детермінованими й офлайн (спека §5.3).
-- Різниця між режимами не повинна протікати в код уроку — інакше урок перестає бути про агентів
-  і стає про конфігурацію.
+- A reader must get through the whole course without a payment card (map: Constraints).
+- The same code has to carry real traffic — otherwise the reader learns on code nobody deployed.
+- Checks have to be deterministic and offline (spec §5.3).
+- The difference between modes must not leak into lesson code — otherwise the lesson stops being
+  about agents and becomes about configuration.
 
 ## Considered options
 
-1. **Один код + шар адаптерів, обраний через `APP_PROFILE=local|prod`** — сховища, LLM,
-   embeddings, trace мають по дві реалізації за спільним інтерфейсом.
-2. **Дві кодові бази (або дві гілки)** — «навчальна» і «продакшн».
-3. **Лише продакшн-режим** — читач одразу піднімає Postgres і платить за LLM.
+1. **One codebase plus an adapter layer chosen by `APP_PROFILE=local|prod`** — stores, LLM,
+   embeddings and tracing each have two implementations behind a shared interface.
+2. **Two codebases (or two branches)** — a "teaching" one and a "production" one.
+3. **Production mode only** — the reader brings up Postgres and pays for an LLM on day one.
 
 ## Decision outcome
 
-**Chosen:** Option 1. Варіант 2 розходиться за два тижні: виправлення в одній гілці не потрапляє
-в іншу, і навчальний код перестає відповідати тому, що реально задеплоєне — це руйнує головну
-обіцянку репозиторію. Варіант 3 відсікає більшість аудиторії на етапі 1.
+**Chosen:** Option 1. Option 2 diverges within a fortnight: a fix in one branch does not reach
+the other, and the teaching code stops matching what is actually deployed — which destroys the
+repository's central promise. Option 3 loses most of the audience at stage 1.
 
-Ключове обмеження, що робить це рішення робочим: `if PROFILE == ...` **заборонено** в коді етапу.
-Розгалуження живе рівно в одному місці — у фабриці адаптера в `shared/`.
+The constraint that makes this decision work: `if PROFILE == ...` is **forbidden** in stage code.
+The branching lives in exactly one place, the adapter factory in `shared/`.
 
 ## Consequences
 
 **Positive**
-- `scripts/check_all.py` проходить офлайн, без ключа, за секунди — і перевіряє **той самий** код,
-  що працює в проді.
-- Читач бачить у коді уроку доменну логіку, а не конфігурацію.
-- Додати третій профіль (наприклад `staging`) — це нова гілка у фабриці, не нова кодова база.
+- `scripts/check_all.py` passes offline, with no key, in seconds — and checks **the same** code
+  that runs in production.
+- The reader sees domain logic in lesson code, not configuration.
+- Adding a third profile (say `staging`) is a new branch in the factory, not a new codebase.
 
 **Negative**
-- Кожне сховище треба написати двічі: in-memory і Postgres/Redis. Це реальна подвійна робота.
-- Інтерфейс адаптера доводиться проєктувати раніше, ніж очевидно, який він має бути —
-  а помилку в ньому потім дорого виправляти.
-- Легко випадково «протекти» специфікою профілю (наприклад, покластися на порядок ключів у dict,
-  якого немає в SQL). Пом'якшується тим, що `check.py` етапів 6 і 10 ганяє обидва профілі.
+- Every store has to be written twice: in-memory and Postgres/Redis. That is genuine double work.
+- The adapter interface has to be designed before it is obvious what it should be — and a mistake
+  in it is expensive to fix later.
+- It is easy to leak profile-specific behaviour by accident (relying on dict key order, which SQL
+  does not guarantee). Mitigated by stages 6 and 10 running their checks against both profiles.
 
 **Neutral**
-- Продуктивність in-memory реалізацій нікого не цікавить — вони існують заради детермінізму,
-  не заради швидкості.
+- Nobody cares about the performance of the in-memory implementations — they exist for
+  determinism, not speed.
 
 ## Links
 
-- Спека: [[../../planning/2026-08-22-agentic-ai-course-design.md]] §5.1
-- Карта архітектури: [[../architecture-map.md]] §Conventions
-- Пов'язані ADR: [[0003-openai-compatible-llm-shim]], [[0004-postgres-pgvector-single-store]], [[0006-assert-checks-over-test-framework]]
+- Spec: [[../../planning/2026-08-22-agentic-ai-course-design.md]] §5.1
+- Architecture map: [[../architecture-map.md]] §Conventions
+- Related ADRs: [[0003-openai-compatible-llm-shim]], [[0004-postgres-pgvector-single-store]], [[0006-assert-checks-over-test-framework]]

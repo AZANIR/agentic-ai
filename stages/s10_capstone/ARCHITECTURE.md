@@ -1,121 +1,122 @@
-# Архітектура зібраного сервісу
+# Architecture of the assembled service
 
-Кожне рішення тут має **етап-джерело**, і посилання **звіряється кодом** (`arch.py`).
-Бібліографія, якої ніхто не перевіряє, старіє мовчки — у цьому репозиторії так уже сталося
-двічі, і обидва рази це знайшло рев'ю, а не автор.
+Every decision here has a **source stage**, and the citation is **verified by code** (`arch.py`).
+A bibliography nobody checks ages silently — in this repository that has already happened twice,
+and both times it was review that found it, not the author.
 
-Що перевірка стверджує: джерело **існує**. Чого не стверджує: що воно містить саме це рішення —
-для цього треба розуміти текст. Перше вже ловить увесь клас помилок, які тут траплялись.
+What the check asserts: the source **exists**. What it does not assert: that the source contains
+this particular decision — that would take understanding the text. The first already catches the
+whole class of errors that has occurred here.
 
-## Рішення й джерела
+## Decisions and their sources
 
-| Рішення | Джерело |
+| Decision | Source |
 |---|---|
-| Три воротарі: доступ, ліміт частоти, бюджет — до будь-якого виклику моделі | s06 |
-| Порівняння ключа стале за часом | s06 |
-| Відмова коштує нуль викликів моделі | s06 |
-| Метрики розділені за родом; лічильники подаються ззовні | s06 |
-| Цикл Plan → Act → Observe → Decide з лімітом кроків | s01 |
-| Гейт підтвердження на незворотні дії | s01 · ADR-0002 |
-| Аргументи інструмента валідуються до виклику | s01 |
-| Фільтр доступу застосовується ДО відбору, а не після | s02 |
-| Поріг подібності названий; нижче порога — відмова, не вигадка | s02 |
-| Індекс будується один раз, на старті сервісу | s02 |
-| Supervisor обирає гілку; назва звіряється з реєстром | s03 · ADR-0004 |
-| Цикл ревізій має лічильник, і лічильник живе у стані | s03 |
-| Чекліст із шести питань вирішує, що потрапляє в пам'ять | s05 |
-| Секрет перевіряється ПЕРЕД проханням запам'ятати | s05 |
-| Зіпсований рядок пам'яті названо й пропущено, не затерто | s05 |
-| Трейс пише ключ прогону з першого рядка | s09 · ADR-0008 |
-| Виконані рядки міряються трасуванням, не розміром пакета | s09 · ADR-0003 |
-| Прогрів перед виміром: імпорт не входить у ціну прогону | s09 |
-| Оцінювач читає трейси й дає три незалежні вердикти | s08 · ADR-0003 |
-| «Не оцінено» — третій стан, окремий від провалу | s08 · ADR-0006 |
-| Знаменник частки — усі кейси, а не лише оцінені | s08 |
-| Числа затримки друкуються разом з умовами, і умови ПЕРЕД числом | s07 |
-| Знайдений текст їде в модель за огорожею блоку даних | s02 |
-| HTTP-шар зібраного сервісу — застосунок етапу 6, не другий свій | s06 |
-| Одна VM, self-hosted, без керованих сервісів | s06 |
-| Резервна копія тому бази; секретів у ній немає | s06 |
+| Three gatekeepers: access, rate limit, budget — before any model call | s06 |
+| Key comparison is constant in time | s06 |
+| A refusal costs zero model calls | s06 |
+| Metrics are split by kind; counters are supplied from outside | s06 |
+| A Plan → Act → Observe → Decide loop with a step limit | s01 |
+| A confirmation gate on irreversible actions | s01 · ADR-0002 |
+| Tool arguments are validated before the call | s01 |
+| The access filter is applied BEFORE retrieval, not after | s02 |
+| The similarity threshold is named; below it, a refusal rather than an invention | s02 |
+| The index is built once, at service start | s02 |
+| The supervisor picks the branch; the name is checked against a registry | s03 · ADR-0004 |
+| The revision loop has a counter, and the counter lives in the state | s03 |
+| A six-question checklist decides what reaches memory | s05 |
+| A secret is checked BEFORE the request to remember | s05 |
+| A corrupted memory line is named and skipped, not overwritten | s05 |
+| The trace writes the run key from the first line | s09 · ADR-0008 |
+| Executed lines are measured by tracing, not by package size | s09 · ADR-0003 |
+| Warm-up before measuring: the import is not part of the price of a run | s09 |
+| The evaluator reads traces and gives three independent verdicts | s08 · ADR-0003 |
+| "Unscored" is a third state, separate from a failure | s08 · ADR-0006 |
+| The denominator of the ratio is every case, not only the scored ones | s08 |
+| Latency numbers are printed with their conditions, and the conditions come BEFORE the number | s07 |
+| Retrieved text reaches the model behind a data-block fence | s02 |
+| The HTTP layer of the assembled service is stage 6's application, not a second one of its own | s06 |
+| One VM, self-hosted, no managed services | s06 |
+| A backup of the database volume; it holds no secrets | s06 |
 
-## Власні рішення капстоуна
+## The capstone's own decisions
 
-Рішення без етапу-джерела дозволені — але стоять окремо й називають причину, чому джерела
-немає. Інакше «джерело є» і «джерела немає» злилися б в одне.
+Decisions without a source stage are allowed — but they stand apart and name the reason there is
+no source. Otherwise "there is a source" and "there is no source" would merge into one.
 
-| Рішення | Чому джерела немає |
+| Decision | Why there is no source |
 |---|---|
-| Гілка обирається грубою евристикою за словами, а не моделлю | Класифікатор етапу 6 кличе модель, а гілка потрібна ДО виклику: пошук має встигнути віддати контекст. Це нове обмеження, якого на етапі 6 не було |
-| Відповідь сервісу зветься `Reply`, а не `Answer` | Два різні класи `Answer` уже є в курсі (етапи 2 і 6). Третій зробив би плутанину помилкою на рівному місці |
-| Пошук виконується на КОЖНОМУ запиті, навіть коли гілка його не використає | Дає контекст усім гілкам однаково й робить внесок етапу 2 виміряним. Ціна: один зайвий пошук на запит; вона названа тут, а не схована |
+| The branch is picked by a crude word heuristic rather than by the model | Stage 6's classifier calls the model, and the branch is needed BEFORE that call: retrieval has to deliver context in time. This is a new constraint that stage 6 did not have |
+| The service's answer is called `Reply`, not `Answer` | Two different `Answer` classes already exist in the course (stages 2 and 6). A third would turn confusion into an error for no reason at all |
+| Retrieval runs on EVERY request, even when the branch will not use it | It gives every branch context on equal terms and makes stage 2's contribution measurable. The price is one extra retrieval per request; it is named here rather than hidden |
 
-## Що складання виявило
+## What assembly revealed
 
-Порожній розділ тут був би найпідозрілішим результатом: дев'ять модулів, спроєктованих
-незалежно, не стикуються ідеально.
+An empty section here would be the most suspicious possible outcome: nine modules designed
+independently do not join perfectly.
 
-- **Етап 6 імпортує етап 2 і виконує з нього нуль рядків.** `from stages.s02_rag.documents
-  import PUBLIC` — це константа рівня доступу, яка їде далі як аргумент. Пошук, ембеддинги,
-  фільтр доступу не працюють ніколи. Саме цей вимір і став тезою капстоуна: «імпортує» — не те
-  саме, що «використовує».
-- **Етап 5 вимагає `Situation`, якої сам не заповнює.** Чекліст приймає властивості вже
-  проставленими («класифікує людина»), тож етап 6 написав приватний `_looks_like`. Капстоун
-  відмовився писати третій класифікатор того самого й імпортував **приватне ім'я чужого
-  етапу** — це смердить, і саме тому стоїть тут, а не мовчки в коді.
-- **Два різні класи `Answer`.** Етапи 2 і 6 обидва назвали так свій результат, і значення в
-  них різні. Жоден із них не помилився поодинці; помилка з'являється рівно тоді, коли їх
-  ставлять поруч.
-- **`Memory` приймає шлях, а не сховище.** Карта архітектури назвала це неточністю ще на
-  етапі 6, і на етапі 10 вона нікуди не зникла: фабрика знову лишається зовні.
-- **Етап 1 розрізняє дві причини зупинки, сервіс хоче одну.** `stopped_by_limit` і
-  `blocked_tools` — окремі поля, і етап 1 має рацію, що їх розрізняє. Переклад коштує
-  перехідника, і це правильна ціна.
-- **Етап 4 не ввімкнувся.** Інструменти MCP потребують піднятого сервера; сервіс бере
-  інструменти етапу 1. Це не вада етапу 4 — це межа сценарію, у якому все має працювати
-  офлайн.
-- **Інструмент етапу 9 має пастку, яку капстоун упіймав власним прогоном.** `sys.settrace`
-  глобальний **на потік**, тож сім вкладених контекстів трасування затирали один одного, і
-  шість етапів із семи мовчки давали нуль. Симптом був тихий і правдоподібний: таблиця
-  друкувалась, числа були цілі. Виправлено одним проходом із розкладанням шляхів після виміру.
-- **Етап 9 «працював» одним рядком, і той рядок був самим приладом.** Він стояв серед частин і
-  давав ненульове число, поки прогін на порожній роботі не показав ту саму одиницю: вимикання
-  трасування у `finally` його ж лічильника. «Міряє» — не те саме, що «використовує», і ця
-  різниця точно така сама, як між «імпортує» й «використовує».
-- **Ціна складання рахувалася в іншій одиниці, ніж те, з чим її порівнювали.** Перехідники —
-  статично, за кодом; етапи — динамічно, за виконанням. У чисельнику стояло «є в коді», у
-  знаменнику «працює», і числа виглядали порівнянними. Це та сама підміна, проти якої написаний
-  увесь етап, — у самому виміру етапу.
-- **Огорожа блоку даних етапу 2 не доїхала до капстоуна.** Знайдений документ склеювався з
-  питанням через порожній рядок, тобто чужий текст ішов у модель без межі. Етап 2 має для цього
-  `OPEN_DATA`/`CLOSE_DATA` і **перевіряє** їх; капстоун обходив `build_prompt` і відкривав
-  наново щілину, яку етап 2 закрив.
-- **Етапи 6 і 10 домовлені формою, а не іменем.** `Reply` навмисно не зветься `Answer`, але
-  контракту `create_app` етапу 6 задовольняє повністю — тож другий деплой коштував нуль
-  перехідників. Одного поля бракувало (`retry_after`), і знайшлось воно не в проєкті, а на
-  першому ж запиті, що впав із `AttributeError`.
+- **Stage 6 imports stage 2 and executes zero of its lines.** `from stages.s02_rag.documents
+  import PUBLIC` is an access-level constant that travels on as an argument. Retrieval, embeddings
+  and the access filter never run at all. This measurement became the capstone's thesis:
+  "imports" is not the same as "uses".
+- **Stage 5 demands a `Situation` it does not fill in itself.** The checklist takes the properties
+  already set ("a human classifies"), so stage 6 wrote a private `_looks_like`. The capstone
+  refused to write a third classifier of the same thing and imported **a private name from another
+  stage** — that smells, and that is exactly why it stands here rather than silently in the code.
+- **Two different `Answer` classes.** Stages 2 and 6 both gave that name to their result, and the
+  meanings differ. Neither of them is wrong on its own; the error appears exactly when they stand
+  side by side.
+- **`Memory` takes a path, not a store.** The architecture map called this an imprecision back at
+  stage 6, and at stage 10 it has not gone anywhere: the factory is still on the outside.
+- **Stage 1 distinguishes two reasons for stopping, the service wants one.** `stopped_by_limit`
+  and `blocked_tools` are separate fields, and stage 1 is right to distinguish them. The
+  translation costs an adapter, and that is the correct price.
+- **Stage 4 was not wired in.** MCP tools need a running server; the service takes stage 1's
+  tools. This is not a defect of stage 4 — it is the boundary of a scenario in which everything
+  must work offline.
+- **Stage 9's instrument has a trap that the capstone caught with its own run.** `sys.settrace` is
+  global **per thread**, so seven nested tracing contexts overwrote one another, and six stages out
+  of seven silently reported zero. The symptom was quiet and plausible: the table printed, the
+  numbers were whole. Fixed with a single pass that splits paths after the measurement.
+- **Stage 9 "worked" with one line, and that line was the instrument itself.** It sat among the
+  parts and produced a non-zero number until a run over empty work produced the same one: tracing
+  being switched off in the `finally` of its own counter. "Measures" is not the same as "uses",
+  and the distance is exactly the same as between "imports" and "uses".
+- **The price of assembly was counted in a different unit from what it was compared against.**
+  Adapters statically, from the code; stages dynamically, from execution. The numerator said "is
+  in the code", the denominator said "runs", and the numbers looked comparable. That is the very
+  substitution the whole stage is written against — inside the stage's own measurement.
+- **Stage 2's data-block fence did not reach the capstone.** The retrieved document was glued to
+  the question with a blank line, so foreign text went to the model with no boundary. Stage 2 has
+  `OPEN_DATA`/`CLOSE_DATA` for this and **checks** them; the capstone bypassed `build_prompt` and
+  reopened the gap stage 2 had closed.
+- **Stages 6 and 10 agree by shape, not by name.** `Reply` deliberately is not called `Answer`,
+  yet it satisfies stage 6's `create_app` contract completely — which is why the second deploy
+  cost zero adapters. One field was missing (`retry_after`), and it turned up not in the design but
+  on the very first request, which failed with `AttributeError`.
 
-## Обвіс і його походження
+## Operational wrapping and where it came from
 
-| Пункт | Джерело |
+| Item | Source |
 |---|---|
-| Автентифікація за ключем | s06 |
-| Ліміт частоти на власника, не на сервіс | s06 |
-| Бюджетний запобіжник до витрати, не після | s06 |
-| Метрики за родом запиту й витратами | s06 |
-| Трасування кроків із ключем прогону | s09 |
-| Зворотний проксі, TLS, перенаправлення | s06 |
-| Резервна копія тому бази | s06 |
-| CI без секретів, офлайн | s06 |
+| Key authentication | s06 |
+| A rate limit per owner, not per service | s06 |
+| A budget guard before the spend, not after | s06 |
+| Metrics by request kind and by spend | s06 |
+| Step tracing with a run key | s09 |
+| Reverse proxy, TLS, redirects | s06 |
+| A backup of the database volume | s06 |
+| CI with no secrets, offline | s06 |
 
-## Свідомо не ввімкнено
+## Deliberately not wired in
 
-| Частина | Причина |
+| Part | Reason |
 |---|---|
-| Голос (етап 7) | Не додає нового висновку, додає залежність на гігабайти й робить етап непрохідним офлайн |
-| Інструменти MCP (етап 4) | Потребують піднятого сервера; офлайн-сценарій цього не дозволяє |
-| Фреймворки (етап 9) | Етап 9 тут — **прилад**, а не спосіб оркестрації. Він довго стояв серед частин і давав рівно одиницю; `measure(lambda: None)` показав ту саму одиницю — це вимикання трасування у `finally` його ж лічильника. Прилад міряв сам себе |
+| Voice (stage 7) | Adds no new conclusion, adds a dependency measured in gigabytes and makes the stage impassable offline |
+| MCP tools (stage 4) | Need a running server; the offline scenario does not allow it |
+| Frameworks (stage 9) | Stage 9 here is an **instrument**, not a way of orchestrating. It stood among the parts for a long time and produced exactly one line; `measure(lambda: None)` produced the same one — tracing being switched off in the `finally` of its own counter. The instrument was measuring itself |
 
-Нуль виконаних рядків для цих частин — **рішення**, а не помилка. Саме тому вони стоять в
-окремому переліку й не рахуються частинами складання. Перелік звіряється з кодом:
-`assemble.NOT_WIRED` і ця таблиця мусять називати ті самі етапи, і порожній перелік
-червонить набір — інакше «нуль за рішенням» і «нуль за недоглядом» знову стають одним.
+Zero executed lines for these parts is a **decision**, not an error. That is exactly why they sit
+in a separate list and are not counted as parts of the assembly. The list is reconciled with the
+code: `assemble.NOT_WIRED` and this table must name the same stages, and an empty list reddens the
+suite — otherwise "zero by decision" and "zero by oversight" become one thing again.

@@ -1,6 +1,6 @@
 ---
 id: T9
-title: "Терміни етапу в глосарій, статус етапу в програму"
+title: "The stage's terms into the glossary, the stage's status into the curriculum"
 layer: "docs"
 deps: ["T7"]
 acs: []
@@ -10,25 +10,30 @@ estimate: "S"
 status: "todo"
 ---
 
-# T9 — Терміни етапу в глосарій, статус етапу в програму
+# T9 — The stage's terms into the glossary, the stage's status into the curriculum
 
 ## Why
 
-Критерії завершеності етапу №7 і №8 у [CURRICULUM.md](../../../../CURRICULUM.md). Без цього наступні етапи вводять ті самі терміни заново.
+Stage completion criteria №7 and №8 in [CURRICULUM.md](../../../../CURRICULUM.md). Without this
+the following stages introduce the same terms all over again.
 
 ## What
 
-Перенести терміни з `sad.md` §12 у `GLOSSARY.md` (step, tool registry, guard, confirmation gate, scenario, rejection) і звірити 100% покриття термінів уроку. Оновити статус етапу 1 на ✅ у `CURRICULUM.md` і статус компонентів у README. Перезапустити `survey` у brownfield-режимі: карта має вказувати на реальні `file:line` замість посилань на спеку.
+Move the terms from `sad.md` §12 into `GLOSSARY.md` (step, tool registry, guard, confirmation
+gate, scenario, rejection) and reconcile 100% coverage of the lesson's terms. Update the status of
+stage 1 to ✅ in `CURRICULUM.md` and the component statuses in the README. Re-run `survey` in
+brownfield mode: the map has to point at real `file:line` locations instead of references to the
+spec.
 
 ## Definition of Done
 
-- [ ] Кожен виділений термін уроку має визначення в глосарії (KPI 100%)
-- [ ] Статус етапу 1 оновлено в CURRICULUM.md і обох README
-- [ ] Карта архітектури перезнята в brownfield-режимі
-- [ ] Усі посилання резолвляться
+- [ ] Every highlighted term of the lesson has a glossary definition (KPI 100%)
+- [ ] The status of stage 1 is updated in CURRICULUM.md and in both READMEs
+- [ ] The architecture map is re-taken in brownfield mode
+- [ ] All links resolve
 
 ## Notes
 
-Остання задача етапу: закриває пункти 7 і 8 критеріїв завершеності.
+The stage's last task: it closes items 7 and 8 of the completion criteria.
 
-Блокується: T7
+Blocked by: T7

@@ -1,60 +1,62 @@
-# 0007 · Розклад має три доданки, а не два
+# 0007 · The breakdown has three terms, not two
 
-- Статус: Accepted
-- Дата: 2026-08-25
-- Контекст: етап 7 (голос), AC-01, AC-01b
+- Status: Accepted
+- Date: 2026-08-25
+- Context: stage 7 (voice), AC-01, AC-01b
 
-## Контекст
+## Context
 
-Головний інваріант етапу звучав так: **сума кроків дорівнює загальному часу**. У батчевому
-конвеєрі це правда й доводиться одним рядком.
+The stage's main invariant used to read: **the sum of the steps equals the total time**. In the
+batch pipeline that is true and is proved in one line.
 
-У стрімінговому — ні, і причина не в помилці реалізації, а в тому, що учасників стало троє.
-Між `yield` і наступним кроком керування має **споживач**: сокет пише кадр у мережу, сторінка
-малює рядок, тест рахує. Цей час минає на тому самому годиннику, але це не робота конвеєра.
+In the streaming one it is not, and the reason is not an implementation bug but that there are
+now three participants. Between a `yield` and the next step, control belongs to the **consumer**:
+the socket writes a frame into the network, the page draws a line, the test counts. That time
+passes on the same clock, but it is not the pipeline's work.
 
-Секундомір, що міряє кожен крок «від попередньої мітки», приписував паузу споживача
-**наступному** кроку. Заміряно: споживач, що витрачає секунду між фрагментами, отримував
-розклад, де крок «відповідь моделі» коштує 2750 мс — при моделі, що спала 750. Сума при цьому
-сходилась із загальним часом ідеально, тож інваріант був зелений, а розклад брехав.
+A stopwatch that measures every step "from the previous mark" billed the consumer's pause to the
+**next** step. Measured: a consumer that spends a second between chunks got a breakdown where the
+"model reply" step costs 2750 ms — with a model that slept 750. The sum reconciled with the total
+time perfectly, so the invariant was green and the breakdown lied.
 
-Найдорожчим кроком ставав той, після якого найдовше думав браузер.
+The most expensive step became whichever one the browser thought after the longest.
 
-## Рішення
+## Decision
 
-Інваріант пишеться з трьома доданками:
+The invariant is written with three terms:
 
-    сума кроків + віддача споживачеві + не приписане нікому = загальний час
+    sum of steps + handover to the consumer + unattributed = total time
 
-Третій доданок має бути **нулем**. `Timing.handover` накопичується явними викликами
-`watch.handover()` у точках, де конвеєр віддав фрагмент і чекає; `Timing.unaccounted()`
-рахує залишок.
+The third term has to be **zero**. `Timing.handover` accumulates through explicit
+`watch.handover()` calls at the points where the pipeline has delivered a chunk and is waiting;
+`Timing.unaccounted()` counts the remainder.
 
-`total` НЕ обчислюється як сума частин. Обчислений total зробив би закон збереження
-тавтологією й перестав би ловити крок, який забули поміряти, — тобто рівно те, заради чого
-закон існує. Він береться з годинника незалежно.
+`total` is NOT computed as the sum of the parts. A computed total would make the conservation law
+a tautology and would stop catching a step somebody forgot to measure — that is, exactly what the
+law exists for. It is taken from the clock independently.
 
-## Наслідки
+## Consequences
 
-**Добре.** Розклад сходиться на будь-якому споживачі, а не лише на швидкому. Крок моделі
-дорівнює тому, скільки працювала модель, — це можна звірити з трейсом. Перевірка ганяє
-навмисно повільного споживача, тож дефект ловиться там, де він і живе.
+**Good.** The breakdown reconciles on any consumer, not only on a fast one. The model's step
+equals how long the model actually worked — that can be reconciled against the trace. The check
+runs a deliberately slow consumer, so the defect is caught where it lives.
 
-**Ціна.** У конвеєрі зʼявився виклик, який легко забути дописати в новому місці віддачі.
-Захист — сам інваріант: забутий `handover()` дає ненульовий третій доданок і червону
-перевірку, а не тихий зсув числа. Мутація 13 закріплює це.
+**The price.** The pipeline gained a call that is easy to forget to add at a new delivery point.
+The guard is the invariant itself: a forgotten `handover()` gives a non-zero third term and a red
+check, not a quiet shift in the number. Mutation 13 pins this down.
 
-**Що це коштувало би без рішення.** Розклад, що не сходиться, гірший за відсутній: у нього
-вірять. Розклад, що сходиться неправильно, гірший удвічі — його ще й неможливо запідозрити.
+**What this would have cost without the decision.** A breakdown that does not reconcile is worse
+than no breakdown: it gets believed. A breakdown that reconciles wrongly is twice as bad — on top
+of that, it cannot even be suspected.
 
-## Альтернативи
+## Alternatives considered
 
-**Лишити два доданки й міряти лише швидких споживачів.** Дефект невидимий рівно доти, доки
-хтось не підключить справжню мережу. Тобто до продакшну.
+**Keep two terms and measure only fast consumers.** The defect is invisible exactly until
+somebody plugs in a real network. That is, until production.
 
-**Виключати час споживача, зупиняючи годинник на `yield`.** Тоді `total` перестає бути
-реальним часом прогону, і число «скільки це тривало для людини» зникає — а воно й є тезою
-етапу.
+**Exclude the consumer's time by stopping the clock on `yield`.** Then `total` stops being the
+run's real time, and the number "how long this took for the person" disappears — and that number
+is the stage's thesis.
 
-**Обчислювати `total` як суму.** Закон збереження стає тотожністю: `сума == сума`. Перевірка
-лишається зеленою назавжди, включно з випадком, коли крок забули поміряти.
+**Compute `total` as the sum.** The conservation law becomes an identity: `sum == sum`. The check
+stays green forever, including in the case where somebody forgot to measure a step.

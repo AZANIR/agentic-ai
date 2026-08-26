@@ -1,36 +1,36 @@
 ---
 id: T10
-title: "Урок етапу: канон, міст на NovaShop, межі"
+title: "The stage lesson: the canon, the bridge to NovaShop, the boundaries"
 layer: "docs"
 deps: ["T7", "T8", "T9"]
 acs: ["AC-01", "AC-02"]
-files_hint: ["stages/s02_rag/README.md", "stages/s02_rag/README.en.md"]
+files_hint: ["stages/s02_rag/README.md", "stages/s02_rag/README.md"]
 owner: "Contributor"
 estimate: "M"
 status: "todo"
 ---
 
-# T10 — Урок етапу: канон, міст на NovaShop, межі
+# T10 — The stage lesson: the canon, the bridge to NovaShop, the boundaries
 
 ## Why
 
-Код без уроку не вчить. Структура — [CONVENTIONS.md](../../../../CONVENTIONS.md).
+Code without a lesson teaches nothing. The structure — [CONVENTIONS.md](../../../../CONVENTIONS.md).
 
 ## What
 
-`README.md` (UA): що зможеш → канон (embed → cosine → top-k) → міст на NovaShop → три межі, названі прямо. Обов'язково: розрив на синонімах як **очікувана** поведінка, а не поламка; чому джерело додає система; чому фільтр стоїть до відбору. `README.en.md` — один екран.
+`README.md`: what you will be able to do → the canon (embed → cosine → top-k) → the bridge to NovaShop → three boundaries, named outright. Mandatory: the synonym gap as **expected** behaviour rather than a breakage; why the source is attached by the system; why the filter stands before the selection. `README.md` is one screen.
 
 ## Definition of Done
 
-- [ ] Урок ≤ 2500 слів (spec §6)
-- [ ] Порядок читання модулів заданий явно
-- [ ] Розрив на синонімах названий очікуваною межею, з числом
-- [ ] Сказано, що джерело гарантує існування, не відповідність (ADR-0003)
-- [ ] Різниця «фільтр до чи після відбору» показана таблицею
-- [ ] Усі посилання резолвляться
+- [ ] The lesson is ≤ 2500 words (spec §6)
+- [ ] The reading order of the modules is stated explicitly
+- [ ] The synonym gap is named as an expected boundary, with a number
+- [ ] It says that the source guarantees existence, not correspondence (ADR-0003)
+- [ ] The difference between filtering before and after the selection is shown as a table
+- [ ] All links resolve
 
 ## Notes
 
-Найімовірніше хибне враження етапу: «RAG не працює». Урок має зняти його на початку, а не в кінці.
+The stage's most likely wrong impression: "RAG does not work". The lesson has to remove it at the start, not at the end.
 
-Блокується: T7, T8, T9
+Blocked by: T7, T8, T9

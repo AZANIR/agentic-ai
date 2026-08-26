@@ -1,68 +1,70 @@
 ---
 status: Accepted
-owner: "Власник репозиторію"
+owner: "Repository owner"
 reviewers: []
 updated_at: "2026-08-22"
-feature_size: "n/a (фундаментальне рішення репозиторію)"
+feature_size: "n/a (foundational decision for the repository)"
 ticket: "n/a"
 ---
 
-# 0003 — Ходити до LLM лише через OpenAI-сумісний шим у shared/llm.py
+# 0003 — Reach the LLM only through an OpenAI-compatible shim in shared/llm.py
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
-- **Deciders:** власник репозиторію
+- **Deciders:** repository owner
 
 ## Context
 
-Статті-джерела написані під OpenAI (`openai.OpenAI()`, `gpt-4o`). Якщо повторити це дослівно,
-читачеві потрібна платіжна картка на етапі 1 — до того, як він зрозумів, навіщо вона. Водночас
-надто абстрактний шар зробить код невпізнаваним відносно статей і зруйнує «якір довіри»,
-на якому побудований формат уроку (спека §4).
+The canonical examples in this field are written against OpenAI (`openai.OpenAI()`, `gpt-4o`).
+Repeat that literally and the reader needs a payment card at stage 1, before they understand what
+it is for. At the same time an over-abstracted layer makes the code unrecognisable against those
+examples and destroys the anchor of trust the lesson format is built on (spec §4).
 
 ## Decision drivers
 
-- Читач має пройти весь курс безкоштовно (карта: Constraints).
-- Код уроку має лишатися впізнаваним відносно статті (спека §4, «канон»).
-- Вендор-lock у навчальному матеріалі шкідливий сам по собі: він вчить не тому.
-- Одна залежність краще за чотири.
+- The reader must get through the whole course for free (map: Constraints).
+- Lesson code has to stay recognisable against the canonical example (spec §4).
+- Vendor lock-in in teaching material is harmful in itself: it teaches the wrong thing.
+- One dependency beats four.
 
 ## Considered options
 
-1. **SDK `openai` з підміною `base_url`** — один клієнт покриває OpenAI, Groq, OpenRouter,
-   Ollama, LM Studio, бо всі вони реалізують OpenAI-сумісний HTTP-інтерфейс.
-2. **LiteLLM** — покриває більше провайдерів, включно з Anthropic, але додає власний шар
-   абстракції поверх коду статей.
-3. **Прямі SDK кожного вендора з власним інтерфейсом** — максимальна точність під кожен API,
-   максимальна кількість коду.
-4. **Лише OpenAI, як у статтях** — найточніше відтворення джерела, найвищий поріг входу.
+1. **The `openai` SDK with a substituted `base_url`** — one client covers OpenAI, Groq,
+   OpenRouter, Ollama and LM Studio, because all of them implement an OpenAI-compatible HTTP
+   interface.
+2. **LiteLLM** — covers more providers, Anthropic included, but adds its own abstraction layer on
+   top of the canonical code.
+3. **Each vendor's own SDK with its own interface** — maximum fidelity per API, maximum code.
+4. **OpenAI only** — the most faithful reproduction, the highest barrier to entry.
 
 ## Decision outcome
 
-**Chosen:** Option 1. Одна залежність, п'ять провайдерів, і виклик у коді уроку виглядає майже
-дослівно як у статті — змінюється тільки те, звідки береться клієнт. Варіант 2 виграє за
-покриттям, але додає шар, який читач має розуміти на етапі 1, і це відволікає від власне агента.
+**Chosen:** Option 1. One dependency, five providers, and the call in lesson code looks almost
+word for word like the canonical one — only where the client comes from changes. Option 2 wins on
+coverage but adds a layer the reader has to understand at stage 1, which distracts from the agent
+itself.
 
 ## Consequences
 
 **Positive**
-- Безкоштовний старт через Groq або локальну Ollama — картка не потрібна ніде в курсі.
-- Перемикання провайдера — це два рядки в `.env`, а не зміна коду.
-- Код уроку лишається впізнаваним відносно статті.
+- A free start through Groq or a local Ollama — no card is needed anywhere in the course.
+- Switching provider is two lines in `.env`, not a code change.
+- Lesson code stays recognisable against the canonical example.
 
 **Negative**
-- **Anthropic не є OpenAI-сумісним** — для нього доведеться писати окремий адаптер за тим самим
-  інтерфейсом, якщо він знадобиться. Це відома, свідомо прийнята прогалина.
-- Провайдери відрізняються в деталях tool-calling (строгість схеми, паралельні виклики).
-  Шим має нормалізувати ці відмінності, інакше урок ламатиметься залежно від `.env`.
-- Ollama повільна на слабкому CPU — читач може вирішити, що «агенти повільні», хоча це модель.
+- **Anthropic is not OpenAI-compatible** — it would need its own adapter behind the same
+  interface if it is ever wanted. A known gap, accepted deliberately.
+- Providers differ in the details of tool calling (schema strictness, parallel calls). The shim
+  has to normalise those differences, or the lesson breaks depending on `.env`.
+- Ollama is slow on a weak CPU, and the reader may conclude that "agents are slow" when it is the
+  model.
 
 **Neutral**
-- LiteLLM можна підкласти пізніше **під той самий інтерфейс** `shared/llm.get_client()` —
-  це заміна реалізації, не зміна архітектури.
+- LiteLLM can be slotted in later **behind the same** `shared/llm.get_client()` interface — that
+  is a replacement implementation, not an architectural change.
 
 ## Links
 
-- Спека: [[../../planning/2026-08-22-agentic-ai-course-design.md]] §5.1, §7
-- Карта архітектури: [[../architecture-map.md]] §Stack, §Conventions
-- Пов'язані ADR: [[0002-profile-switched-adapters]]
+- Spec: [[../../planning/2026-08-22-agentic-ai-course-design.md]] §5.1, §7
+- Architecture map: [[../architecture-map.md]] §Stack, §Conventions
+- Related ADRs: [[0002-profile-switched-adapters]]

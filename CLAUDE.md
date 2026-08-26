@@ -1,38 +1,42 @@
-# Пам'ятка для агентів, що працюють у цьому репозиторії
+# Notes for agents working in this repository
 
-Повні правила — [CONVENTIONS.md](CONVENTIONS.md). Як робиться етап — [PLAYBOOK.md](PLAYBOOK.md). Архітектура — [docs/architecture-map.md](docs/architecture-map.md).
-Рішення й причини — [docs/adr/](docs/adr/). Не переухвалюй їх мовчки: незгоден — пиши новий ADR.
+Full rules: [CONVENTIONS.md](CONVENTIONS.md). How a stage gets made: [PLAYBOOK.md](PLAYBOOK.md).
+Architecture: [docs/architecture-map.md](docs/architecture-map.md).
+Decisions and their reasons: [docs/adr/](docs/adr/). Do not overturn them silently — if you
+disagree, write a new ADR.
 
-## Команди
+## Commands
 
 ```bash
-pip install -e ".[dev]"        # встановлення (лапки обов'язкові)
-ruff check . && ruff format .  # лінт і формат
-python scripts/check_all.py       # усі перевірки, офлайн, без ключів
-python scripts/clean_install.py   # те саме, але як у CI: без опційних пакетів
-python scripts/migrate.py up   # міграції (потрібен docker compose up)
+pip install -e ".[dev]"           # install (the quotes matter)
+ruff check . && ruff format .     # lint and format
+python scripts/check_all.py       # every check, offline, no keys
+python scripts/clean_install.py   # the same, but as CI runs it: without optional packages
+python scripts/migrate.py up      # migrations (needs docker compose up)
 ```
 
-## Найважливіше
+## What matters most
 
-1. **`if profile == ...` у коді етапу — заборонено.** Розгалуження за профілем живе лише
-   у фабриках `shared/`.
-2. **Ніякого `openai.OpenAI()` поза `shared/llm.py`.** Етапи беруть клієнт через
+1. **`if profile == ...` inside stage code is forbidden.** Branching on the profile lives only
+   in the factories under `shared/`.
+2. **No `openai.OpenAI()` outside `shared/llm.py`.** Stages take a client through
    `get_client(demo_script=[...])`.
-3. **Кожен `check.py` має щонайменше одну перевірку на режим відмови** (префікс
-   `ВІДМОВА ·` у docstring). Щасливий шлях не доводить нічого.
-4. **Усе має працювати офлайн і без API-ключа.** Якщо перевірка потребує мережі —
-   вона зламана, а не мережа.
-5. **Проза українською, код англійською.** Див. таблицю мов у CONVENTIONS.md.
-6. **У коммітах, PR і документації немає згадок AI-асистента** — ні співавторства, ні
-   «згенеровано з», ні назв інструментів.
+3. **Every `check.py` has at least one check on a failure mode** (docstring prefixed
+   `FAILURE ·`). A happy path proves nothing.
+4. **Everything must work offline and with no API key.** If a check needs the network, the
+   check is broken, not the network.
+5. **Everything committed here is in English.** Prose, docstrings, comments, check messages,
+   commit messages. See the language table in CONVENTIONS.md. Drafts outside version
+   control may be in any language.
+6. **No mention of AI assistants in commits, PRs or documentation** — no co-authorship, no
+   "generated with", no tool names.
 
-## Куди що класти
+## Where things go
 
-| Що | Куди |
+| What | Where |
 |---|---|
-| Новий етап | `stages/sNN_slug/` за шаблоном із CONVENTIONS.md |
-| Новий адаптер (провайдер, сховище, стік трейсів) | `shared/`, обов'язково з обома реалізаціями |
-| Новий інструмент агента | MCP-tool; менше інструментів із чистими payload краще за мапу ендпоінтів |
-| Інфраструктура | `deploy/`, з оновленням `deploy/RUNBOOK.md` |
-| Таблиця в БД | міграція в тому етапі, якому вона потрібна, не наперед |
+| A new stage | `stages/sNN_slug/`, following the template in CONVENTIONS.md |
+| A new adapter (provider, store, trace sink) | `shared/`, always with both implementations |
+| A new agent tool | An MCP tool; fewer tools with clean payloads beat a map of endpoints |
+| Infrastructure | `deploy/`, updating `deploy/RUNBOOK.md` with it |
+| A database table | A migration in the stage that needs it, not ahead of time |

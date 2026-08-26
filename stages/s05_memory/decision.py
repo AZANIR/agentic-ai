@@ -1,21 +1,21 @@
-"""Чекліст «що взагалі запамʼятовувати» — і чому його цінність у порядку, а не в правилах.
+"""The "what to remember at all" checklist — and why its value is in the order, not the rules.
 
-Найпростіша памʼять зберігає все, що сказав користувач. Вона працює один день: далі вибірка
-вертає чотири факти про те саме, суперечності накопичуються швидше за факти, а відповідь
-повільно гіршає. Тому рішення «запамʼятати?» ухвалюється **до** запису, і ухвалюється
-однаково — інакше памʼять залежить від того, хто писав виклик.
+The simplest memory stores everything the user said. It works for one day: after that retrieval
+returns four facts about the same thing, contradictions accumulate faster than facts, and the
+answer slowly degrades. So the "remember this?" decision is made **before** the write, and it is
+made the same way every time — otherwise memory depends on whoever wrote the call site.
 
-**Що тут насправді робить код.** Не класифікацію: чи є репліка секретом, вирішує людина або
-модель, і жодна евристика тут цього не замінить. Код тримає **порядок** питань і правило
-«перше, що спрацювало, — відповідь». Це не дрібниця: `«запамʼятай мій пароль»` — це водночас
-секрет і пряме прохання, і відповідь залежить винятково від того, яке питання стоїть раніше.
-Порядок і є чеклістом; правила окремо від нього нічого не варті.
+**What the code actually does here.** Not classification: whether a line is a secret is decided
+by a human or a model, and no heuristic here replaces that. The code holds the **order** of the
+questions and the rule "the first one to fire is the answer". That is not a trifle: `"remember my
+password"` is a secret and a direct request at once, and the answer depends exclusively on which
+question comes first. The order is the checklist; the rules apart from it are worth nothing.
 
-**Чому «жодне правило без ситуації» — окрема вимога.** Правило, якого не вмикає жодна
-ситуація, виглядає як робота й не робить нічого. Такий чекліст проходить будь-яку перевірку
-на «кожна ситуація має відповідь» — і мовчки не має половини сенсу. Тому перевірка йде
-**в обидва боки**, як фільтр власника у `long_term`: кожна ситуація має правило **і** кожне
-правило має ситуацію.
+**Why "no rule without a situation" is a requirement of its own.** A rule that no situation
+triggers looks like work and does nothing. Such a checklist passes any check of the form "every
+situation has an answer" — and silently loses half its meaning. So the check runs **both ways**,
+like the owner filter in `long_term`: every situation has a rule **and** every rule has a
+situation.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Situation:
-    """Репліка, вже описана властивостями. Класифікує людина — чекліст лише впорядковує."""
+    """A line already described by properties. A human classifies — the checklist only orders."""
 
     text: str
     secret: bool = False
@@ -38,7 +38,7 @@ class Situation:
 
 @dataclass(frozen=True)
 class Rule:
-    """Одне питання чекліста. `keep` — відповідь, якщо саме воно спрацювало першим."""
+    """One question of the checklist. `keep` is the answer if this one fired first."""
 
     question: str
     keep: bool
@@ -48,58 +48,58 @@ class Rule:
 
 @dataclass(frozen=True)
 class Decision:
-    """Відповідь із назвою правила: «не запамʼятали» без причини — це просто втрата."""
+    """An answer with the name of the rule: "did not remember" without a reason is just a loss."""
 
     keep: bool
     rule: str
     why: str
 
 
-# Порядок — це і є чекліст. Секрет стоїть перед проханням навмисно: «запамʼятай мій пароль»
-# має давати «ні», і жодне інше розташування цього не дає.
+# The order is the checklist. The secret stands before the request deliberately: "remember my
+# password" has to give "no", and no other arrangement gives that.
 RULES: tuple[Rule, ...] = (
     Rule(
-        question="Це секрет або те, що не можна зберігати?",
+        question="Is this a secret, or something that must not be stored?",
         keep=False,
-        why="секрети не зберігаються навіть на пряме прохання",
+        why="secrets are not stored even on a direct request",
         applies=lambda s: s.secret,
     ),
     Rule(
-        question="Це про світ, а не про співрозмовника?",
+        question="Is this about the world rather than about the person?",
         keep=False,
-        why="знання про світ живе в пошуку (етап 2), не в памʼяті",
+        why="knowledge about the world lives in search (stage 2), not in memory",
         applies=lambda s: s.about_world,
     ),
     Rule(
-        question="Це виводиться з того, що вже збережено?",
+        question="Is this derivable from what is already stored?",
         keep=False,
-        why="похідний факт додає обсяг і привід для суперечності",
+        why="a derived fact adds volume and a reason for contradiction",
         applies=lambda s: s.derivable,
     ),
     Rule(
-        question="Співрозмовник прямо просив запамʼятати?",
+        question="Did the person directly ask to remember it?",
         keep=True,
-        why="пряме прохання — найсильніший сигнал, який у нас є",
+        why="a direct request is the strongest signal we have",
         applies=lambda s: s.asked,
     ),
     Rule(
-        question="Це властивість, що переживе цю розмову?",
+        question="Is this a property that will outlive this conversation?",
         keep=True,
-        why="саме такі факти й роблять другу сесію іншою за першу",
+        why="facts like these are what make the second session different from the first",
         applies=lambda s: s.durable,
     ),
     Rule(
-        question="Усе інше",
+        question="Everything else",
         keep=False,
-        why="одноразове не памʼятають — його просто використовують і забувають",
+        why="a one-off is not remembered — it is simply used and forgotten",
         applies=lambda s: True,
     ),
 )
 
 
 def decide(situation: Situation) -> Decision:
-    """Перше правило, що спрацювало, і є відповіддю. Останнє спрацьовує завжди."""
+    """The first rule that fires is the answer. The last one always fires."""
     for rule in RULES:
         if rule.applies(situation):
             return Decision(keep=rule.keep, rule=rule.question, why=rule.why)
-    raise AssertionError("останнє правило має ловити все — чекліст зламано")
+    raise AssertionError("the last rule has to catch everything — the checklist is broken")

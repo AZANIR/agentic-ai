@@ -1,131 +1,136 @@
-# Вправи — етап 1
+# Exercises — stage 1
 
-Роби після того, як прочитав [урок](README.md) і запустив демо.
+Do these after you have read the [lesson](README.md) and run the demo.
 
-**Правило одне: спершу зламай, потім подивись, потім поверни назад.** Читання коду дає
-впізнавання, а поламаний код дає розуміння — це різні речі.
+**One rule: break it first, then look, then put it back.** Reading code gives you recognition;
+broken code gives you understanding. They are not the same thing.
 
-Після кожної вправи повертай усе як було:
+After each exercise, restore everything:
 
 ```bash
 git checkout stages/s01_agent_loop/
 ```
 
-Еталонні розв'язки — у [`solutions/`](solutions/). Зазирай **після** власної спроби.
+Reference solutions are in [`solutions/`](solutions/). Look **after** your own attempt.
 
 ---
 
-## Вправа 1 — Прибери гейт підтвердження
+## Exercise 1 — Remove the confirmation gate
 
-**Складність:** легко · **Час:** 10 хв
+**Difficulty:** easy · **Time:** 10 min
 
-У [`gate.py`](gate.py) заміни `and tool.irreversible` на `and False` — гейт перестане
-спрацьовувати взагалі.
+In [`gate.py`](gate.py) replace `and tool.irreversible` with `and False` — the gate stops firing
+at all.
 
-> Не роби «інтуїтивну» правку — прибрати з умови в `loop.py` лише слово `not`. Так гейт почне
-> блокувати **завжди**, а не ніколи, і вивід демо не зміниться. Це реальна пастка: перша версія
-> цього уроку саме її й описувала як правильну.
+> Do not make the "intuitive" edit — dropping just the word `not` from the condition in
+> `loop.py`. That makes the gate block **always** rather than never, and the demo output does
+> not change. This is a real trap: the first version of this lesson described exactly that as
+> the correct edit.
 
-Потім запусти по черзі:
+Then run, in this order:
 
 ```bash
 python -m stages.s01_agent_loop.run
 python -m stages.s01_agent_loop.check
 ```
 
-**Що має статися:**
+**What should happen:**
 
-- Сценарій 4 у демо тепер **оформлює повернення** замість того, щоб зупинитись.
-- Червоніють **три** перевірки, і кожна називає свою причину:
+- Scenario 4 of the demo now **processes the return** instead of stopping.
+- **Three** checks go red, and each names its own reason:
   `виконано попри блокування` · `незворотну функцію виконано без підтвердження` ·
   `у трейсі демо немає step_blocked`.
-- Перевірки підтвердженого шляху й зворотних інструментів лишаються зеленими.
+- The checks for the confirmed path and for reversible tools stay green.
 
-**Питання, на яке треба вміти відповісти:** усі три падіння — це `AssertionError` з описом того,
-що саме порушено. Чому це важливіше за сам факт «щось почервоніло»? Підказка: уяви тест, який
-червоніє від того, що в підробки закінчився сценарій.
+**A question you should be able to answer:** all three failures are an `AssertionError` carrying
+a description of what exactly was violated. Why does that matter more than the bare fact that
+"something went red"? Hint: imagine a test that goes red because the fake ran out of script.
 
 ---
 
-## Вправа 2 — Обдури валідацію булевим значенням
+## Exercise 2 — Fool the validator with a boolean
 
-**Складність:** середньо · **Час:** 20 хв
+**Difficulty:** medium · **Time:** 20 min
 
-У [`validate.py`](validate.py) закоментуй рядки, що виключають `bool` із перевірки числових
-типів.
+In [`validate.py`](validate.py) comment out the lines that exclude `bool` from the numeric type
+check.
 
-Додай у [`tools.py`](tools.py) четвертий інструмент із цілим параметром — наприклад:
+Add a fourth tool to [`tools.py`](tools.py) with an integer parameter — for example:
 
 ```python
 def set_delivery_window(days: int) -> str:
     return f"Вікно доставки: {days} дн."
 ```
 
-Зареєструй його зі схемою, де `days` має тип `integer`. Тепер напиши перевірку, у якій
-підроблена модель просить цей інструмент з `{"days": True}`.
+Register it with a schema where `days` has type `integer`. Now write a check in which the fake
+model asks for this tool with `{"days": True}`.
 
-**Що має статися:** без виключення `bool` значення `True` **проходить** валідацію, і функція
-отримує `True` замість числа. У виводі побачиш `Вікно доставки: True дн.`
+**What should happen:** with `bool` no longer excluded, `True` **passes** validation and the
+function receives `True` instead of a number. In the output you will see
+`Вікно доставки: True дн.`
 
-**Питання:** чому `isinstance(True, int)` істинне в Python? Які ще типи мають подібну пастку?
-
----
-
-## Вправа 3 — Затисни ліміт кроків
-
-**Складність:** легко · **Час:** 10 хв
-
-У своєму `.env` постав `AGENT_MAX_STEPS=1` і запусти демо.
-
-**Що має статися:** сценарій 1 більше не дає відповіді. Модель встигає лише **попросити**
-інструмент — на другий крок, де вона мала б відповісти текстом, ліміту вже немає.
-
-**Питання:** скільки кроків мінімально потрібно, щоб агент із одним викликом інструмента дав
-відповідь? А з двома послідовними викликами? Виведи формулу.
-
-Не забудь повернути `AGENT_MAX_STEPS=8`.
+**Question:** why is `isinstance(True, int)` true in Python? What other types hold a similar
+trap?
 
 ---
 
-## Вправа 4 — Зіпсуй опис інструмента
+## Exercise 3 — Squeeze the step limit
 
-**Складність:** середньо · **Час:** 30 хв · **Потрібен ключ провайдера**
+**Difficulty:** easy · **Time:** 10 min
 
-Ця вправа має сенс **лише зі справжньою моделлю** — підробка діє за сценарієм і опису не читає.
-Налаштуй Groq за чеклістом з уроку.
+Set `AGENT_MAX_STEPS=1` in your `.env` and run the demo.
 
-У [`tools.py`](tools.py) заміни опис `get_order_status`:
+**What should happen:** scenario 1 no longer produces an answer. The model gets as far as
+**asking** for the tool — and on the second step, the one where it would have answered with
+text, there is no limit left.
+
+**Question:** what is the minimum number of steps an agent needs to answer using one tool call?
+And with two sequential calls? Derive the formula.
+
+Do not forget to set `AGENT_MAX_STEPS=8` back.
+
+---
+
+## Exercise 4 — Ruin a tool description
+
+**Difficulty:** medium · **Time:** 30 min · **Needs a provider key**
+
+This exercise only makes sense **with a real model** — the fake follows a script and reads no
+descriptions. Set up Groq using the checklist in the lesson.
+
+In [`tools.py`](tools.py) replace the description of `get_order_status`:
 
 ```python
 description="Does a thing.",
 ```
 
-Запусти демо й подивись на сценарій 1.
+Run the demo and look at scenario 1.
 
-**Що має статися:** модель або обере не той інструмент, або перепитає, або вигадає відповідь
-без виклику. Конкретна поведінка залежить від моделі — саме тому вправа й цікава.
+**What should happen:** the model will either pick the wrong tool, or ask a clarifying question,
+or invent an answer without calling anything. The exact behaviour depends on the model — which
+is precisely what makes the exercise interesting.
 
-**Питання:** де тепер помилка — у моделі чи в коді? Хто відповідальний за те, що агент обрав
-не той інструмент?
-
----
-
-## Вправа 5 (необов'язкова) — Дай моделі неіснуючий інструмент
-
-**Складність:** складно · **Час:** 30 хв
-
-Напиши перевірку, у якій підроблена модель просить інструмент `delete_everything`, якого в
-реєстрі немає.
-
-**Що має статися:** цикл не падає. Подивись у [`loop.py`](loop.py), як обробляється невідоме
-ім'я, і що саме повертається моделі.
-
-**Питання:** чому відповідь містить список доступних інструментів? Що станеться, якщо його
-прибрати?
+**Question:** where is the bug now, in the model or in the code? Who is responsible for the
+agent having picked the wrong tool?
 
 ---
 
-## Коли вважати етап пройденим
+## Exercise 5 (optional) — Offer the model a tool that does not exist
 
-Не коли всі вправи зроблені, а коли можеш **без підказки** відповісти на три питання з
-[`CHECKLIST.md`](CHECKLIST.md).
+**Difficulty:** hard · **Time:** 30 min
+
+Write a check in which the fake model asks for a tool called `delete_everything`, which is not
+in the registry.
+
+**What should happen:** the loop does not crash. Look in [`loop.py`](loop.py) to see how an
+unknown name is handled and what exactly goes back to the model.
+
+**Question:** why does that response contain the list of available tools? What happens if you
+take it out?
+
+---
+
+## When to consider the stage passed
+
+Not when every exercise is done, but when you can answer the three questions in
+[`CHECKLIST.md`](CHECKLIST.md) **without a hint**.

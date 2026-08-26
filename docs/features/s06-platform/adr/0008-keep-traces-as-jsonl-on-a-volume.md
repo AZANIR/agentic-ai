@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
@@ -8,7 +8,7 @@ ticket: "n/a"
 ---
 
 
-# 0008 — Трейси лишаються файлом JSONL на змонтованому томі
+# 0008 — Traces stay a JSONL file on a mounted volume
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -16,68 +16,70 @@ ticket: "n/a"
 
 ## Context
 
-Етапи 1–5 пишуть трейси у файл JSONL: рядок = крок. AC-10 вимагає, щоб трейс пережив
-перезапуск контейнера, і це саме собою не змушує змінювати формат — досить тому.
+Stages 1–5 write traces to a JSONL file: one line = one step. AC-10 requires the trace to survive a
+container restart, and that on its own does not force a change of format — a volume is enough.
 
-Але **репозиторій уже дав дві обіцянки від імені цього етапу**, і обидві знайшлись лише під
-час рев'ю архітектури:
+But **the repository has already made two promises on this stage's behalf**, and both were found
+only during the architecture review:
 
-- `shared/trace.py` кидає `ConfigError` із текстом «стік у Langfuse додається **на етапі 6**».
-- `deploy/docker-compose.yml` каже, що повний стек із Prometheus, Grafana й Langfuse
-  «додається **на етапі 6** у `docker-compose.prod.yml`».
+- `shared/trace.py` raises a `ConfigError` whose text reads "the Langfuse sink is added **at stage
+  6**".
+- `deploy/docker-compose.yml` says that the full stack with Prometheus, Grafana and Langfuse "is
+  added **at stage 6** in `docker-compose.prod.yml`".
 
-Обіцянка, яку етап не виконує й не переносить, — це не борг, а неправда в коді, до якої читач
-дійде швидше за автора: `TRACE_SINK=langfuse` дасть йому відмову на першому ж запиті.
+A promise a stage neither keeps nor moves is not a debt but an untruth in the code, and the reader
+will reach it sooner than the author does: `TRACE_SINK=langfuse` will hand them a failure on the
+very first request.
 
 ## Decision drivers
 
-- Читач має **читати трейси очима**. Це властивість, задля якої формат обрано на етапі 1, і
-  жоден із наступних етапів її поки не переріс.
-- Оцінювання (етап 8) читатиме трейси й **сформулює вимогу** до сховища. Зараз такої вимоги
-  немає — є здогад.
-- Обіцянки в коді треба або виконати, або перенести з назвою нового етапу. Лишити як є не
-  можна.
-- Трейс у базі додає таблицю, міграцію й запит замість `cat` — за нуль нових уроків на цьому
-  етапі.
+- The reader has to **read traces with their eyes**. That is the property the format was chosen for
+  at stage 1, and none of the later stages has outgrown it yet.
+- Evaluation (stage 8) will read the traces and **will formulate the requirement** for the store.
+  Right now there is no such requirement — there is a guess.
+- Promises in the code have either to be kept or to be moved, naming the new stage. Leaving them as
+  they are is not allowed.
+- A trace in a database adds a table, a migration and a query in place of `cat` — for zero new
+  lessons at this stage.
 
 ## Considered options
 
-1. **Файл JSONL на змонтованому томі**; обіцянки переносяться на етап 8 із причиною.
-2. **Таблиця в Postgres**: трейси там само, де факти.
-3. **Зовнішній стік трейсів** (Langfuse) — виконати обіцянку буквально.
+1. **A JSONL file on a mounted volume**; the promises move to stage 8, with a reason.
+2. **A table in Postgres**: the traces in the same place as the facts.
+3. **An external trace sink** (Langfuse) — keep the promise literally.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 задовольняє AC-10 і забирає властивість, за яку формат обрано: подивитись на трейс
-перестає бути `cat`, стає запитом. Плюс міграція, плюс модуль, плюс дві реалізації читання —
-усе це має ціну й **жодного** нового уроку саме тут.
+Option 2 satisfies AC-10 and takes away the property the format was chosen for: looking at a trace
+stops being `cat` and becomes a query. Plus a migration, plus a module, plus two implementations of
+reading — all of that has a price and **not one** new lesson right here.
 
-Option 3 приваблива тим, що виконує обіцянку буквально. Вона відхилена з тієї ж причини, що
-й ADR-0005: вимогу до трейсу сформулює той, хто його **читатиме**, а це етап 8. Підключати
-зовнішній стік під здогад означає проєктувати інтеграцію під уявного споживача — і курс уже
-має цей урок на етапі 4, де реєстр інструментів існував без споживача й тому нічого не
-доводив.
+Option 3 is attractive because it keeps the promise literally. It is rejected for the same reason
+as ADR-0005: the requirement for the trace will be formulated by whoever **reads** it, and that is
+stage 8. Wiring up an external sink on a guess means designing an integration for an imaginary
+consumer — and the course already has this lesson at stage 4, where a tool registry existed with no
+consumer and therefore proved nothing.
 
-**Обидві обіцянки переносяться, а не тихнуть.** Текст у `shared/trace.py` і коментар у
-`deploy/docker-compose.yml` виправляються тим самим комітом, що й це рішення, і називають
-новий етап разом із причиною. Обіцянка, перенесена мовчки, гірша за невиконану: невиконану
-видно.
+**Both promises are moved, not hushed.** The text in `shared/trace.py` and the comment in
+`deploy/docker-compose.yml` are corrected by the same commit as this decision, and they name the
+new stage together with the reason. A promise moved in silence is worse than one left unkept: an
+unkept one is visible.
 
-**Том — не деталь розгортання, а вимога.** Трейси в шарі контейнера зникають при кожному
-оновленні образу, і AC-10 червоніє саме на цьому.
+**The volume is not a deployment detail but a requirement.** Traces in the container layer
+disappear with every image update, and that is exactly what AC-10 goes red on.
 
 ## Consequences
 
 **Positive**
-- Трейс лишається читаним `cat` і `grep` — тим самим способом, що на етапах 1–5.
-- Нуль нових модулів, нуль міграцій, нуль другої реалізації читання.
-- Вимогу до сховища сформулює етап 8, коли справді читатиме трейси.
+- The trace stays readable with `cat` and `grep` — the same way as at stages 1–5.
+- Zero new modules, zero migrations, zero second implementation of reading.
+- The requirement for the store will be formulated by stage 8, when it really does read the traces.
 
 **Negative**
-- Трейси не переживуть втрати машини — резервне копіювання приходить на етапі 10.
-- Пошук за трейсами лінійний. На обсягах етапу це `grep`, на обсягах етапу 8 — вже ні, і
-  саме там питання постане правильно.
-- Обіцянка про Langfuse тепер стоїть на етапі 8. Якщо він її теж не виконає, це доведеться
-  записати знову — тобто борг лишається видимим.
+- The traces will not survive the loss of the machine — backups arrive at stage 10.
+- Search across the traces is linear. At this stage's volumes that is `grep`; at stage 8's volumes
+  it no longer is, and that is exactly where the question will be posed properly.
+- The promise about Langfuse now stands at stage 8. If that stage does not keep it either, this
+  will have to be written down again — which means the debt stays visible.

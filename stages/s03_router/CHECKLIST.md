@@ -1,78 +1,84 @@
-# Чекліст — етап 3
+# Checklist — stage 3
 
-Три рівні. Пройти означає закрити всі три, а не перший.
+Three levels. Passing means closing all three, not the first one.
 
-## Я зрозумів
+## I understood
 
-- [ ] Можу пояснити, чому один агент із двадцятьма інструментами обирає гірше, ніж із п'ятьма,
-      і чому переписування промпту цього не лікує.
-- [ ] Можу сказати одним реченням, що таке supervisor, не вживаючи слова «оркестрація».
-- [ ] Розумію, чому схема стану — найдорожче для зміни рішення в графі.
-- [ ] Можу назвати дві події, на які граф реагує **протилежно**, і пояснити чому.
-- [ ] Розумію, чому рівень доступу лежить у стані, а не передається аргументом.
-- [ ] Можу сказати, коли supervisor **не** потрібен, і назвати третій вердикт чекліста.
-- [ ] Знаю, чого цей етап **не** доводить: що маршрут буде правильним на справжній моделі.
+- [ ] I can explain why one agent with twenty tools chooses worse than one with five, and why
+      rewriting the prompt does not cure it.
+- [ ] I can say in one sentence what a supervisor is, without using the word "orchestration".
+- [ ] I understand why the state schema is the most expensive decision in the graph to change.
+- [ ] I can name two events the graph reacts to in **opposite** ways, and explain why.
+- [ ] I understand why the access level sits in the state rather than being passed as an
+      argument.
+- [ ] I can say when a supervisor is **not** needed, and name the checklist's third verdict.
+- [ ] I know what this stage does **not** prove: that the route will be right on a real model.
 
-## Я запустив
+## I ran it
 
-- [ ] `python -m stages.s03_router.run` — бачив усі п'ять сцен.
-- [ ] `python -m stages.s03_router.run --prompt` — прочитав те, що бачить модель.
-- [ ] `python -m stages.s03_router.check` — усі зелені; перевірок: 38, з них на режими відмови: 20.
-- [ ] `python -m stages.s03_router.decision` — сім ситуацій і відповідь на кожну.
-- [ ] Зняв ліміт ревізій (вправа 2) і побачив, що червоніє й друга реалізація теж.
-- [ ] `python scripts/mutate.py s03 --expect` — числа у вправах збігаються з прогоном.
-- [ ] `pip install -e ".[s03]"` — і побачив рядок «AC-06 перевірено: 7 маршрутів збіглися».
-- [ ] Порівняв `graph.py` і `langgraph_impl.py` поруч, знайшов у другому частини першого.
+- [ ] `python -m stages.s03_router.run` — saw all five scenes.
+- [ ] `python -m stages.s03_router.run --prompt` — read what the model sees.
+- [ ] `python -m stages.s03_router.check` — all green; 38 checks, 20 of them on failure modes.
+- [ ] `python -m stages.s03_router.decision` — seven situations and an answer to each.
+- [ ] Removed the revision limit (exercise 2) and saw the second implementation go red as well.
+- [ ] `python scripts/mutate.py s03 --expect` — the numbers in the exercises match the run.
+- [ ] `pip install -e ".[s03]"` — and saw the line "AC-06 перевірено: 7 маршрутів збіглися".
+- [ ] Put `graph.py` and `langgraph_impl.py` side by side and found parts of the first inside the
+      second.
 
-## Я пояснив
+## I explained
 
-Не собі — вголос, іншій людині або в текст.
+Not to yourself — out loud, to another person, or in writing.
 
-- [ ] **Чому граф не вірить моделі на слово щодо назви вузла?**
-      Підказка: що станеться, коли модель назве `weather`.
-- [ ] **Чому виняток спеціаліста не валить прогін, а читання невідомого поля — валить?**
-      Підказка: одне з двох означає, що зламався світ, друге — що зламався контракт.
-- [ ] **Чому передача задачі — небезпечне місце для прав доступу?**
-      Підказка: що саме отримує спеціаліст, і чого він **не** отримує.
-- [ ] **Чому цикл ревізій без лічильника — це не «трохи повільніше»?**
-      Підказка: помнож кількість кіл на ціну виклику моделі.
-- [ ] **Коли краще один агент, а коли класифікатор?**
-      Підказка: середній рядок [`DECISION.md`](DECISION.md).
+- [ ] **Why does the graph not take the model at its word about a node name?**
+      Hint: what happens when the model says `weather`.
+- [ ] **Why does a specialist's exception not bring the run down, while reading an unknown field
+      does?**
+      Hint: one of the two means the world broke, the other that the contract did.
+- [ ] **Why is a handoff a dangerous place for access rights?**
+      Hint: what exactly the specialist receives, and what it does **not** receive.
+- [ ] **Why is a revision loop with no counter not merely "a bit slower"?**
+      Hint: multiply the number of rounds by the price of a model call.
+- [ ] **When is one agent better, and when a classifier?**
+      Hint: the middle row of [`DECISION.md`](DECISION.md).
 
 ---
 
-## Ручний чекліст: справжня модель
+## Manual checklist: a real model
 
-Перевірки йдуть на підробці, і маршрут у них правильний **за побудовою**. Найцікавіше в цьому
-етапі починається тут.
+The checks run on a fake, and the route in them is right **by construction**. The most
+interesting part of this stage starts here.
 
 ```bash
 # .env:  LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
 python -m stages.s03_router.run
 ```
 
-- [ ] Банер каже, що працює справжня модель?
-- [ ] **Скільки з шести запитів пішли туди, куди йшли на підробці?** Запиши число. Це перша
-      реальна метрика якості маршрутизації в курсі, і вона майже напевно не 6 із 6.
-- [ ] Той запит, який пішов не туди, — чому? Подивись на описи компетенцій у `specialists.py`
-      і спробуй здогадатись, який із них модель прочитала інакше, ніж ти писав.
-- [ ] **Перепиши один опис компетенції** так, щоб він відрізнявся від сусіднього чіткіше.
-      Прогони ще раз. Змінилось? Це і є та робота, яку на етапі 8 почнуть вимірювати.
-- [ ] Постав запит на межі двох компетенцій — наприклад, «скільки днів на повернення
-      замовлення ord_4471». Куди пішов? Обидві відповіді захищаються, і це нормально.
-- [ ] Постав запит поза компетенціями. Модель сказала `none`, чи вигадала вузол? Якщо
-      вигадала — подивись, як граф це відхилив.
-- [ ] Зроби так, щоб supervisor **не погодився** з відповіддю (наприклад, спитай щось, на що
-      база знань відповідає частково). Скільки ревізій пройшло до ліміту?
+- [ ] Does the banner say a real model is running?
+- [ ] **How many of the six requests went where they went on the fake?** Write the number down.
+      This is the first real routing-quality metric in the course, and it is almost certainly not
+      6 out of 6.
+- [ ] The request that went elsewhere — why? Look at the competence descriptions in
+      `specialists.py` and try to work out which of them the model read differently from how you
+      wrote it.
+- [ ] **Rewrite one competence description** so that it differs more sharply from its neighbour.
+      Run it again. Did it change? That is exactly the work stage 8 starts measuring.
+- [ ] Ask a question on the boundary between two competences — "how many days do I have to return
+      order ord_4471", say. Where did it go? Both answers are defensible, and that is fine.
+- [ ] Ask something outside every competence. Did the model say `none`, or invent a node? If it
+      invented one, look at how the graph rejected it.
+- [ ] Make the supervisor **disagree** with an answer (ask something the knowledge base only
+      partly covers, for instance). How many revisions ran before the limit?
 
-### Із встановленим LangGraph
+### With LangGraph installed
 
 ```bash
 pip install -e ".[s03]"
 python -m stages.s03_router.check
 ```
 
-- [ ] Перевірка надрукувала «AC-06 перевірено: 7 маршрутів збіглися з власним графом»?
-- [ ] Скільки часу додала ця перевірка до прогону? Запиши — це ціна другої реалізації.
-- [ ] Відкрий `langgraph_impl.py` і `graph.py` поруч. Знайди в першому кожну частину другого.
-      Якщо якась частина не знаходиться — це найцікавіше місце для питання.
+- [ ] Did the check print "AC-06 перевірено: 7 маршрутів збіглися з власним графом"?
+- [ ] How much time did that check add to the run? Write it down — that is the price of a second
+      implementation.
+- [ ] Open `langgraph_impl.py` and `graph.py` side by side. Find every part of the second inside
+      the first. If some part cannot be found, that is the most interesting place for a question.

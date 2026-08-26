@@ -3,7 +3,7 @@
   "tasks": [
     {
       "id": "T1",
-      "title": "Реєстр трьох інструментів зі схемами й познакою незворотності",
+      "title": "A registry of three tools with their schemas and an irreversibility marker",
       "layer": "app",
       "deps": [],
       "acs": [
@@ -11,7 +11,7 @@
         "AC-04",
         "AC-04b"
       ],
-      "dod": "Реєстр повертає три записи; кожен має функцію, схему й прапорець",
+      "dod": "The registry returns three entries; each has a function, a schema and a flag",
       "files_hint": [
         "stages/s01_agent_loop/tools.py",
         "stages/s01_agent_loop/data/"
@@ -19,21 +19,21 @@
     },
     {
       "id": "T2",
-      "title": "Валідація аргументів інструмента проти оголошеної схеми",
+      "title": "Validating a tool's arguments against its declared schema",
       "layer": "app",
       "deps": [],
       "acs": [
         "AC-03",
         "AC-03b"
       ],
-      "dod": "Три випадки невідповідності дають зрозуміле пояснення українською",
+      "dod": "Three mismatch cases give a clear explanation in Ukrainian",
       "files_hint": [
         "stages/s01_agent_loop/validate.py"
       ]
     },
     {
       "id": "T3",
-      "title": "Цикл ReAct із трасуванням і лімітом кроків",
+      "title": "The ReAct loop with tracing and a step limit",
       "layer": "app",
       "deps": [
         "T1",
@@ -44,14 +44,14 @@
         "AC-02",
         "AC-03"
       ],
-      "dod": "Щасливий шлях: модель обирає інструмент, отримує результат, дає відповідь",
+      "dod": "Happy path: the model chooses a tool, receives the result, gives an answer",
       "files_hint": [
         "stages/s01_agent_loop/loop.py"
       ]
     },
     {
       "id": "T4",
-      "title": "Гейт підтвердження незворотної дії",
+      "title": "The confirmation gate on an irreversible action",
       "layer": "app",
       "deps": [
         "T3"
@@ -59,7 +59,7 @@
       "acs": [
         "AC-04"
       ],
-      "dod": "Без підтвердження незворотна функція не викликається жодного разу",
+      "dod": "With no confirmation the irreversible function is never called",
       "files_hint": [
         "stages/s01_agent_loop/loop.py",
         "stages/s01_agent_loop/tools.py"
@@ -67,7 +67,7 @@
     },
     {
       "id": "T5",
-      "title": "Демо: чотири сценарії підряд і банер джерела відповідей",
+      "title": "Demo: four scenarios in a row and the banner naming the source of the answers",
       "layer": "ports",
       "deps": [
         "T3",
@@ -77,14 +77,14 @@
         "AC-01",
         "AC-05"
       ],
-      "dod": "Запуск без ключа завершується успішно, без мережевих звернень",
+      "dod": "A run with no key finishes successfully, with no network access",
       "files_hint": [
         "stages/s01_agent_loop/run.py"
       ]
     },
     {
       "id": "T6",
-      "title": "Перевірки етапу: щасливі шляхи і три режими відмови",
+      "title": "Stage checks: the happy paths and three failure modes",
       "layer": "tests",
       "deps": [
         "T3",
@@ -98,14 +98,14 @@
         "AC-06",
         "AC-06b"
       ],
-      "dod": "Дев'ять перевірок відповідають дев'яти рядкам таблиці покриття",
+      "dod": "Nine checks match the nine rows of the coverage table",
       "files_hint": [
         "stages/s01_agent_loop/check.py"
       ]
     },
     {
       "id": "T7",
-      "title": "Урок етапу: канон статті, міст на NovaShop, «що зламати»",
+      "title": "The stage lesson: the article's canon, the bridge to NovaShop, \"what to break\"",
       "layer": "docs",
       "deps": [
         "T5",
@@ -114,7 +114,7 @@
       "acs": [
         "AC-01"
       ],
-      "dod": "Урок ≤ 2500 слів (spec §6: ≤ 25 хв читання)",
+      "dod": "The lesson is ≤ 2500 words (spec §6: ≤ 25 min of reading)",
       "files_hint": [
         "stages/s01_agent_loop/README.md",
         "stages/s01_agent_loop/README.en.md"
@@ -122,7 +122,7 @@
     },
     {
       "id": "T8",
-      "title": "Вправи, еталонні розв'язки й чекліст етапу",
+      "title": "Exercises, reference solutions and the stage checklist",
       "layer": "docs",
       "deps": [
         "T7"
@@ -132,7 +132,7 @@
         "AC-03",
         "AC-04"
       ],
-      "dod": "Чотири завдання, кожне з явним очікуваним результатом",
+      "dod": "Four exercises, each with an explicit expected result",
       "files_hint": [
         "stages/s01_agent_loop/exercises.md",
         "stages/s01_agent_loop/solutions/",
@@ -141,13 +141,13 @@
     },
     {
       "id": "T9",
-      "title": "Терміни етапу в глосарій, статус етапу в програму",
+      "title": "The stage's terms into the glossary, the stage's status into the curriculum",
       "layer": "docs",
       "deps": [
         "T7"
       ],
       "acs": [],
-      "dod": "Кожен виділений термін уроку має визначення в глосарії (KPI 100%)",
+      "dod": "Every term highlighted in the lesson has a definition in the glossary (KPI 100%)",
       "files_hint": [
         "GLOSSARY.md",
         "CURRICULUM.md",

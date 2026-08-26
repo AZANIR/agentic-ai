@@ -1,251 +1,266 @@
-# Етап 7 — Голос: два числа замість одного припущення
+# Stage 7 — Voice: two numbers instead of one assumption
 
-Етап 6 дав сервіс, що відповідає. Він відповідає **повільно** — і це нікого не турбує, доки
-відповідь читають очима.
+Stage 6 delivered a service that answers. It answers **slowly** — and nobody minds while the
+answer is read with eyes.
 
-Голос змінює одне: тепер на тому кінці людина **чекає мовчки**.
+Voice changes one thing: now the person on the other end is **waiting in silence**.
 
-## Що ти зможеш після цього етапу
+## What you will be able to do after this stage
 
-- Отримати два числа на однакових даних однією командою й пояснити різницю між ними
-- Сказати, чому міряють час до **першого звуку**, а не загальну тривалість
-- Показати на власних числах, чому p95 важливіший за середнє — і чому його беруть рангом
-- Відтворити barge-in і назвати, які **дві** умови вирішують
-- Назвати ціну prefetch, а не лише його виграш
-- Звірити розклад із трейсом і зрозуміти, навіщо два механізми на одне число
+- Get two numbers from the same data with one command and explain the difference between them
+- Say why the measurement is time to the **first sound** rather than total duration
+- Show on your own numbers why p95 matters more than the mean — and why it is taken by rank
+- Reproduce barge-in and name the **two** conditions that decide it
+- Name the price of prefetch, not only its gain
+- Reconcile the breakdown against the trace and see why one number needs two mechanisms
 
-## Запусти перед читанням
+## Run this before reading
 
 ```bash
-python -m stages.s07_voice.run     # сім сцен, без мікрофона й без моделей
-python -m stages.s07_voice.check   # 44 перевірки
+python -m stages.s07_voice.run     # seven scenes, no microphone and no models
+python -m stages.s07_voice.check   # 44 checks
 ```
 
-Дивись на **третю** сцену. Перші дві дають два числа; третя пояснює, чому вони різні, і саме
-вона відрізняє результат від загальновідомої фрази «стрімінг швидший».
+Watch the **third** scene. The first two give two numbers; the third explains why they differ,
+and it is the one that separates a result from the well-known phrase "streaming is faster".
 
-## Частина 1. Чому саме час до першого звуку
+## Part 1. Why time to the first sound
 
-У тексті затримка — незручність. У голосі затримка — **пауза в розмові**, а паузу людина
-читає як «мене не почули» або «воно зламалось».
+In text, latency is an inconvenience. In voice, latency is a **pause in the conversation**, and
+a person reads a pause as "they did not hear me" or "it is broken".
 
-Тому міряють не загальний час, а момент, коли співрозмовник розуміє, що його почули:
+So what gets measured is not the total time but the moment the other person understands they
+were heard:
 
 ```
-батч:      1574 мс   розпізнавання 600 · модель 750 · синтез 224
-стрімінг:   450 мс
-відношення:  3.5×
+batch:      1574 ms   recognition 600 · model 750 · synthesis 224
+streaming:   450 ms
+ratio:        3.5x
 ```
 
-**Числа підроблені за порядком величини реальних.** Це доказ про **архітектуру конвеєра**, а
-не про швидкодію моделей, і урок каже це першим рядком, а не в підвалі.
+**The numbers are faked to the order of magnitude of real ones.** This is evidence about
+**pipeline architecture**, not about how fast models are, and the lesson says so in its first
+line rather than in a footnote.
 
-## Частина 2. Найважливіше речення всього етапу
+## Part 2. The most important sentence of the whole stage
 
-> **Оптимізувати можна лише те, що виміряно. Число «до» без числа «після» — це звіт; число
-> «після» без числа «до» — це віра.**
+> **You can only optimise what you have measured. A number before without a number after is a
+> report; a number after without a number before is faith.**
 
-Тому конвеєр будується **двічі**. Батчевий пишеться за годину, працює й дає базу. Читач, який
-побачив 1574 мс, а потім 450 мс, розуміє **ціну** складності стрімінгу. Читач, якому одразу
-дали стрімінг, вважає його нормою й не знає, скільки він коштує.
+That is why the pipeline is built **twice**. The batch one is written in an hour, works, and
+gives the baseline. A reader who saw 1574 ms and then 450 ms understands the **price** of
+streaming's complexity. A reader handed streaming straight away takes it for the norm and has
+no idea what it costs.
 
-## Частина 3. Виграш стрімінгу — це дві різні речі
+## Part 3. Streaming's gain is two different things
 
-Найважливіша частина етапу, і найлегша для плутанини:
+The most important part of the stage, and the easiest to confuse:
 
-| Частина | Що відбувається | Зменшує загальний час? | Масштабується з |
+| Part | What happens | Reduces total time? | Scales with |
 |---|---|---|---|
-| **Перекриття** | розпізнавання йде **разом із мовленням** | так | довжиною репліки |
-| **Раніша віддача** | перший фрагмент іде в синтез, доки модель пише решту | **ні** | нічим |
+| **Overlap** | recognition runs **while the person is speaking** | yes | utterance length |
+| **Earlier delivery** | the first chunk goes to synthesis while the model writes the rest | **no** | nothing |
 
-Друга частина не робить роботу швидшою. Моделі писати стільки ж, синтезу озвучувати стільки
-ж — 974 мс в обох конвеєрах. Змінюється лише **момент першої віддачі**.
+The second part does not make the work faster. The model writes just as much, synthesis voices
+just as much — 974 ms in both pipelines. Only the **moment of first delivery** changes.
 
-Плутати їх дорого. Перша дає тим більше, чим довше говорить людина; друга дає фіксований
-виграш і не залежить від репліки взагалі.
+Conflating them is expensive. The first gives more the longer the person speaks; the second
+gives a fixed gain and does not depend on the utterance at all.
 
-Перевірка стверджує це буквально: різниця загальних часів має **дорівнювати** перекриттю.
-Будь-який зайвий міліметр означав би, що стрімінг десь тихо зробив менше роботи.
+The check asserts this literally: the difference in totals must **equal** the overlap. Any
+extra millisecond would mean streaming quietly did less work.
 
-## Частина 4. Закон збереження: у кого був час
+## Part 4. The conservation law: whose time was it
 
-Розклад, який не сходиться, гірший за відсутній: у нього вірять і оптимізують не той крок.
+A breakdown that does not reconcile is worse than no breakdown: it gets believed, and the wrong
+step gets optimised.
 
-У батчі це просто — сума кроків дорівнює загальному числу. У стрімінгу зʼявляється третій
-учасник: **споживач**. Між фрагментами керування має він — шле кадр у сокет, малює рядок,
-чекає на мережу. Цей час минає, але це не робота конвеєра.
+In batch this is simple — the steps sum to the total. Streaming adds a third participant: the
+**consumer**. Between chunks control belongs to it — it pushes a frame into a socket, draws a
+line, waits on the network. That time passes, but it is not the pipeline's work.
 
-Перша редакція цього не розділяла, і секундомір приписував паузу споживача **наступному**
-кроку. Споживач, що витрачав секунду між фрагментами, отримував розклад, де модель коштує
-2750 мс — при моделі, що спала 750. Найдорожчим кроком ставав той, після якого браузер думав
-найдовше.
+The first edition did not separate it, and the stopwatch billed the consumer's pause to the
+**next** step. A consumer that spent a second between chunks got a breakdown where the model
+cost 2750 ms — with a model that slept 750. The most expensive step became whichever one the
+browser happened to think after.
 
-Тому інваріант етапу пишеться повністю:
+So the stage's invariant is written in full:
 
 ```
-сума кроків + віддача споживачеві = загальний час
+sum of steps + handover to the consumer = total time
 ```
 
-і третій доданок — той, що не приписаний нікому, — має бути **нулем**. Ненульовий означає, що
-щось поміряли повз. Перевірка ганяє стрімінг із навмисно повільним споживачем і стверджує
-обидві половини: що сума сходиться **і** що крок моделі дорівнює тому, скільки модель спала.
-Без другої половини закон збереження задовольнявся б і тоді, коли модель звинувачують у
-чужій затримці.
+and the third term — the one attributed to nobody — must be **zero**. A non-zero one means
+something was measured past the mark. The check runs streaming against a deliberately slow
+consumer and asserts both halves: that the sum reconciles **and** that the model's step equals
+what the model actually slept. Without the second half the conservation law would also be
+satisfied when the model is blamed for someone else's delay.
 
-## Частина 5. Читаємо код — шість файлів
+## Part 5. Reading the code — six files
 
-### `clock.py` — чому перевірки етапу не мигтять
+### `clock.py` — why this stage's checks never flicker
 
-Годинник подається параметром і **ніде** не читається з системного. Етап 5 ухвалив те саме
-заради детермінізму TTL; тут причина сильніша:
+The clock is passed as a parameter and is read from the system **nowhere**. Stage 5 decided the
+same thing for the sake of TTL determinism; here the reason is stronger:
 
-> Перевірка, що міряє час справжнім годинником, залежить від навантаження машини. Вона
-> проходить дев'ять разів і падає десятий — і її **вимикають**, а разом із нею зникає єдиний
-> доказ головної тези етапу.
+> A check that measures time with a real clock depends on the machine's load. It passes nine
+> times and fails the tenth — and then it gets **disabled**, and with it disappears the only
+> evidence for the stage's main thesis.
 
-**Підроблений годинник не спить.** `sleep(200)` рухає лічильник і повертає керування негайно.
-Прогін «на півтори секунди» виконується за мікросекунди, тож вимога «двадцять прогонів
-поспіль дають те саме число» коштує нуль.
+**The fake clock does not sleep.** `sleep(200)` moves a counter and returns control
+immediately. A run that "takes a second and a half" executes in microseconds, so the
+requirement "twenty consecutive runs give the same number" costs nothing.
 
-Альтернатива — справжній годинник і широкі допуски — виглядає простішою й ховає ціну: допуск,
-широкий настільки, щоб не мигтіти на завантаженій машині, **вже не розрізняє** батч і стрімінг.
+The alternative — a real clock and wide tolerances — looks simpler and hides its price: a
+tolerance broad enough not to flicker on a loaded machine **no longer distinguishes** batch
+from streaming.
 
-Сторожить це не грепом по трьох іменах, а розбором **імпортів**: модуль конвеєра не тягне
-ані `time`, ані `datetime`, ані `random`. Перелік слів завжди неповний — перша редакція
-шукала `perf_counter`, і `datetime.now()` проходив крізь неї не помітивши.
+The guard is not a grep for three names but a parse of the **imports**: the pipeline module
+pulls in neither `time` nor `datetime` nor `random`. A word list is always incomplete — the
+first edition looked for `perf_counter`, and `datetime.now()` walked straight through it
+unnoticed.
 
-### `measure.py` — секундомір, а не заміри по місцях
+### `measure.py` — a stopwatch, not measurements scattered around
 
-Один секундомір, який знає про кроки. Розкидані `perf_counter()` дають числа, які неможливо
-скласти: щось поміряли двічі, щось не поміряли зовсім, і сума не сходиться із загальним.
+One stopwatch that knows about steps. Scattered `perf_counter()` calls give numbers that cannot
+be added up: something was measured twice, something not measured at all, and the sum does not
+match the total.
 
-**p95 береться найближчим рангом, без інтерполяції.** Інтерпольоване число — це затримка,
-якої не відчув жоден прогін. Показувати користувачеві вигадану цифру замість найгіршої
-реальної — дивна форма чесності.
+**p95 is taken by nearest rank, without interpolation.** An interpolated number is a latency
+that no run experienced. Showing the user an invented figure instead of the worst real one is a
+strange form of honesty.
 
-Найближчий ранг — це `ceil(0.95·n)`, і **не** `round`. Різниця виглядає педантичною, доки не
-подивитись, де вона проявляється: приблизно на половині розмірів вибірки (11–19, 30–39,
-51–59 …) округлення дає ранг на одиницю нижче. На тридцяти прогонах p95 виходив 400 мс, тоді
-як 6.7 % прогонів були гірші. Модуль, що існує рівно щоб показати хвіст, ховав його — і
-перша перевірка цього не бачила, бо стояла на ста прогонах, тобто на щасливому числі, де
-`round` і `ceil` збігаються.
+Nearest rank is `ceil(0.95·n)`, and **not** `round`. The difference looks pedantic until you
+look at where it shows up: on roughly half of all sample sizes (11–19, 30–39, 51–59 …) rounding
+gives a rank one lower. At thirty runs p95 came out as 400 ms while 6.7 % of runs were worse.
+The module that exists precisely to expose the tail was hiding it — and the first check did not
+see this, because it stood at a hundred runs, that is, at a lucky number where `round` and
+`ceil` agree.
 
-**`None`, а не нуль.** Двічі: перший звук і загальний час. Нуль — правдоподібне число, тож
-розклад, прочитаний посеред стрімінгу, показував «усього 0 мс» поруч із непорожнім переліком
-кроків, а порожня відповідь моделі давала «до першого звуку: 0 мс» — найкращу можливу
-затримку для прогону, у якому звуку не було взагалі.
+**`None`, not zero.** Twice: first audio and total time. Zero is a plausible number, so a
+breakdown read in the middle of streaming showed "total 0 ms" next to a non-empty list of
+steps, and an empty model reply gave "to first audio: 0 ms" — the best possible latency for a
+run that had no audio in it at all.
 
-### `model.py` — звідки береться розкид
+### `model.py` — where the spread comes from
 
-Підроблена модель одна на весь етап, і затримка в ній — **функція номера прогону**, а не
-стан. Це потрібно для розподілу: сто прогонів мають дати сто різних чисел, інакше показувати
-p95 немає на чому.
+There is one fake model for the whole stage, and the latency in it is a **function of the run
+index**, not state. That is needed for the distribution: a hundred runs have to give a hundred
+different numbers, otherwise there is nothing to show p95 on.
 
-Годинник розкиду не дає за побудовою — і це його головна чеснота. Тому розкид вносить модель:
-кожен десятий прогін учетверо повільніший, кожен пʼятдесятий — увосьмеро. Сто прогонів дають
-середнє 1859 мс, p95 3824 мс і найгірший 6824 мс, і повторний прогін дає ті самі сто чисел.
+The clock gives no spread by construction — and that is its chief virtue. So the spread comes
+from the model: every tenth run is four times slower, every fiftieth eight times. A hundred runs
+give a mean of 1859 ms, p95 of 3824 ms and a worst of 6824 ms, and a repeat run gives the same
+hundred numbers.
 
-Один ярус хвоста дав би p95, що дорівнює найгіршому, — і різниця між «майже найгірший» і
-«найгірший» зникла б саме там, де етап її показує.
+A single tier of tail would give a p95 equal to the worst — and the difference between "almost
+the worst" and "the worst" would disappear exactly where the stage is showing it.
 
-### `pipeline.py` — різниця видима в типі
+### `pipeline.py` — the difference is visible in the type
 
 ```python
-batch(...)     -> Reply     готова відповідь
-streaming(...) -> Stream    фрагменти
+batch(...)     -> Reply     a finished answer
+streaming(...) -> Stream    chunks
 ```
 
-Асиметрія навмисна. Функція, що повертає готовий результат, **не має способу** віддати
-половину; функція, що повертає ітератор, не має способу приховати, що віддає частинами.
-Різниця, видима в сигнатурі, не потребує коментаря — і не розходиться з кодом.
+The asymmetry is deliberate. A function that returns a finished result **has no way** to hand
+back half of it; a function that returns an iterator has no way to hide that it delivers in
+parts. A difference visible in the signature needs no comment — and cannot drift from the code.
 
-**Фрагменти проходяться один раз.** Голий генератор після часткового проходу віддає хвіст:
-`next(chunks)`, а потім `list(chunks)` дає не всю відповідь, а її другу половину — мовчки.
-Половина відповіді, що виглядає як ціла, гірша за помилку, тож другий прохід — відмова.
+**Chunks are traversed once.** A bare generator hands back the tail after a partial pass:
+`next(chunks)` and then `list(chunks)` gives not the whole answer but its second half —
+silently. Half an answer that looks like the whole one is worse than an error, so the second
+pass is a refusal.
 
-**Мовчання — не запит.** Порожнє розпізнавання зупиняє конвеєр **до** виклику моделі: інакше
-кожен кашель у мікрофон коштує токенів і півтори секунди. Мовчання **моделі** — інший режим
-відмови, і він теж названий окремо.
+**Silence is not a request.** Empty recognition stops the pipeline **before** the model call:
+otherwise every cough into the microphone costs tokens and a second and a half. Silence from
+the **model** is a different failure mode, and it too is named separately.
 
-### `bargein.py` — дві умови, і жодної окремо не досить
+### `bargein.py` — two conditions, and neither is enough alone
 
-    рівень      чи це взагалі голос, а не фон
-    тривалість  чи це слово, а не клацання
+    level       is this voice at all, rather than background
+    duration    is this a word, rather than a click
 
-Детектор лише за рівнем перериває від кашлю й стуку клавіш. Лише за тривалістю — від
-кондиціонера. Тому перевірок **чотири**: шум не перериває, коротке не перериває, довге
-перериває — і четверта рухає обидва пороги, доводячи, що кожен із них справді впливає на
-рішення. Без неї обидва числа могли б бути декоративними.
+A detector that goes by level alone interrupts on a cough and on keystrokes. By duration alone
+— on the air conditioner. So there are **four** checks: noise does not interrupt, short does not
+interrupt, long does interrupt — and the fourth moves both thresholds, proving that each of them
+really does affect the decision. Without it both numbers could be decorative.
 
-**Числа 0.35 і 200 мс — межі вправи, не налаштування продакшну.** Справжній поріг залежить
-від мікрофона, кімнати й мови, і підбирається вухом.
+**0.35 and 200 ms are the exercise's bounds, not production settings.** The real threshold
+depends on the microphone, the room and the language, and it is tuned by ear.
 
-### `prefetch.py` — обидва числа, а не одне
+### `prefetch.py` — both numbers, not one
 
-Повільний інструмент у голосі коштує дорого: людина чекає мовчки. Очевидна відповідь —
-покликати його раніше.
+A slow tool costs a lot in voice: the person waits in silence. The obvious answer is to call it
+earlier.
 
-Так само очевидно, що стаття, яка закінчується словом «швидше», дає читачеві оптимізацію
-**без умов її застосування**. Prefetch виконує виклик, який може не знадобитись: це запит до
-чужої системи, місце в черзі, іноді гроші.
+Just as obviously, an article that ends on the word "faster" hands the reader an optimisation
+**without the conditions for applying it**. Prefetch performs a call that may turn out not to be
+needed: that is a request into someone else's system, a place in a queue, sometimes money.
 
-Тому виграш і ціна живуть в **одному типі**: `millis` і `wasted_millis`. Перша редакція
-тримала їх нарізно — синхронний шлях не спав часу роздуму взагалі, — і читач, який порівняв
-би два `.millis` навпростець, побачив би, що prefetch на 250 мс **повільніший**. Правильне
-число існувало лише в демо, яке додавало роздум ззовні руками.
+So the gain and the price live in **one type**: `millis` and `wasted_millis`. The first edition
+kept them apart — the synchronous path did not sleep the thinking time at all — and a reader
+comparing two `.millis` head-on would have seen that prefetch is 250 ms **slower**. The correct
+number existed only in the demo, which added the thinking from outside by hand.
 
-І окремо: на відкинутий результат **не чекають**. Затримка, яку сплачують за річ, що рядком
-нижче оголошена марною роботою, — це не оптимізація.
+And separately: the discarded result is **not waited for**. A latency paid for a thing that is
+declared wasted work one line below is not an optimisation.
 
-## Частина 6. Трейс — те саме число іншим шляхом
+## Part 6. The trace — the same number by another route
 
-Кроки конвеєра пишуться в `shared.trace`, як і на всіх етапах від першого. Це не дублювання
-розкладу: розклад живе в памʼяті прогону, трейс — на диску, і механізми незалежні.
+The pipeline's steps are written into `shared.trace`, as on every stage since the first. This is
+not duplicating the breakdown: the breakdown lives in the run's memory, the trace on disk, and
+the mechanisms are independent.
 
-Саме тому одним можна **звірити** інший. Число, що збіглося в обох, мало б помилитися двічі
-однаково — а це вже не випадковість. Сьома сцена демо друкує звірку, і перевірка стверджує
-її ж: час до першого звуку у трейсі дорівнює числу з розкладу, а сума кроків моделі у трейсі
-— кроку моделі в розкладі.
+That is exactly why one can be **reconciled** against the other. A number that matched in both
+would have had to be wrong twice in the same way — and that is no longer chance. The demo's
+seventh scene prints the reconciliation, and the check asserts the same thing: time to first
+audio in the trace equals the number from the breakdown, and the sum of the model's steps in the
+trace equals the model's step in the breakdown.
 
-Трейс несе **числа й причини**, не зміст: тексту відповіді в ньому немає, і це теж
-перевіряється. Читатиме його етап 8.
+The trace carries **numbers and reasons**, not content: the text of the answer is not in it, and
+that is checked too. Stage 8 will read it.
 
-## Частина 7. Що зламати
+## Part 7. What to break
 
 ```bash
-python scripts/mutate.py s07          # усі шістнадцять мутацій
-python scripts/mutate.py s07 --expect # ще й звірити з обіцяними числами
+python scripts/mutate.py s07          # all sixteen mutations
+python scripts/mutate.py s07 --expect # and reconcile against the promised numbers
 ```
 
-**Найцікавіші стосуються не звуку, а вимірювання.** Підроблений годинник починає спати
-насправді; секундомір перестає складати кроки; час споживача приписується моделі; p95
-округлюється; перший звук можна позначити двічі. Усі лишають код працездатним і дають числа,
-які виглядають правдоподібно — саме тому їх складно помітити без перевірки.
+**The most interesting ones are not about sound but about measurement.** The fake clock starts
+really sleeping; the stopwatch stops adding up steps; the consumer's time is billed to the
+model; p95 gets rounded; first audio can be marked twice. All of them leave the code working and
+give numbers that look plausible — which is exactly why they are hard to spot without a check.
 
-Розбір — у [`exercises.md`](exercises.md).
+The walkthrough is in [`exercises.md`](exercises.md).
 
-## Межі цього етапу — щоб ти не переніс їх у продакшн
+## The limits of this stage — so you do not carry them into production
 
-- **Числа підроблені.** Порядок величини реальний, абсолютні значення — ні. Це доказ про
-  архітектуру, а не бенчмарк.
-- **VAD наївний.** Два пороги без спектрального аналізу; тривала музика перерве відповідь.
-- **Один голос, одна мова.** Багатомовність і вибір голосу — конфігурація, не урок.
-- **Живий режим написано, але не прогнано.** `real.py` існує й вмикається одним прапорцем,
-  проте автор не мав ані ваг моделей, ані мікрофона: AC-07 лишається `НЕ ПЕРЕВІРЕНО`
-  свідомо. Це слабше місце етапу, і воно назване, а не сховане.
-- **Числа на сторінці й числа у прогоні різні** — бо репліка інша. Збігатися має структура
-  розкладу, а не значення; сторінка каже це прямо.
-- **Prefetch — один інструмент**, свідомо read-only. Відкинутий виклик, що змінює стан,
-  перетворив би оптимізацію на пастку.
-- **Голос не зшито із сервісом етапу 6.** Окремий модуль; зшивання має сенс на етапі 10.
+- **The numbers are faked.** The order of magnitude is real, the absolute values are not. This
+  is evidence about architecture, not a benchmark.
+- **The VAD is naive.** Two thresholds with no spectral analysis; sustained music will interrupt
+  the answer.
+- **One voice, one language.** Multilingual support and voice selection are configuration, not a
+  lesson.
+- **Live mode is written but never run.** `real.py` exists and turns on with one flag, but the
+  author had neither model weights nor a microphone: AC-07 stays `NOT EVALUATED` on purpose.
+  This is the stage's weakest point, and it is named rather than hidden.
+- **The numbers on the page and the numbers in the run differ** — because the utterance is
+  different. What has to match is the shape of the breakdown, not the values; the page says so
+  directly.
+- **Prefetch has one tool**, deliberately read-only. A discarded call that changed state would
+  turn the optimisation into a trap.
+- **Voice is not stitched into stage 6's service.** A separate module; stitching makes sense at
+  stage 10.
 
-## Числа
+## The numbers
 
-**перевірок: 44, з них на режими відмови: 37.** Модулі: `pipeline.py` — 76 із 110 дозволених
-рядків. Прогін демо — мікросекунди реального часу, попри «півтори секунди» у виводі.
+**44 checks, 37 of them on failure modes.** Modules: `pipeline.py` — 76 of 110 allowed lines.
+The demo run takes microseconds of real time, despite the "second and a half" in its output.
 
-## Далі
+## Next
 
-Етап 8 — **оцінювання**: перестати казати «начебто працює». Харнес на трьох рівнях поверх
-трейсів, детермінований чек і суддя-модель, а також біас позиції й довжини — показані наживо
-на власних даних.
+Stage 8 — **evaluation**: stopping saying "seems to work". A harness on three levels over the
+traces, a deterministic check and a model judge, plus position and length bias — shown live on
+the stage's own data.

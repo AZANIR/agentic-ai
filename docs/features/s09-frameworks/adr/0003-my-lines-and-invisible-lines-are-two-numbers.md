@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0003 — Мої рядки й невидимі рядки — два числа, і невидиме міряється виконанням
+# 0003 — My lines and invisible lines are two numbers, and the invisible one is measured by execution
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,46 +15,47 @@ ticket: "n/a"
 
 ## Context
 
-«Менше коду» — головний аргумент на користь фреймворків, і він майже завжди подається одним
-числом. Одне число тут бреше в передбачуваний бік: код нікуди не подівся, він переїхав туди,
-де його не видно, не можна прочитати під час інциденту й не можна виправити.
+"Less code" is the main argument in favour of frameworks, and it is almost always presented as a
+single number. One number here lies in a predictable direction: the code did not go away, it moved
+somewhere you cannot see it, cannot read it during an incident and cannot fix it.
 
-Питання не в тому, чи рахувати друге число, а в тому, **що саме** воно має рахувати.
+The question is not whether to count a second number, but **what exactly** it should count.
 
-Найочевидніше — розмір встановленого пакета. Це число велике, вражаюче й майже беззмістовне:
-CrewAI приносить із собою підтримку десятків інтеграцій, з яких на цьому вході не виконається
-жодна.
+The most obvious candidate is the size of the installed package. That number is large, impressive
+and almost meaningless: CrewAI brings support for dozens of integrations along with it, and on this
+input not one of them will execute.
 
 ## Decision Drivers
 
-- Друге число має описувати **цю задачу**, а не каталог можливостей.
-- Воно має бути відтворюваним офлайн.
-- Спосіб підрахунку має бути названий, бо будь-яке його тлумачення відрізняється в рази.
+- The second number must describe **this task**, not a catalogue of capabilities.
+- It must be reproducible offline.
+- The way it is counted must be named, because any two readings of it differ by multiples.
 
 ## Considered Options
 
-**А. Одне число — мої рядки.** Класична форма аргументу, і саме її етап спростовує.
+**A. One number — my lines.** The classic form of the argument, and the very one the stage refutes.
 
-**Б. Мої рядки + розмір встановленого пакета.** Друге число вражає й нічого не значить.
+**B. My lines + the size of the installed package.** The second number impresses and means nothing.
 
-**В. Мої рядки + виконані рядки пакета.** Трасування збирає номери рядків, що **виконались**
-під час прогону, і лишає з них ті, що належать пакетові фреймворка.
+**C. My lines + the package's executed lines.** Tracing collects the line numbers that **executed**
+during the run and keeps the ones belonging to the framework's package.
 
 ## Decision
 
-**В.** Два числа, обидва в тій самій одиниці — виконуваний рядок. Моє рахується AST-розбором
-модуля реалізації, невидиме — трасуванням прогону.
+**C.** Two numbers, both in the same unit — an executable line. Mine is counted by AST-parsing the
+implementation module, the invisible one by tracing the run.
 
-Межа названа прямо в уроці: невидиме число описує **цей вхід**. Інша задача виконає інші
-рядки, і це властивість виміру, а не його вада.
+The limit is named outright in the lesson: the invisible number describes **this input**. A
+different task will execute different lines, and that is a property of the measurement, not a defect
+in it.
 
 ## Consequences
 
-**Добре.** «Менше коду» отримало другу половину, і вона вимірювана. Читач бачить не «фреймворк
-великий», а «на цій задачі за мене працює стільки-то рядків, яких я не читав».
+**Good.** "Less code" got its second half, and that half is measurable. The reader sees not "the
+framework is big" but "on this task, this many lines I have never read work on my behalf".
 
-**Ціна.** Трасування сповільнює прогін. На підробленій моделі це непомітно, і бюджет NFR-2b
-витримується.
+**The price.** Tracing slows the run down. On a fake model it is imperceptible, and the NFR-2b
+budget holds.
 
-**Межа.** Число залежить від входу й від версії пакета. Обидві залежності названі; порівнювати
-його з числом сусіда, отриманим на іншій задачі, не можна.
+**The limit.** The number depends on the input and on the package version. Both dependencies are
+named; comparing it against a neighbour's number obtained on a different task is not allowed.

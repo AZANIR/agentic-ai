@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "S"
@@ -11,129 +11,130 @@ target_surfaces: [cli, library-sdk]
 
 ## 1. Introduction and goals
 
-Етап 3 показує, що **supervisor — це той самий агент, у якого інструменти є агентами**. Із
-цього речення випливає вся структура: нової архітектури не з'являється, з'являється рівень
-над уже написаним.
+Stage 3 shows that **a supervisor is that same agent, with agents for tools**. The whole
+structure follows from that sentence: no new architecture appears, what appears is a layer above
+what is already written.
 
-Три цілі, кожна перевіряється:
+Three goals, each of them checked:
 
-1. Читач бачить маршрутизацію як послідовність вузлів, а не як «модель якось вирішує».
-2. Читач бачить **схему стану як рішення**: що в ній є, хто це читає, і чому додати поле
-   через півроку дорожче за все інше в графі.
-3. Читач має чекліст «чи потрібен тут supervisor», бо частіше за все — не потрібен.
+1. The reader sees routing as a sequence of nodes rather than as "the model somehow decides".
+2. The reader sees the **state schema as a decision**: what is in it, who reads that, and why
+   adding a field six months from now costs more than anything else in the graph.
+3. The reader has a "do you need a supervisor here" checklist, because most of the time the
+   answer is no.
 
 ## 2. Constraints
 
-| # | Обмеження | Звідки |
+| # | Constraint | Where from |
 |---|---|---|
-| C-1 | Офлайн, без ключа до API | правило курсу: перевірка, що потребує мережі, зламана |
-| C-2 | Цикл етапу 1 не змінюється жодним рядком | етап 3 додає рівень, не переписує нижній |
-| C-3 | Власний граф ≤ 80 виконуваних рядків | NFR-1: більше — і це вже не «видно цілком» |
-| C-4 | LangGraph — необов'язковий extra `[s03]` | NFR-5: етап проходиться без встановлення |
-| C-5 | `if profile == ...` у коді етапу заборонено | ADR репозиторію 0002 |
-| C-6 | Проза українською, код англійською | CONVENTIONS.md |
+| C-1 | Offline, with no API key | the course rule: a check that needs the network is broken |
+| C-2 | The stage 1 loop does not change by a single line | stage 3 adds a layer, it does not rewrite the one below |
+| C-3 | Our own graph ≤ 80 executable lines | NFR-1: any more and it is no longer "visible in one piece" |
+| C-4 | LangGraph is an optional `[s03]` extra | NFR-5: the stage can be completed without installing it |
+| C-5 | `if profile == ...` is forbidden in the stage's code | repository ADR 0002 |
+| C-6 | Everything published is written in English | CONVENTIONS.md |
 
 ## 3. Context and scope
 
-Learner запускає демо або перевірки. Граф отримує запит **разом із рівнем доступу
-питальника** й повертає відповідь із маршрутом. Спеціалісти — це вже написаний код етапів
-1–2 плюс один новий, найпростіший.
+The Learner runs the demo or the checks. The graph receives a request **together with the
+asker's access level** and returns an answer with the route. The specialists are the code
+already written in stages 1–2 plus one new, simplest one.
 
 ```mermaid
 C4Context
-    title Етап 3 — маршрутизація між спеціалістами
+    title Stage 3 — routing between specialists
 
-    Person(learner, "Learner", "Запускає демо й перевірки, ламає код навмисно")
+    Person(learner, "Learner", "Runs the demo and the checks, breaks the code on purpose")
 
-    System_Boundary(s03, "Етап 3 — Router") {
-        System(graph, "Граф", "Supervisor + три спеціалісти + схема стану")
+    System_Boundary(s03, "Stage 3 — Router") {
+        System(graph, "Graph", "Supervisor + three specialists + the state schema")
     }
 
-    System_Ext(s01, "Етап 1 — цикл агента", "Замовлення: статус, повернення")
-    System_Ext(s02, "Етап 2 — пошук", "База знань із рівнями доступу")
-    System_Ext(llm, "LLM-провайдер", "Підробка за замовчуванням, справжній за LLM_*")
-    System_Ext(lg, "LangGraph", "Необов'язковий: друга реалізація того самого")
+    System_Ext(s01, "Stage 1 — agent loop", "Orders: status, returns")
+    System_Ext(s02, "Stage 2 — search", "Knowledge base with access levels")
+    System_Ext(llm, "LLM provider", "Fake by default, real one under LLM_*")
+    System_Ext(lg, "LangGraph", "Optional: a second implementation of the same thing")
 
-    Rel(learner, graph, "Запит + рівень доступу")
-    Rel(graph, s01, "Спеціаліст замовлень")
-    Rel(graph, s02, "Спеціаліст знань, з рівнем доступу зі стану")
-    Rel(graph, llm, "Рішення про маршрут")
-    Rel(graph, lg, "Той самий маршрут іншою реалізацією")
+    Rel(learner, graph, "Request + access level")
+    Rel(graph, s01, "Orders specialist")
+    Rel(graph, s02, "Knowledge specialist, with the access level from the state")
+    Rel(graph, llm, "The routing decision")
+    Rel(graph, lg, "The same route by another implementation")
 ```
 
-**У межах:** маршрутизація, схема стану, цикл ревізій із лімітом, передача рівня доступу,
-друга реалізація на LangGraph, чекліст «чи потрібен supervisor».
+**In scope:** routing, the state schema, the revision loop with a limit, passing the access
+level, a second implementation on LangGraph, the "do you need a supervisor" checklist.
 
-**Поза межами:** пам'ять між прогонами (етап 5), винесення спеціалістів у процеси (етапи
-4 і 6), порівняння фреймворків (етап 9), вимірювання якості маршрутизації (етап 8).
+**Out of scope:** memory between runs (stage 5), moving specialists into processes (stages 4 and
+6), comparing frameworks (stage 9), measuring the quality of routing (stage 8).
 
 ## 4. Solution strategy
 
-| Рішення | Вибір | Чому |
+| Decision | Choice | Why |
 |---|---|---|
-| Порядок подачі | Власний граф, потім LangGraph | Читач, який побачив бібліотеку першою, запам'ятає її як магію. ADR-0001 |
-| Схема стану | Оголошений контракт із фіксованим набором полів | Вільний словник ховає найдорожче рішення етапу за зручністю. ADR-0002 |
-| Рівень доступу | Поле стану, не аргумент виклику | Передача — місце, де права зникають найтихіше. ADR-0003 |
-| Маршрут | Рішення моделі за переліком компетенцій | Регулярка ховає саме те, заради чого етап існує. ADR-0004 |
-| Ліміт ревізій | Лічильник у стані, дефолт малий | Той самий патерн, що ліміт кроків етапу 1 |
-| Спеціалісти | Уже написаний код етапів 1–2 плюс один новий | Supervisor складається з наявного — у цьому теза |
+| Order of presentation | Our own graph, then LangGraph | A reader who sees the library first will remember it as magic. ADR-0001 |
+| State schema | A declared contract with a fixed set of fields | A free-form dictionary hides the stage's most expensive decision behind convenience. ADR-0002 |
+| Access level | A state field, not a call argument | The handoff is where rights disappear most quietly. ADR-0003 |
+| Route | A model's decision from a list of competences | A regular expression hides the very thing the stage exists for. ADR-0004 |
+| Revision limit | A counter in the state, with a small default | The same pattern as the step limit at stage 1 |
+| Specialists | The code already written in stages 1–2 plus one new one | A supervisor is assembled from what exists — that is the thesis |
 
 ## 5. Building block view
 
 ```
 stages/s03_router/
-├── state.py        схема стану: оголошені поля, лічильники, причина завершення
-├── specialists.py  три спеціалісти: замовлення (етап 1), знання (етап 2), підрахунки
-├── graph.py        supervisor + маршрутизація + цикл ревізій; ≤80 рядків
-├── langgraph_impl.py  той самий граф на LangGraph; імпортується лише за наявності
-├── decision.py     чекліст «чи потрібен supervisor», кодом
-├── run.py          демо
-├── check.py        перевірки
-└── DECISION.md     проза чекліста
+├── state.py        the state schema: declared fields, counters, finish reason
+├── specialists.py  three specialists: orders (stage 1), knowledge (stage 2), totals
+├── graph.py        supervisor + routing + revision loop; ≤80 lines
+├── langgraph_impl.py  the same graph on LangGraph; imported only when present
+├── decision.py     the "do you need a supervisor" checklist, in code
+├── run.py          the demo
+├── check.py        the checks
+└── DECISION.md     the checklist in prose
 ```
 
 **C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title Етап 3 — внутрішня будова
+    title Stage 3 — internal structure
 
     Person(learner, "Learner")
 
     Container_Boundary(s03, "stages/s03_router") {
-        Container(state, "state.py", "Python", "Схема стану як контракт: поля оголошені, невідоме поле — помилка")
-        Container(graph, "graph.py", "Python", "Supervisor, маршрут, цикл ревізій із лічильником")
-        Container(spec, "specialists.py", "Python", "Три вузькі компетенції з описами")
-        Container(lg, "langgraph_impl.py", "Python", "Друга реалізація; необов'язкова")
-        Container(dec, "decision.py", "Python", "Чекліст «чи потрібен supervisor»")
+        Container(state, "state.py", "Python", "The state schema as a contract: fields are declared, an unknown field is an error")
+        Container(graph, "graph.py", "Python", "Supervisor, route, revision loop with a counter")
+        Container(spec, "specialists.py", "Python", "Three narrow competences with descriptions")
+        Container(lg, "langgraph_impl.py", "Python", "The second implementation; optional")
+        Container(dec, "decision.py", "Python", "The 'do you need a supervisor' checklist")
     }
 
     Container_Boundary(shared, "shared/") {
-        Container(llm, "llm.py", "Python", "Клієнт: підробка або справжній")
-        Container(trace, "trace.py", "Python", "Кроки прогону в JSONL")
+        Container(llm, "llm.py", "Python", "The client: a fake or a real one")
+        Container(trace, "trace.py", "Python", "Run steps in JSONL")
     }
 
-    System_Ext(s01, "stages/s01_agent_loop", "Цикл агента, не змінюється")
-    System_Ext(s02, "stages/s02_rag", "Пошук із рівнями доступу")
+    System_Ext(s01, "stages/s01_agent_loop", "The agent loop, unchanged")
+    System_Ext(s02, "stages/s02_rag", "Search with access levels")
 
-    Rel(learner, graph, "run(запит, access)")
-    Rel(graph, state, "Читає й пише лише оголошені поля")
-    Rel(graph, spec, "Передає задачу")
-    Rel(spec, s01, "Замовлення")
-    Rel(spec, s02, "Знання, з access зі стану")
-    Rel(graph, llm, "Рішення про маршрут")
-    Rel(graph, trace, "Кожен вузол — крок")
-    Rel(lg, spec, "Ті самі спеціалісти")
+    Rel(learner, graph, "run(request, access)")
+    Rel(graph, state, "Reads and writes only declared fields")
+    Rel(graph, spec, "Hands over the task")
+    Rel(spec, s01, "Orders")
+    Rel(spec, s02, "Knowledge, with access from the state")
+    Rel(graph, llm, "The routing decision")
+    Rel(graph, trace, "Every node is a step")
+    Rel(lg, spec, "The same specialists")
 ```
 
-**Чому `state.py` окремо від `graph.py`.** Схема стану — це контракт між усіма вузлами, і
-вона переживе будь-який із них. Тримати її в тому самому файлі, що й логіку маршрутизації,
-означало б показувати її як деталь реалізації графа — тоді як етап існує, зокрема, щоб
-показати зворотне.
+**Why `state.py` is separate from `graph.py`.** The state schema is the contract between all the
+nodes, and it will outlive any one of them. Keeping it in the same file as the routing logic
+would present it as an implementation detail of the graph — whereas the stage exists, among other
+things, to show the opposite.
 
 ## 6. Runtime view
 
-**Потік 1 — запит доходить до спеціаліста (AC-01, AC-05).**
+**Flow 1 — a request reaches a specialist (AC-01, AC-05).**
 
 ```mermaid
 sequenceDiagram
@@ -141,43 +142,43 @@ sequenceDiagram
     participant G as graph
     participant S as state
     participant M as LLM
-    participant K as спеціаліст знань
-    participant R as пошук етапу 2
+    participant K as knowledge specialist
+    participant R as stage 2 search
 
-    L->>G: run("скільки днів на повернення", access=public)
-    G->>S: створити стан: запит, access, handoffs=0, path=[]
-    G->>M: перелік компетенцій + запит
+    L->>G: run("how many days for a return", access=public)
+    G->>S: create the state: request, access, handoffs=0, path=[]
+    G->>M: list of competences + request
     M-->>G: knowledge
     G->>S: path += supervisor, handoffs += 1
-    G->>K: задача + access зі стану
+    G->>K: task + access from the state
     K->>R: search(query, access=public)
-    R-->>K: фрагменти, дозволені для public
-    K-->>G: відповідь із джерелом
+    R-->>K: fragments permitted for public
+    K-->>G: answer with a source
     G->>S: path += knowledge, finish_reason = "answered"
-    G-->>L: відповідь + маршрут
+    G-->>L: answer + route
 ```
 
-**Потік 2 — ревізія й ліміт (AC-03).**
+**Flow 2 — revision and the limit (AC-03).**
 
 ```mermaid
 sequenceDiagram
     participant G as graph
     participant S as state
     participant M as LLM
-    participant Sp as спеціаліст
+    participant Sp as specialist
 
-    loop доки revisions < ліміт
-        G->>M: оцінити відповідь
-        M-->>G: "недостатньо, поверни спеціалісту"
+    loop while revisions < limit
+        G->>M: evaluate the answer
+        M-->>G: "not enough, send it back to the specialist"
         G->>S: revisions += 1
-        G->>Sp: та сама задача з поміткою
-        Sp-->>G: нова відповідь
+        G->>Sp: the same task, flagged
+        Sp-->>G: a new answer
     end
     G->>S: finish_reason = "revision_limit"
-    Note over G,S: результат позначений незавершеним,<br/>кількість ревізій названа
+    Note over G,S: the result is marked unfinished,<br/>the number of revisions is named
 ```
 
-**Потік 3 — компетенції немає (AC-04).**
+**Flow 3 — there is no such competence (AC-04).**
 
 ```mermaid
 sequenceDiagram
@@ -185,62 +186,62 @@ sequenceDiagram
     participant M as LLM
     participant S as state
 
-    G->>M: перелік компетенцій + "яка погода в Києві"
+    G->>M: list of competences + "what is the weather in Kyiv"
     M-->>G: none
     G->>S: finish_reason = "no_specialist", path = [supervisor]
-    Note over G,S: жодного спеціаліста не викликано;<br/>відповідь називає доступні компетенції
+    Note over G,S: no specialist was called;<br/>the answer names the available competences
 ```
 
 ## 7. Deployment view
 
-`<!-- N/A: етап виконується локально як модуль. Розгортання — етап 6. -->`
+`<!-- N/A: the stage runs locally as a module. Deployment is stage 6. -->`
 
 ## 8. Crosscutting concepts
 
-| Аспект | Як вирішено |
+| Aspect | How it is solved |
 |---|---|
-| Профілі | Етап не має розгалуження за профілем; клієнт приходить із `shared/llm.py` |
-| Трейс | Кожен вузол — крок із назвою, лічильниками й причиною; читає етап 8 |
-| Помилки | Виняток спеціаліста стає результатом кроку, а не падінням графа (AC-08b) |
-| Права доступу | Поле стану; перевіряється в обидва боки (AC-05, AC-05b) і на підвищення (AC-05c) |
-| Детермінізм | Маршрут дає підробка за записаним сценарієм; справжня модель — ручний чекліст |
+| Profiles | The stage has no branching on profile; the client arrives from `shared/llm.py` |
+| Trace | Every node is a step with a name, counters and a reason; stage 8 reads it |
+| Errors | A specialist's exception becomes the result of a step, not a crash of the graph (AC-08b) |
+| Access rights | A state field; checked in both directions (AC-05, AC-05b) and against escalation (AC-05c) |
+| Determinism | The route comes from the fake following a recorded script; a real model gets a manual checklist |
 
 ## 9. Architecture decisions
 
-| # | Рішення | Статус | Де відбилось |
+| # | Decision | Status | Where it shows |
 |---|---|---|---|
-| 0001 | Власний міні-граф перед LangGraph | Accepted | §4, §5 |
-| 0002 | Схема стану — оголошений контракт, не вільний словник | Accepted | §4, §5, §8 |
-| 0003 | Рівень доступу подорожує у стані, не в аргументах | Accepted | §4, §8 |
-| 0004 | Маршрут обирає модель за переліком компетенцій | Accepted | §4, §6 |
+| 0001 | A hand-rolled mini-graph before LangGraph | Accepted | §4, §5 |
+| 0002 | The state schema is a declared contract, not a free-form dictionary | Accepted | §4, §5, §8 |
+| 0003 | The access level travels in the state, not in the arguments | Accepted | §4, §8 |
+| 0004 | The model picks the route from a list of competences | Accepted | §4, §6 |
 
 ## 10. Quality requirements
 
-| Сценарій | When | Then | How verify |
+| Scenario | When | Then | How verify |
 |---|---|---|---|
-| Маршрутизація | Шість запитів із AC-01 | 6 із 6 у правильного спеціаліста | перевірка e2e з переліком очікуваних маршрутів |
-| Розмір графа | Підрахунок виконуваних рядків `graph.py` | ≤ 80 | перевірка бюджету рядків |
-| Незалежність від LangGraph | Прогін без extra `[s03]` | усі перевірки зелені, AC-06 позначений непройденим | CI без extra |
-| Час уроку | `wc -w README.md` | ≤ 2500 слів | перевірка звірки чисел |
-| Частка відмов | Лічильник перевірок | ≥ 1/3 | перевірка лічильника |
+| Routing | The six requests from AC-01 | 6 out of 6 at the right specialist | an e2e check with the list of expected routes |
+| Graph size | Counting the executable lines of `graph.py` | ≤ 80 | a line-budget check |
+| Independence from LangGraph | A run without the `[s03]` extra | all checks green, AC-06 marked not passed | CI without the extra |
+| Lesson time | `wc -w README.md` | ≤ 2500 words | the number-reconciliation check |
+| Share of failure modes | A counter over the checks | ≥ 1/3 | a counter check |
 
 ## 11. Risks and technical debt
 
-| Ризик | Тяжкість | Мітигація | Власник |
+| Risk | Severity | Mitigation | Owner |
 |---|---|---|---|
-| **Ліміт «≤80 рядків» для графа затісний** | Medium | Досвід етапу 2: ризик такого роду **спрацьовує**, і мітигація вгадує факт, не місце. Виносити треба буде **не** маршрутизацію (у ній суть), а або складання підсумкової відповіді, або оцінку «чи задовольняє» | Contributor |
-| **Рівень доступу губиться на передачі й ніхто не помічає** | High | Три окремі критерії — витік, втрата, підвищення. Досвід етапу 2: перевірка лише на витік лишається зеленою у двох із трьох випадків | Contributor |
-| **Маршрут на підробці не той, що на справжній моделі** | Medium | Названо прямо в §«Чого план не доводить» і в ручному чеклісті; вимірювання — етап 8 | Contributor |
-| **LangGraph-версія розійдеться з власною після оновлення бібліотеки** | Low | AC-06 порівнює маршрути й падає при розбіжності; версія закріплена в extra | Contributor |
-| **Чекліст «чи потрібен supervisor» розійдеться з кодом** | Low | Досвід етапу 2: правила кодом, перевірка закріплює склад — назви ситуацій і присутність усіх вердиктів | Contributor |
+| **The "≤80 lines" limit for the graph is too tight** | Medium | The lesson of stage 2: a risk of this kind **does fire**, and the mitigation guesses the fact, not the place. What will have to move out is **not** the routing (that is the substance) but either the assembly of the final answer or the "is this satisfactory" evaluation | Contributor |
+| **The access level is lost on the handoff and nobody notices** | High | Three separate criteria — leak, loss, escalation. The lesson of stage 2: a check for a leak alone stays green in two cases out of three | Contributor |
+| **The route on the fake is not the route on a real model** | Medium | Named plainly in §"What the plan does not prove" and in the manual checklist; measurement is stage 8 | Contributor |
+| **The LangGraph version will drift from our own after a library update** | Low | AC-06 compares the routes and fails on a divergence; the version is pinned in the extra | Contributor |
+| **The "do you need a supervisor" checklist will drift from the code** | Low | The lesson of stage 2: the rules live in code, and a check pins the contents — the names of the situations and the presence of every verdict | Contributor |
 
 ## 12. Glossary
 
-| Термін | Значення в цьому етапі |
+| Term | Meaning in this stage |
 |---|---|
-| Supervisor | Агент, чиї інструменти — інші агенти. Вирішує, кому віддати задачу, і чи готова відповідь |
-| Спеціаліст | Агент із вузьким набором інструментів і одним описом компетенції |
-| Handoff | Передача задачі від supervisor'а спеціалістові. Лічиться у стані |
-| Схема стану | Оголошений набір полів, які вузли мають право читати й писати |
-| Цикл ревізій | Повернення задачі спеціалістові після незадовільної відповіді. Обмежений лічильником |
-| Вузол | Крок графа: supervisor або спеціаліст. Потрапляє у `path` і у трейс |
+| Supervisor | An agent whose tools are other agents. Decides who gets the task, and whether the answer is ready |
+| Specialist | An agent with a narrow tool set and one description of its competence |
+| Handoff | The passing of a task from the supervisor to a specialist. Counted in the state |
+| State schema | The declared set of fields nodes have the right to read and write |
+| Revision loop | Sending a task back to a specialist after an unsatisfactory answer. Bounded by a counter |
+| Node | A step of the graph: the supervisor or a specialist. Lands in `path` and in the trace |

@@ -1,6 +1,6 @@
 ---
 id: T6
-title: "Інструмент пошуку для реєстру агента з етапу 1"
+title: "The search tool for the stage 1 agent's registry"
 layer: "ports"
 deps: ["T4", "T5"]
 acs: ["AC-09"]
@@ -10,26 +10,26 @@ estimate: "S"
 status: "todo"
 ---
 
-# T6 — Інструмент пошуку для реєстру агента з етапу 1
+# T6 — The search tool for the stage 1 agent's registry
 
 ## Why
 
-Міст: теза етапу 1 в тому, що інструмент — звичайна функція зі схемою. RAG перевіряє цю тезу ([spec AC-09](../spec.md)).
+The bridge: stage 1's thesis is that a tool is an ordinary function with a schema. RAG puts that thesis to the test ([spec AC-09](../spec.md)).
 
 ## What
 
-`tools.py`: `Tool` того самого вигляду, що й на етапі 1 — ім'я, опис, схема параметрів, функція. Рівень доступу питальника — **параметр пошуку**, не турбота викликача (ADR-0002). Цикл і реєстр етапу 1 не редагуються.
+`tools.py`: a `Tool` of the same shape as at stage 1 — name, description, parameter schema, function. The asker's access level is **a parameter of the search**, not the caller's concern (ADR-0002). The loop and the registry of stage 1 are not edited.
 
 ## Definition of Done
 
-- [ ] Агент з етапу 1 сам обирає цей інструмент на питання про політику
-- [ ] Жодного рядка в `stages/s01_agent_loop/loop.py` не змінено
-- [ ] Опис інструмента достатній, щоб модель обрала його без підказки в промпті
-- [ ] Внутрішні документи не витікають і через цей шлях
-- [ ] lint чистий
+- [ ] The stage 1 agent picks that tool itself on a policy question
+- [ ] Not a single line in `stages/s01_agent_loop/loop.py` is changed
+- [ ] The tool's description is enough for the model to pick it with no hint in the prompt
+- [ ] Internal documents do not leak through this path either
+- [ ] lint clean
 
 ## Notes
 
-Перевірка «цикл не змінено» — це git diff проти тега `stage-01`.
+The "the loop is unchanged" check is a git diff against the `stage-01` tag.
 
-Блокується: T4, T5
+Blocked by: T4, T5

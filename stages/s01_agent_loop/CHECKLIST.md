@@ -1,41 +1,45 @@
-# Чекліст — етап 1
+# Checklist — stage 1
 
-Три рівні. Пройти означає закрити всі три, а не перший.
+Three levels. Passing means closing all three, not the first one.
 
-## Я зрозумів
+## I understood
 
-- [ ] Можу пояснити, чому мовна модель **не виконує** функції сама, і що вона робить натомість.
-- [ ] Можу намалювати цикл ReAct на серветці, не підглядаючи.
-- [ ] Можу назвати три складові агента й сказати, яка з них у нашому етапі відсутня.
-- [ ] Знаю, чому `function.arguments` приходить рядком, а не словником, і що з цього випливає.
-- [ ] Розумію, чому результат інструмента **обов'язково** повертається моделі.
+- [ ] I can explain why a language model **does not execute** functions itself, and what it does
+      instead.
+- [ ] I can draw the ReAct loop on a napkin without looking.
+- [ ] I can name the three parts of an agent and say which one this stage is missing.
+- [ ] I know why `function.arguments` arrives as a string rather than a dictionary, and what
+      follows from that.
+- [ ] I understand why a tool's result **must** go back to the model.
 
-## Я запустив
+## I ran it
 
-- [ ] `python -m stages.s01_agent_loop.run` — бачив усі чотири сценарії.
-- [ ] `python -m stages.s01_agent_loop.check` — 30 зелених перевірок.
-- [ ] Зламав гейт підтвердження (вправа 1) і побачив три `AssertionError`, кожен зі своєю
-      причиною — а не одну незрозумілу службову помилку.
-- [ ] Затиснув `AGENT_MAX_STEPS` (вправа 3) і побачив, як зникає відповідь.
-- [ ] Заглянув у `traces/` і знайшов там свої кроки.
-- [ ] *(необов'язково)* Підключив справжнього провайдера й пройшов ручний чекліст з уроку.
+- [ ] `python -m stages.s01_agent_loop.run` — saw all four scenarios.
+- [ ] `python -m stages.s01_agent_loop.check` — 30 green checks.
+- [ ] Broke the confirmation gate (exercise 1) and saw three `AssertionError`s, each with its
+      own reason — rather than one incomprehensible internal error.
+- [ ] Squeezed `AGENT_MAX_STEPS` (exercise 3) and watched the answer disappear.
+- [ ] Looked into `traces/` and found my own steps there.
+- [ ] *(optional)* Connected a real provider and worked through the manual checklist in the
+      lesson.
 
-## Я пояснив
+## I explained
 
-Не собі — вголос, іншій людині або в текст. Якщо не виходить сформулювати, значить не зрозумів.
+Not to yourself — out loud, to another person, or in writing. If you cannot put it into words,
+you did not understand it.
 
-- [ ] **Чому ліміт кроків — це захист, а не налаштування продуктивності?**
-      Підказка, якщо застряг: що станеться з рахунком, якщо його прибрати.
-- [ ] **Чому відмова валідації повертається моделі, а не піднімає виняток?**
-      Підказка: порівняй, що бачить модель у кожному з двох випадків.
-- [ ] **Де саме проходить межа довіри до автономної системи і чому вона там?**
-      Підказка: подивись, у якому місці циклу стоїть кожен із трьох захистів.
-- [ ] **Чому гейт перевіряє весь крок, а не кожен виклик окремо?**
-      Підказка: уяви відповідь моделі з двома незворотними діями.
+- [ ] **Why is the step limit a guard rather than a performance setting?**
+      A hint if you are stuck: what happens to the bill if you remove it.
+- [ ] **Why does a validation failure go back to the model instead of raising an exception?**
+      Hint: compare what the model sees in each of the two cases.
+- [ ] **Where exactly does the trust boundary of an autonomous system run, and why there?**
+      Hint: look at where in the loop each of the three guards sits.
+- [ ] **Why does the gate screen the whole step rather than each call separately?**
+      Hint: imagine a model response containing two irreversible actions.
 
 ---
 
-Закрив усі три? [Етап 2 — RAG](../s02_rag/).
+Closed all three? [Stage 2 — RAG](../s02_rag/).
 
-Якщо якийсь пункт із «я пояснив» не даєш — повернись до відповідного розділу уроку.
-Це не сором, це нормальний спосіб читати технічний текст.
+If some item under "I explained" will not come out, go back to the matching section of the
+lesson. That is not shameful, it is the normal way to read a technical text.

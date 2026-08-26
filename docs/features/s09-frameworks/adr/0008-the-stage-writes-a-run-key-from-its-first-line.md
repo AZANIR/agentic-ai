@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0008 — Етап пише ключ прогону з першого рядка
+# 0008 — The stage writes a run key from its first line
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,47 +15,49 @@ ticket: "n/a"
 
 ## Context
 
-Етап 8 виміряв, чого оцінювачеві бракує в наявних трейсах, і відповідь виявилась однією:
-**ключа прогону**. Три різні поля на сім етапів (`scenario`, `scene`, `trace_ref`), і чотири
-етапи не позначають прогін ніяк. На таких трейсах оцінювач бачить одну довгу траєкторію
-замість кількох коротких і не може приписати вердикт сцені.
+Stage 8 measured what an evaluator is missing in the existing traces, and the answer turned out to
+be a single thing: **the run key**. Three different fields across seven stages (`scenario`, `scene`,
+`trace_ref`), and four stages that mark the run in no way at all. On traces like that the evaluator
+sees one long trajectory instead of several short ones and cannot attribute a verdict to a scene.
 
-Виправлення наявних етапів відкладено на етап 10: правка зачепила б усі сім і порушила б
-обмеження етапу 8.
+Fixing the existing stages is deferred to stage 10: the edit would touch all seven and would break
+stage 8's constraint.
 
-Але цей етап пишеться **після** виміру й з нуля. Питання не в тому, чи виправляти старе, а в
-тому, чи користуватись власним висновком.
+But this stage is written **after** the measurement, and from scratch. The question is not whether to
+fix the old, but whether to use one's own conclusion.
 
 ## Decision Drivers
 
-- Вимога вже сформульована й виміряна — повторно обґрунтовувати її не треба.
-- Ціна тут нульова: поле додається при написанні, а не при переписуванні.
-- Вимір, яким ніхто не скористався, не був потрібен.
+- The requirement is already stated and already measured — there is no need to justify it again.
+- The price here is zero: the field is added while writing, not while rewriting.
+- A measurement nobody used was not needed.
 
 ## Considered Options
 
-**А. Писати як етапи 1–7 — без ключа.** Послідовно з минулим і безглуздо після виміру.
+**A. Write like stages 1–7 — with no key.** Consistent with the past, and pointless after the
+measurement.
 
-**Б. Чекати на етап 10, де ключ уводитиметься централізовано.** Відкладає безкоштовне.
+**B. Wait for stage 10, where the key will be introduced centrally.** Defers something that is free.
 
-**В. Писати ключ з першого рядка.**
+**C. Write the key from the first line.**
 
 ## Decision
 
-**В.** Кожен крок трейсу цього етапу несе поле `case` — яку саме реалізацію й на якому вході
-прогнали. Оцінювач етапу 8, запущений на трейсі етапу 9, витягує **більше однієї** траєкторії
-без жодної правки в собі.
+**C.** Every step of this stage's trace carries a `case` field — which implementation was run, and on
+which input. The stage 8 evaluator, pointed at the stage 9 trace, extracts **more than one**
+trajectory with no edit to itself.
 
-Ім'я поля береться з переліку, який уже знає `trajectory.RUN_KEYS`, — щоб вимір етапу 8
-побачив його автоматично, а не після додавання ще одного синоніма.
+The field name is taken from the list `trajectory.RUN_KEYS` already knows, so that stage 8's
+measurement sees it automatically rather than after one more synonym is added.
 
 ## Consequences
 
-**Добре.** Вимога етапу 8 підтверджена вживанням, а не лише текстом. Перевірка етапу 9
-стверджує це виконанням: оцінювач сусіднього етапу читає трейс і дає більше однієї траєкторії.
+**Good.** Stage 8's requirement is confirmed by use, not by text alone. The stage 9 check asserts it
+by execution: the neighbouring stage's evaluator reads the trace and yields more than one
+trajectory.
 
-**Ціна.** Одне поле в кожному кроці. Це і є вся ціна, і саме тому чотири етапи без ключа — не
-складна проблема, а незадане питання.
+**The price.** One field in every step. That is the whole price, and it is exactly why four stages
+without a key are not a hard problem but an unasked question.
 
-**Межа.** Це не виправляє етапи 1–7. Воно лише перестає додавати восьмий випадок до чотирьох
-наявних — і дає етапу 10 приклад, а не ще одну задачу.
+**The limit.** This does not fix stages 1–7. It only stops adding an eighth case to the four that
+exist — and gives stage 10 an example rather than one more task.

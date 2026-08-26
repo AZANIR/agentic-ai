@@ -1,425 +1,435 @@
-# Вправи етапу 8 — зламай і подивись, що почервоніє
+# Stage 8 exercises — break it and watch what turns red
 
-Перед кожною вправою прогони набір і переконайся, що він зелений:
+Before every exercise, run the suite and make sure it is green:
 
 ```bash
 python -m stages.s08_eval.check
 ```
 
-Числа заміряні, не вгадані; звірка автоматична:
+The numbers are measured, not guessed; the reconciliation is automatic:
 
 ```bash
 python scripts/mutate.py s08 --expect
 ```
 
-**Читай не кількість, а назви.** Мутація, спіймана випадковою перевіркою, — це гірше, ніж
-спіймана тією, яка про неї стверджує.
+**Read the names, not the count.** A mutation caught by an incidental check is worse than one
+caught by the check that asserts about it.
 
-**Найважливіші стосуються не оцінювання, а чесності звіту** — вправи 1, 2, 3 і 11.
-**Вправи 12–14 повертають дефекти, які знайшло незалежне рев'ю** — усі три прожили до
-нього непоміченими, і всі три ламають саме `--real`, тобто режим, у якому читач мав би
-повторити доказ проти справжньої моделі. Спільна в
-них одна властивість, і вона й робить їх найдорожчими: кожна робить звіт **зеленішим**. Код
-лишається працездатним, числа — правдоподібними, а прогін — приємнішим на вигляд. Помилку, що
-показує гірші числа, знаходять за день. Помилку, що показує кращі, не шукають узагалі.
+**The most important ones are not about evaluation but about the honesty of the report** —
+exercises 1, 2, 3 and 11. **Exercises 12–14 bring back defects found by an independent
+review** — all three lived until then unnoticed, and all three break `--real` specifically,
+that is, the mode in which a reader was supposed to repeat the proof against a real model. They
+share one property, and it is what makes them the most expensive: each of them makes the report
+**greener**. The code keeps working, the numbers stay plausible, and the run looks nicer. A
+mistake that shows worse numbers is found in a day. A mistake that shows better ones is never
+looked for at all.
 
 ---
 
-## Вправа 1 ·1 Порожній рівень зараховується як пройдений
+## Exercise 1 · An empty level is counted as passed
 
 `stages/s08_eval/levels.py`:
 
 ```python
-# було
+# before
         return Verdict(COMPONENT, UNSCORED, DETERMINISTIC, "кроків підсистем у трейсі немає")
 
-# стало
+# after
         return Verdict(COMPONENT, PASSED, DETERMINISTIC, "кроків підсистем у трейсі немає")
 ```
 
-**Червоних: 2.**
+**Red: 2.**
 
-Трейс без кроків підсистем більше не «не оцінено», а «пройдено». Різниця здається
-косметичною — доки не помітиш напрямок, у який вона тягне: **що бідніший трейс, то зеленіший
-звіт**. Прогін, у якому трасування взагалі відвалилось, покаже сто відсотків на
-компонентному рівні.
+A trace with no subsystem steps is no longer "unscored" but "passed". The difference looks
+cosmetic — until you notice the direction it pulls in: **the poorer the trace, the greener the
+report**. A run in which tracing fell over entirely will show a hundred percent at the
+component level.
 
-Червоніє перевірка про третій стан — і, окремо, перевірка зубів (AC-09): вона ламає рівень
-траєкторії й вимагає, щоб решта рівнів від цього **не** постраждала.
+The check on the third state turns red — and, separately, the teeth check (AC-09): it breaks
+the trajectory level and demands that the other levels **not** suffer for it.
 
 ---
 
-## Вправа 2 ·2 Знаменник береться від оцінених, а не від усіх
+## Exercise 2 · The denominator is taken from the evaluated, not from all
 
 `stages/s08_eval/report.py`:
 
 ```python
-# було
+# before
         return self.count(level, state) / self.total if self.total else 0.0
 
-# стало
+# after
         judged = self.total - self.count(level, UNSCORED)
         return self.count(level, state) / judged if judged else 0.0
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Найпідступніша з усіх. Формула виглядає **чеснішою** за оригінал: «рахуємо частку від того,
-що змогли оцінити» — саме так сказав би обережний інженер.
+The most insidious of them all. The formula looks **more honest** than the original: "we count
+the share of what we managed to evaluate" — exactly what a careful engineer would say.
 
-Наслідок протилежний, і має два різні обличчя — залежно від того, **як** саме суддя падає.
-Розв'язок міряє обидва:
+The consequence is the opposite, and it has two different faces, depending on **how** the judge
+fails. The solution measures both:
 
 ```bash
 python -m stages.s08_eval.solutions.exercise_2_the_denominator_climbs
 ```
 
-Коли відмови **рівномірні** (вичерпалась квота), улеслива частка тримається в смузі чотирьох
-відсоткових пунктів, поки покриття валиться з двадцяти одного кейса до трьох. Число не бреше —
-воно **мовчить** саме про те, що робить його осмисленим.
+When the failures are **uniform** (the quota ran out), the flattering share stays inside a band
+of four percentage points while coverage collapses from twenty-one cases to three. The number
+does not lie — it **goes silent** about exactly the thing that makes it meaningful.
 
-Коли відмови **корельовані** — суддя спотикається на порожніх і обрізаних відповідях, бо
-короткий зміст дає запит, який провайдер відхиляє, — з набору випадають переважно провальні
-кейси. Улеслива частка йде 57 % → 71 % → 85 % → **100 %**, тоді як чесна падає до 24 %, а
-оцінити вдалося п'ять кейсів із двадцяти одного. Прилад зламався, а звіт показав ідеальну
-якість.
+When the failures are **correlated** — the judge stumbles on empty and truncated answers,
+because a short body produces a request the provider rejects — the cases that drop out are
+mostly the failing ones. The flattering share goes 57 % → 71 % → 85 % → **100 %**, while the
+honest one falls to 24 % and only five cases out of twenty-one could be evaluated. The
+instrument broke, and the report showed perfect quality.
 
-Першу помилку колись знаходять — коли хтось питає «а скільки ми взагалі оцінили». Другу не
-шукають ніколи: вона приходить із доброю новиною.
+The first mistake gets found eventually — when somebody asks how much was evaluated at all.
+Nobody ever goes looking for the second: it arrives with good news.
 
-І це причина, з якої перевірка подає суддю, який відповідає **через раз**, а не мовчить
-зовсім. Повна відмова обнуляє і чисельник, і знаменник, і будь-яка формула дає нуль: помилка
-ховається саме там, де її шукають найчастіше.
+And that is the reason the check hands over a judge that answers **every other time** rather
+than one that stays silent completely. Total refusal zeroes both the numerator and the
+denominator, and any formula gives zero: the mistake hides exactly where people look for it
+most often.
 
 ---
 
-## Вправа 3 ·3 Відмова судді рахується провалом агента
+## Exercise 3 · A judge's failure is counted as the agent's
 
 `stages/s08_eval/levels.py`:
 
 ```python
-# було
+# before
         return Verdict(E2E, UNSCORED, JUDGED, str(error))
 
-# стало
+# after
         return Verdict(E2E, FAILED, JUDGED, str(error))
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Провалився **прилад**, а звинувачено агента. Два різні факти злились в один, і найгірше не
-те, що число неправильне, — а те, що воно неправильне в **правдоподібний** бік: без ключа
-звіт покаже нуль відсотків e2e, і хтось піде шукати регресію в агенті.
+The **instrument** failed, and the agent was blamed. Two different facts merged into one, and
+the worst part is not that the number is wrong — it is that it is wrong in a **plausible**
+direction: with no key the report will show zero percent on e2e, and somebody will go hunting
+for a regression in the agent.
 
-Третій стан існує саме для цього. «Зламано» і «не перевіряли» — різні події, і набір, який
-їх зливає, перестає розрізняти зламану систему й обірваний прогін.
+The third state exists precisely for this. "Broken" and "not checked" are different events, and
+a suite that merges them stops distinguishing a broken system from an interrupted run.
 
 ---
 
-## Вправа 4 ·4 Нічия перестає бути окремим значенням
+## Exercise 4 · A tie stops being a value of its own
 
 `stages/s08_eval/bias.py`:
 
 ```python
-# було
+# before
     if verdict.winner == TIE:
         return TIE
 
-# стало
+# after
     if verdict.winner == TIE:
         return order[0]
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Нічия починає читатись як «перемогла перша подана». Здається дрібницею — а детектор ламається
-**в обидва боки** одразу.
+A tie starts reading as "the one submitted first won". It looks like a trifle — and the
+detector breaks **in both directions** at once.
 
-На чесному судді, який на однакових відповідях щоразу каже «нічия», подача AB дає A, подача
-BA дає B — і детектор рапортує переворот там, де його немає. Тому й червоніє **дзеркальна**
-перевірка (AC-05b), а не основна: детектор, який знаходить біас завжди, не відрізняє
-упередженого суддю від чесного й тому детектором не є.
+Against an honest judge that says "tie" every time on identical answers, presenting AB gives A
+and presenting BA gives B — and the detector reports a flip where there is none. That is why
+the **mirror** check turns red (AC-05b) rather than the main one: a detector that always finds
+bias cannot tell a biased judge from an honest one, and therefore is not a detector.
 
 ---
 
-## Вправа 5 ·5 Length bias отримує поріг «у межах шуму»
+## Exercise 5 · Length bias gets a "within the noise" threshold
 
 `stages/s08_eval/bias.py`:
 
 ```python
-# було
+# before
         if gap > 0:
 
-# стало
+# after
         if gap > 2:
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Поріг звучить розсудливо: «один-два бали різниці — це шум, реагуємо на суттєве». Але пари для
-довжини побудовані так, що друга відповідь — це **буквально перша плюс правдивий зайвий
-текст**. Зміст той самий, отже за зміст додати нема чого.
+The threshold sounds sensible: "a point or two of difference is noise, we react to what is
+substantial". But the pairs for length are built so that the second answer is **literally the
+first plus truthful extra text**. The content is the same, so there is nothing to add points
+for.
 
-Тому будь-яка строго додатна перевага — це бал за довжину, і порогу тут не просто не треба:
-поріг тут **неможливий**. Обидва розриви в наборі дорівнюють двом (3 → 5 і 4 → 6), і поріг у
-двійку глушить рівно те, заради чого детектор існує.
+So any strictly positive preference is a point for length, and a threshold here is not merely
+unnecessary: it is **impossible**. Both gaps in the set equal two (3 → 5 and 4 → 6), and a
+threshold of two silences exactly what the detector exists for.
 
 ---
 
-## Вправа 6 ·6 Суддя втрачає позиційну надбавку
+## Exercise 6 · The judge loses its position bonus
 
 `stages/s08_eval/judge.py`:
 
 ```python
-# було
+# before
         left = self._points(first, expected) + self.position_bonus
 
-# стало
+# after
         left = self._points(first, expected)
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Ламається не детектор, а **матеріал**: підроблений суддя перестає бути упередженим, і
-шукати стає нічого.
+What breaks is not the detector but the **material**: the fake judge stops being biased, and
+there is nothing left to find.
 
-Вправа тут в іншому. Прочитай повідомлення перевірки, що почервоніла, і спитай себе, чи
-відрізнив би ти цей випадок від «детектор зламався» — маючи на руках лише звіт із нулем
-знахідок. Саме тому дзеркальна половина (вправа 4) обов'язкова: нуль знахідок доводить щось
-лише тоді, коли поруч є прогін, у якому їх не нуль.
+The exercise is about something else. Read the message of the check that turned red and ask
+yourself whether you would tell this case apart from "the detector broke" — with nothing but a
+report showing zero findings in your hands. That is exactly why the mirror half (exercise 4) is
+mandatory: zero findings proves something only when there is a run beside it where the count is
+not zero.
 
 ---
 
-## Вправа 7 ·7 Семплер відправляє до судді всіх
+## Exercise 7 · The sampler sends everyone to the judge
 
 `stages/s08_eval/online.py`:
 
 ```python
-# було
+# before
     return int.from_bytes(digest, "big") % BUCKETS < share * BUCKETS
 
-# стало
+# after
     return len(digest) > 0
 ```
 
-**Червоних: 2.**
+**Red: 2.**
 
-Заявлено десять відсотків, до судді йде сто. Функція лишається **детермінованою** — той самий
-ідентифікатор дає те саме рішення, — тож перевірка на мигтіння це пропустить.
+Ten percent declared, a hundred going to the judge. The function stays **deterministic** — the
+same identifier gives the same decision — so a flicker check will miss this.
 
-І в цьому урок: детермінізм не є коректністю. Семплер, що завжди каже «так», теж
-детермінований і теж «збігається із заявленою часткою» — з будь-якою, якщо не звірити її
-числом.
+And that is the lesson: determinism is not correctness. A sampler that always says "yes" is
+deterministic too, and it also "matches the declared share" — any share, if you do not
+reconcile it against a number.
 
-Рахунок за таку помилку приходить не з перевірок, а від провайдера.
+The bill for that mistake comes not from the checks but from the provider.
 
 ---
 
-## Вправа 8 ·8 Ключ групування знову фіксований
+## Exercise 8 · The grouping key is fixed again
 
 `stages/s08_eval/trajectory.py`:
 
 ```python
-# було
+# before
         name = key(step)
 
-# стало
+# after
         name = step.get("trace_id")
 ```
 
-**Червоних: 4.**
+**Red: 4.**
 
-Найбільше червоних — і саме тому мутація навчальна. Групування по `trace_id` **правильне** для
-етапів 1–5 і 7: там один `trace_run` на сценарій. На сервісі етапу 6, де один `trace_run`
-живе весь час процесу, воно схлопує **весь файл** в одну траєкторію.
+The most red ones — and that is exactly what makes this mutation instructive. Grouping by
+`trace_id` is **correct** for stages 1–5 and 7: there is one `trace_run` per scenario there. On
+the stage 6 service, where one `trace_run` lives for the whole life of the process, it
+collapses **the entire file** into one trajectory.
 
-Найгірше, що воно при цьому «працює»: підсумки рахуються, звіт друкується, помилки немає.
-Просто весь трафік сервісу тепер один прогін із однією відповіддю.
+The worst part is that it "works" while doing so: totals are computed, the report prints, there
+is no error. It is just that all the service's traffic is now one run with one answer.
 
-Порівняй чотири назви, що почервоніли, з єдиною назвою у вправі 11: спільна в них одна —
-про сліпі виміри. Це не збіг. Обидві мутації б'ють у те, **як** оцінювач бачить трейс
-сервісу, тільки ця ламає групування, а та — тлумачення того, чого в трейсі немає.
+Compare the four names that turned red with the single name in exercise 11: they share one
+thing — blind measurements. That is not a coincidence. Both mutations strike at **how** the
+evaluator sees the service's trace; this one breaks the grouping, that one the interpretation
+of what the trace does not contain.
 
 ---
 
-## Вправа 9 ·9 Порядок кроків береться з файлу
+## Exercise 9 · Step order is taken from the file
 
 `stages/s08_eval/trajectory.py`:
 
 ```python
-# було
+# before
         trajectory.steps.sort(key=lambda step: step.get("seq", 0))
 
-# стало
+# after
         pass
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Ця вправа цікава тим, що мутацію було **майже неможливо спіймати**. Поки файл пише один
-дописувач, порядок у файлі збігається з `seq`, і сортування не змінює нічого: перевірка,
-яка читає щойно записаний трейс, лишається зеленою і без нього.
+This exercise is interesting because the mutation was **almost impossible to catch**. While a
+single appender is writing the file, the order in the file matches `seq`, and the sort changes
+nothing: a check that reads a trace it has just written stays green without it.
 
-Порядок ламається там, де файл склали з кількох джерел — зшиті шарди, буферизований
-відправник логів, догнаний після збою хвіст. Тому перевірка **навмисно перевертає рядки**
-записаного файлу: це найдешевша модель саме цього випадку.
+Order breaks where the file was assembled from several sources — stitched shards, a buffered
+log shipper, a tail caught up after a crash. So the check **deliberately reverses the lines**
+of the written file: that is the cheapest model of exactly this case.
 
-Мораль ширша за етап: властивість, яку неможливо порушити на щасливому шляху, вимагає, щоб
-перевірка **сама** створила умови, у яких вона порушується.
+The moral is broader than the stage: a property that cannot be violated on the happy path
+requires the check **itself** to create the conditions in which it is violated.
 
 ---
 
-## Вправа 10 ·10 Крайність оголошується статусом, а не спостерігається
+## Exercise 10 · Edge is declared by a status instead of being observed
 
 `stages/s08_eval/cases.py`:
 
 ```python
-# було
+# before
         said = [act for act in self.acts if act.fields.get("answer", "").strip()]
         return not said
 
-# стало
+# after
         return self.status != "ok"
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Крайність перестає читатись із трейсу й починає читатись із поля, яке автор виставляє рукою.
+Edge stops being read from the trace and starts being read from a field the author sets by
+hand.
 
-Найцікавіше тут — **чому червоніє не те, що очікуєш**. Кількість крайніх майже не змінюється,
-тож вимога «щонайменше третина» вистоює. Червоніє дзеркальна половина: перевірка бере
-щасливий кейс і по черзі спорожняє **кожне** поле, крім `acts`, вимагаючи, щоб крайність не
-змінилась. З мутацією `status` її перемикає — і цього досить.
+The interesting part here is **why the red one is not the one you expect**. The number of edge
+cases barely changes, so the "at least a third" requirement holds. What turns red is the mirror
+half: the check takes a happy case and empties **every** field in turn except `acts`, demanding
+that edge does not change. With the mutation, `status` flips it — and that is enough.
 
-Так і має бути. Число крайніх можна задовольнити прапорцем на двадцяти одному щасливому
-шляху; походження числа — не можна. Перевірка стверджує саме про походження.
+Which is how it should be. The count of edge cases can be satisfied by a flag on twenty-one
+happy paths; the origin of the count cannot. The check asserts about the origin.
 
 ---
 
-## Вправа 11 ·11 Сліпий вимір перетворюється на зауваження
+## Exercise 11 · A blind measurement turns into a finding
 
 `stages/s08_eval/online.py`:
 
 ```python
-# було
+# before
     if not any(spot.startswith("термінального") for spot in blind):
 
-# стало
+# after
     if True:
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Трейс сервісу етапу 6 не містить термінального кроку запиту. Без охоронця кожна траєкторія
-отримує зауваження «прогін не завершився» — тобто **сто відсотків трафіку позначено
-проблемним** через те, чого оцінювач не може побачити.
+The stage 6 service's trace contains no terminal step for a request. Without the guard every
+trajectory gets the finding "the run did not finish" — that is, **a hundred percent of traffic
+is marked problematic** because of something the evaluator cannot see.
 
-Це та сама помилка, що й у вправі 1, лише дзеркальна. Там відсутність даних видавали за
-успіх, тут — за провал. Правильна відповідь обидва рази третя: дивитись нема на що, і про це
-треба сказати окремим словом.
+This is the same mistake as in exercise 1, only mirrored. There, missing data was passed off as
+success; here, as failure. Both times the right answer is the third one: there is nothing to
+look at, and that has to be said in a word of its own.
 
 ---
 
-## Вправа 12 ·12 e2e знову судить опис кейса, а не трейс
+## Exercise 12 · e2e judges the case description again, not the trace
 
 `stages/s08_eval/levels.py`:
 
 ```python
-# було
+# before
     said = trajectory.answer()
 
-# стало
+# after
     said = case.answer
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Найдорожча з усіх — і саме вона прожила до незалежного рев'ю. Суддя починає оцінювати те, що
-агент **мав** сказати, замість того, що він **сказав**.
+The most expensive of them all — and the one that lived until the independent review. The judge
+starts evaluating what the agent **was supposed to** say instead of what it **said**.
 
-Спокуса очевидна: обидва рядки в щасливому випадку однакові, тож жодне число не змінюється.
-Помітно стає лише на трейсі, у якого відповіді немає взагалі — там e2e спокійно каже
-«пройдено, бал 3», судячи текст, який до трейсу не доїхав.
+The temptation is obvious: in the happy case both strings are identical, so no number changes.
+It becomes visible only on a trace that has no answer at all — there e2e calmly says "passed,
+score 3", judging text that never made it into the trace.
 
-І гірше: перевірка «та сама відповідь, різні шляхи» починає порівнювати **один рядок сам із
-собою** крізь одного й того самого суддю. Це тотожність, яку неможливо порушити, — рівно та
-форма, від якої застерігає AC-01b на сусідньому рівні.
+And worse: the check "the same answer, different paths" starts comparing **one string with
+itself** through one and the same judge. That is an identity that cannot be violated — exactly
+the shape AC-01b warns against on the neighbouring level.
 
-Червоніє перевірка викликів судді: на двох трейсах без відповіді суддю більше не кличуть, і
-лічильник розходиться.
+What turns red is the check on judge calls: on the two traces with no answer the judge is no
+longer called, and the counter diverges.
 
 ---
 
-## Вправа 13 ·13 Парсер бала знову збирає всі цифри рядка
+## Exercise 13 · The score parser collects every digit of the line again
 
 `stages/s08_eval/judge.py`:
 
 ```python
-# було
+# before
         number = re.fullmatch(r"(\d{1,2})", said)
 
-# стало
+# after
         number = re.search(r"(\d{1,2})", "".join(ch for ch in said if ch.isdigit()))
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Промпт просить «Відповідай самим числом» — і суддя-модель регулярно відповідає інакше. Стара
-редакція збирала **всі** цифри рядка й брала перші дві:
+The prompt asks for "answer with the number alone" — and a model judge regularly answers
+otherwise. The old edition collected **every** digit of the line and took the first two:
 
 ```
-'8'              -> 8      правильно
-'8/10'           -> 10     шкала стала балом
-'оцінка: 3 з 10' -> 10     трійка стала десяткою
-'0 з 10'         -> 1      нуль став одиницею
+'8'              -> 8      correct
+'8/10'           -> 10     the scale became the score
+'оцінка: 3 з 10' -> 10     a three became a ten
+'0 з 10'         -> 1      a zero became a one
 ```
 
-Наслідок із `--real`: рівень e2e ставить усім максимум, і етап, чия теза — «не вір приладу»,
-сам віддає зламаний прилад за справний. Нерозбірлива відповідь мусить бути **не оцінено**, а
-не вгаданим числом: третій стан існує саме для цього.
+The consequence under `--real`: the e2e level gives everyone top marks, and a stage whose
+thesis is "do not trust the instrument" hands over a broken instrument as a working one. An
+unparseable answer has to be **unscored**, not a guessed number: the third state exists exactly
+for this.
 
 ---
 
-## Вправа 14 ·14 Останньою відповіддю стає будь-який крок із текстом
+## Exercise 14 · Any step with text becomes the last answer
 
 `stages/s08_eval/trajectory.py`:
 
 ```python
-# було
+# before
             if step["kind"] not in SPEAKING:
                 continue
 
-# стало
+# after
             pass
 ```
 
-**Червоних: 2.**
+**Red: 2.**
 
-Правило приписування каже: «e2e про **останню відповідь** і ні про що інше». Поле `text` є не
-лише в моделі — його має й результат інструмента, і крок сервісу. Без обмеження за видом
-кроку «останньою відповіддю» стає останній рядок будь-якого походження, і вердикт e2e
-починає залежати від того, що повернув інструмент **після** відповіді.
+The rule of attribution says: "e2e is about the **last answer** and about nothing else". The
+`text` field exists not only on the model — a tool result has one too, and so does a service
+step. Without the restriction by step kind, the "last answer" becomes the last line of any
+origin, and the e2e verdict starts depending on what a tool returned **after** the answer.
 
-На щасливому наборі це непомітно: там текст несуть лише кроки моделі. Тому перевірка
-**сама будує** кейс, у якому інструмент відповідає після моделі, — властивість, яку
-неможливо порушити наявними даними, вимагає, щоб перевірка створила умови сама.
+On the happy set this is invisible: there only the model's steps carry text. So the check
+**builds its own** case in which a tool answers after the model — a property that cannot be
+violated with the data at hand requires the check to create the conditions itself.
 
 ---
 
-## Що робити далі
+## What to do next
 
-Прогін `python scripts/mutate.py s08 --expect` має закінчитись рядком «Усі числа у вправах
-збігаються з прогоном». Якщо ні — розійшлася **проза**, а не код: числа тут не пишуться
-рукою, вони копіюються з прогону, і перевірка набору це стверджує.
+A run of `python scripts/mutate.py s08 --expect` has to end with the line "Усі числа у вправах
+збігаються з прогоном". If it does not, it is the **prose** that has drifted, not the code: the
+numbers here are not written by hand, they are copied from the run, and the suite's check
+asserts it.
 
-Далі варте твого часу:
+What is worth your time after that:
 
-1. **Додай двадцять другий кейс** — такий, що проходить e2e й траєкторію, але провалює
-   компонентний рівень. Подивись, чи знайдеш ти в реальному агенті випадок, у якому це не
-   помилка розмітки, а справжня поведінка.
-2. **Постав `--real`** із налаштованим ключем і прожени детектори проти справжньої моделі.
-   Числа мигтітимуть; подумай, скільки прогонів треба, щоб відрізнити біас від шуму, — і чому
-   в цьому етапі цієї відповіді свідомо немає.
-3. **Візьми `traces/` власного прогону етапів 1–7** і прожени восьму сцену демо. Перелік
-   сліпих вимірів, який ти отримаєш, — це вимога до трасування, сформульована **твоїми**
-   даними, а не чужими.
+1. **Add a twenty-second case** — one that passes e2e and the trajectory but fails the
+   component level. See whether you can find a case in a real agent where this is not a
+   labelling error but genuine behaviour.
+2. **Set `--real`** with a configured key and run the detectors against a real model. The
+   numbers will flicker; think about how many runs it takes to tell bias from noise — and why
+   this stage deliberately does not have that answer.
+3. **Take the `traces/` of your own run of stages 1–7** and run the demo's eighth scene. The
+   list of blind measurements you get is a requirement for tracing formulated by **your** data
+   rather than somebody else's.

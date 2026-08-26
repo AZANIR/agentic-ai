@@ -1,6 +1,6 @@
 ---
 id: T4
-title: "Гейт підтвердження незворотної дії"
+title: "The confirmation gate on an irreversible action"
 layer: "app"
 deps: ["T3"]
 acs: ["AC-04"]
@@ -10,27 +10,33 @@ estimate: "S"
 status: "todo"
 ---
 
-# T4 — Гейт підтвердження незворотної дії
+# T4 — The confirmation gate on an irreversible action
 
 ## Why
 
-Третій і найнебезпечніший режим відмови зі статті-джерела. Механізм зафіксовано у [ADR-0002](../adr/0002-confirm-irreversible-action-by-second-run.md); потік — [sad §6, flow 2](../sad.md).
+The third and most dangerous failure mode from the source article. The mechanism is fixed in
+[ADR-0002](../adr/0002-confirm-irreversible-action-by-second-run.md); the flow —
+[sad §6, flow 2](../sad.md).
 
 ## What
 
-Цикл приймає прапорець підтвердження. Коли модель просить інструмент із познакою незворотності й підтвердження немає — функція **не викликається**; крок повертає опис того, що сталося б, і як підтвердити, а прогін завершується. З підтвердженням інструмент виконується звичайним шляхом. Підтвердження передається окремим повторним запуском, не інтерактивним запитом.
+The loop takes a confirmation flag. When the model asks for a tool carrying the irreversibility
+flag and there is no confirmation, the function **is not called**; the step returns a description
+of what would have happened and how to confirm it, and the run finishes. With confirmation the
+tool executes the ordinary way. Confirmation is passed by a separate repeat run, not an
+interactive prompt.
 
 ## Definition of Done
 
-- [ ] Без підтвердження незворотна функція не викликається жодного разу
-- [ ] Прогін описує наслідок і спосіб підтвердження
-- [ ] З підтвердженням та сама дія виконується
-- [ ] Зворотні інструменти гейт не зачіпає
-- [ ] Трейс розрізняє «заблоковано гейтом» і «виконано»
-- [ ] lint чистий
+- [ ] Without confirmation the irreversible function is never called
+- [ ] The run describes the consequence and the way to confirm it
+- [ ] With confirmation the same action is performed
+- [ ] The gate does not touch reversible tools
+- [ ] The trace distinguishes "blocked by the gate" from "executed"
+- [ ] lint clean
 
 ## Notes
 
-Спільна смуга з T3 (`loop.py`) — послідовно після нього.
+Shares a lane with T3 (`loop.py`) — sequentially after it.
 
-Блокується: T3
+Blocked by: T3

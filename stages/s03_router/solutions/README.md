@@ -1,25 +1,25 @@
-# Розв'язки — етап 3
+# Solutions — stage 3
 
-Зазирай **після** власної спроби.
+Look **after** your own attempt.
 
-| Файл | Вправа | Що показує |
+| File | Exercise | What it shows |
 |---|---|---|
-| [`exercise_2_revision_cost.py`](exercise_2_revision_cost.py) | 2 | Скільки викликів моделі коштує один запит при різних лімітах ревізій — і чому «прибрати ліміт» у продакшні не викликає жодної помилки |
+| [`exercise_2_revision_cost.py`](exercise_2_revision_cost.py) | 2 | How many model calls one request costs at different revision limits — and why "remove the limit" raises no error at all in production |
 
 ```bash
 python -m stages.s03_router.solutions.exercise_2_revision_cost
 ```
 
-## Чому розв'язок один
+## Why there is only one solution
 
-Решта вправ дають однозначно червону перевірку з читабельним повідомленням — там вивід
-перевірки і є розбір. Окремий скрипт має сенс лише там, де перевірка каже «зламано», а
-зрозуміти масштаб можна тільки на числах.
+The rest of the exercises produce an unambiguously red check with a readable message — there the
+check's output is the walkthrough. A separate script only makes sense where the check says
+"broken" and the scale can only be understood from numbers.
 
-Вправа 2 саме така: червона перевірка показує, що ліміт зник, і **нічого не каже про ціну**.
-Ціна — це стовпчик, який множиться на кількість запитів за місяць.
+Exercise 2 is exactly that: the red check shows the limit is gone and **says nothing about the
+price**. The price is a column that gets multiplied by the number of requests per month.
 
-Числа всіх вправ закріплені машинно:
+The numbers of every exercise are pinned by machine:
 
 ```bash
 python scripts/mutate.py s03 --expect

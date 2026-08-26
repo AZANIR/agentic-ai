@@ -1,6 +1,6 @@
 ---
 id: T6
-title: "Перевірки етапу: щасливі шляхи і три режими відмови"
+title: "Stage checks: happy paths and three failure modes"
 layer: "tests"
 deps: ["T3", "T4"]
 acs: ["AC-02", "AC-03", "AC-04", "AC-05", "AC-06", "AC-06b"]
@@ -10,28 +10,32 @@ estimate: "M"
 status: "todo"
 ---
 
-# T6 — Перевірки етапу: щасливі шляхи і три режими відмови
+# T6 — Stage checks: happy paths and three failure modes
 
 ## Why
 
-Виконує таблицю покриття з `## Test plan` у [spec.md](../spec.md). Формат перевірок — [ADR репозиторію 0006](../../../adr/0006-assert-checks-over-test-framework.md).
+Carries out the coverage table from `## Test plan` in [spec.md](../spec.md). The format of the
+checks — [repository ADR 0006](../../../adr/0006-assert-checks-over-test-framework.md).
 
 ## What
 
-`check.py`: дев'ять перевірок за таблицею покриття. Голі `assert`, docstring у рядок, префікс `ВІДМОВА ·` на перевірках режимів відмови. Перевірки, що пишуть трейс, пишуть у тимчасову теку. Сценарії підробленої моделі — у тексті перевірки, не у фікстурі: сценарій і є специфікацією очікуваної поведінки моделі.
+`check.py`: nine checks following the coverage table. Bare `assert`, a one-line docstring, the
+prefix `FAILURE ·` on failure-mode checks. Checks that write a trace write into a temporary
+directory. The fake model's scripts live in the text of the check, not in a fixture: the script
+*is* the specification of the model's expected behaviour.
 
 ## Definition of Done
 
-- [ ] Дев'ять перевірок відповідають дев'яти рядкам таблиці покриття
-- [ ] Щонайменше три позначені як режими відмови
-- [ ] Прогін офлайн, без API-ключа, без мережі
-- [ ] Робочий файл трейсів не забруднюється
-- [ ] Навмисно зламаний цикл дає ненульовий код виходу з назвою перевірки
-- [ ] Прогін ≤ 2 с (замір у виводі, без assert)
-- [ ] lint чистий
+- [ ] Nine checks match the nine rows of the coverage table
+- [ ] At least three are marked as failure modes
+- [ ] The run is offline, with no API key and no network
+- [ ] The working trace file is not polluted
+- [ ] A deliberately broken loop gives a non-zero exit code naming the check
+- [ ] The run is ≤ 2 s (measured in the output, with no assert)
+- [ ] lint clean
 
 ## Notes
 
-Assert на wall-clock свідомо не ставимо — див. §Тривалості у плані тестів.
+We deliberately put no assert on wall-clock — see §"The durations" in the test plan.
 
-Блокується: T3, T4
+Blocked by: T3, T4

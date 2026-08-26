@@ -1,6 +1,6 @@
 ---
 id: T7
-title: "Демо: пошук, поріг, нарізка й фільтр доступу поруч"
+title: "The demo: search, threshold, chunking and the access filter side by side"
 layer: "ports"
 deps: ["T5", "T6"]
 acs: ["AC-01", "AC-03", "AC-04", "AC-05"]
@@ -10,28 +10,28 @@ estimate: "M"
 status: "todo"
 ---
 
-# T7 — Демо: пошук, поріг, нарізка й фільтр доступу поруч
+# T7 — The demo: search, threshold, chunking and the access filter side by side
 
 ## Why
 
-Кожен критерій має бути видимим у виводі — так само, як на етапі 1.
+Every criterion has to be visible in the output — just as at stage 1.
 
 ## What
 
-`run.py`: сценарії підряд — дослівне питання проти синонімічного, дві нарізки поруч, питання поза базою, питання покупця біля внутрішнього документа. Банер джерел спільний з етапом 1: один рядок про модель і ембеддер.
+`run.py`: scenarios in a row — a literal question against a synonym one, two chunkings side by side, a question outside the base, a shopper's question next to the internal document. The sources banner is shared with stage 1: one line about the model and the embedder.
 
 ## Definition of Done
 
-- [ ] Запуск без ключа успішний, без мережевих звернень
-- [ ] Розрив «дослівне проти синонімів» видно числами
-- [ ] Дві нарізки показані поруч; демо не оцінює, яка краща
-- [ ] Питання поза базою дає «немає відповіді» з порогом і найближчими оцінками
-- [ ] Фільтр доступу видно: внутрішній документ відсутній у видачі
-- [ ] Індексація ≤ 0.5 с, запит ≤ 50 мс, прогін ≤ 1 с — заміри у виводі
-- [ ] lint чистий
+- [ ] A run with no key succeeds, with no network calls
+- [ ] The "literal versus synonyms" gap is visible in numbers
+- [ ] The two chunkings are shown side by side; the demo does not judge which is better
+- [ ] A question outside the base gives "no answer" with the threshold and the closest scores
+- [ ] The access filter is visible: the internal document is absent from the results
+- [ ] Indexing ≤ 0.5 s, a query ≤ 50 ms, the run ≤ 1 s — measured in the output
+- [ ] lint clean
 
 ## Notes
 
-Заміри друкуються, assert на wall-clock не ставимо (spec, §Тривалості).
+The measurements are printed; we put no assert on wall-clock (spec, §The durations).
 
-Блокується: T5, T6
+Blocked by: T5, T6

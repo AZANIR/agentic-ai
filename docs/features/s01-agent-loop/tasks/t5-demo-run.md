@@ -1,6 +1,6 @@
 ---
 id: T5
-title: "Демо: чотири сценарії підряд і банер джерела відповідей"
+title: "The demo: four scenarios in a row and a banner naming the source of answers"
 layer: "ports"
 deps: ["T3", "T4"]
 acs: ["AC-01", "AC-05"]
@@ -10,28 +10,33 @@ estimate: "M"
 status: "todo"
 ---
 
-# T5 — Демо: чотири сценарії підряд і банер джерела відповідей
+# T5 — The demo: four scenarios in a row and a banner naming the source of answers
 
 ## Why
 
-Єдине, що Learner запускає першим. Кожен acceptance criterion має бути видимим у виводі — [spec AC-01](../spec.md).
+The only thing the Learner runs first. Every acceptance criterion has to be visible in the
+output — [spec AC-01](../spec.md).
 
 ## What
 
-`run.py`: чотири сценарії підряд — вибір між інструментами, відмова валідації, зупинка лімітом, гейт підтвердження. Кожен зі своїм сценарієм підробленої моделі. Першим рядком — банер зі спільного шару: підробка чи справжній провайдер. Коли провайдер налаштований, ті самі сценарії йдуть до нього без правки коду.
+`run.py`: four scenarios in a row — choosing between tools, a validation rejection, a stop at the
+limit, the confirmation gate. Each with its own fake-model script. The first line is the banner
+from the shared layer: a fake or a real provider. When a provider is configured, the same
+scenarios go to it with no code edits.
 
 ## Definition of Done
 
-- [ ] Запуск без ключа завершується успішно, без мережевих звернень
-- [ ] Усі чотири сценарії видно у виводі, кожен підписаний
-- [ ] Кожен крок показує інструмент, аргументи й результат
-- [ ] Банер першим рядком називає джерело відповідей
-- [ ] З налаштованим провайдером банер змінюється, структура виводу — ні
-- [ ] Прогін без провайдера ≤ 1 с (замір у виводі, без assert)
-- [ ] lint чистий
+- [ ] A run with no key finishes successfully, with no network calls
+- [ ] All four scenarios are visible in the output, each one labelled
+- [ ] Every step shows the tool, its arguments and the result
+- [ ] The first line is the banner naming the source of the answers
+- [ ] With a provider configured the banner changes, the structure of the output does not
+- [ ] A run with no provider is ≤ 1 s (measured in the output, with no assert)
+- [ ] lint clean
 
 ## Notes
 
-Половина AC-05 перевіряється офлайн (фабрика клієнта), друга половина — ручним чеклістом в уроці. Межу назвати прямо; див. «Чого цей план свідомо не доводить».
+Half of AC-05 is checked offline (the client factory), the other half by a manual checklist in the
+lesson. Name that boundary outright; see "What this plan deliberately does not prove".
 
-Блокується: T3, T4
+Blocked by: T3, T4

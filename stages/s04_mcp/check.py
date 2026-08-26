@@ -72,7 +72,7 @@ EMPTY_LIST = """Пошук виконано.
 
 
 def check_payload_survives_prose_around_it() -> None:
-    """ВІДМОВА · parse: дані дістаються з відповіді, обгорнутої прозою"""
+    """FAILURE · parse: дані дістаються з відповіді, обгорнутої прозою"""
     payload = extract_payload(CHATTY)
     assert payload == {"order_id": "ord_4471", "status": "in_transit", "eta_days": 2}, payload
 
@@ -83,7 +83,7 @@ def check_a_clean_response_still_parses() -> None:
 
 
 def check_no_payload_is_named_not_guessed() -> None:
-    """ВІДМОВА · parse: відсутність даних — окремий стан, не порожній результат"""
+    """FAILURE · parse: відсутність даних — окремий стан, не порожній результат"""
     try:
         extract_payload(PROSE_ONLY)
     except NoPayload as error:
@@ -98,13 +98,13 @@ def check_no_payload_is_named_not_guessed() -> None:
 
 
 def check_an_empty_result_is_not_a_missing_one() -> None:
-    """ВІДМОВА · parse: порожній перелік — це результат, а не відсутність даних"""
+    """FAILURE · parse: порожній перелік — це результат, а не відсутність даних"""
     payload = extract_payload(EMPTY_LIST)
     assert payload == [], payload
 
 
 def check_prose_that_merely_looks_like_data_is_not_taken() -> None:
-    """ВІДМОВА · parse: приклад у прозі не приймається за дані"""
+    """FAILURE · parse: приклад у прозі не приймається за дані"""
     tricky = """Формат відповіді такий: {"order_id": "...", "status": "..."} — але
 зараз даних немає, бо замовлення не знайдено.
 """
@@ -145,7 +145,7 @@ def _require_mcp() -> None:
 
 
 def check_list_tools_gives_usable_schemas_with_no_field_lost() -> None:
-    """ВІДМОВА · list_tools: схеми придатні моделі, і жодне поле не загубилось у дорозі
+    """FAILURE · list_tools: схеми придатні моделі, і жодне поле не загубилось у дорозі
 
     Два твердження про ОДНУ відповідь, тому одне підняття процесу. C-5 вимагає ізоляції
     між сценаріями — щоб падіння одного тесту не пояснювалось станом іншого; два ассерти
@@ -203,7 +203,7 @@ def check_the_search_response_carries_prose_around_the_data() -> None:
 
 
 def check_access_level_travels_in_the_payload() -> None:
-    """ВІДМОВА · рівень доступу їде в payload і обмежує видачу на тому боці"""
+    """FAILURE · рівень доступу їде в payload і обмежує видачу на тому боці"""
     _require_mcp()
     bait = {"query": "яка сума автоматичного повернення"}
     shopper = call_tool("search_knowledge_base", {**bait, "access": PUBLIC})
@@ -217,7 +217,7 @@ def check_access_level_travels_in_the_payload() -> None:
 
 
 def check_a_server_that_fails_to_start_is_named() -> None:
-    """ВІДМОВА · сервер не піднявся — названа фаза, а не зависання"""
+    """FAILURE · сервер не піднявся — названа фаза, а не зависання"""
     _require_mcp()
     result = call_tool("get_order_status", {"order_id": "ord_4471"}, broken=True)
     assert not result.ok, "виклик до мертвого сервера вдався — цього не може бути"
@@ -226,7 +226,7 @@ def check_a_server_that_fails_to_start_is_named() -> None:
 
 
 def check_the_two_failure_phases_differ_and_both_have_words() -> None:
-    """ВІДМОВА · дві фази відмови різні, і жодна причина не порожня
+    """FAILURE · дві фази відмови різні, і жодна причина не порожня
 
     Один сценарій, два сервери: мертвий і мовчазний. Окрема перевірка «причина не порожня»
     піднімала б ті самі два процеси вдруге й купувала б нічого — а це три секунди з набору.
@@ -269,7 +269,7 @@ def check_the_two_failure_phases_differ_and_both_have_words() -> None:
 
 
 def check_every_call_leaves_a_trace_record() -> None:
-    """ВІДМОВА · виклик без сліду не існує як стан (AC-08b)"""
+    """FAILURE · виклик без сліду не існує як стан (AC-08b)"""
     _require_mcp()
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "t.jsonl"
@@ -339,7 +339,7 @@ UNKNOWN = ToolInfo(
 
 
 def check_a_hostile_description_cannot_disarm_the_gate() -> None:
-    """ВІДМОВА · bridge: опис із сервера не знімає позначки незворотності"""
+    """FAILURE · bridge: опис із сервера не знімає позначки незворотності"""
     tool = to_tool(HOSTILE)
     assert tool.irreversible, (
         "сервер зняв незворотність описом — гейт етапу 1 не спрацює не тому, що його "
@@ -351,7 +351,7 @@ def check_a_hostile_description_cannot_disarm_the_gate() -> None:
 
 
 def check_an_unknown_tool_is_not_taken_at_all() -> None:
-    """ВІДМОВА · bridge: інструмент поза списком дозволених у реєстр не потрапляє"""
+    """FAILURE · bridge: інструмент поза списком дозволених у реєстр не потрапляє"""
     built = registry([HOSTILE, UNKNOWN], access=PUBLIC)
     assert "wipe_customer_data" not in built, sorted(built)
     assert rejected([HOSTILE, UNKNOWN]) == ["wipe_customer_data"], rejected([HOSTILE, UNKNOWN])
@@ -359,7 +359,7 @@ def check_an_unknown_tool_is_not_taken_at_all() -> None:
 
 
 def check_the_access_level_never_reaches_the_model() -> None:
-    """ВІДМОВА · bridge: рівень доступу підставляє клієнт і не показує моделі"""
+    """FAILURE · bridge: рівень доступу підставляє клієнт і не показує моделі"""
     search = ToolInfo(
         name="search_knowledge_base",
         description="Пошук у базі знань магазину: правила, строки, опис товарів.",
@@ -386,7 +386,7 @@ def check_the_registry_has_the_shape_the_stage_three_graph_expects() -> None:
 
 
 def check_stage_three_is_untouched() -> None:
-    """ВІДМОВА · етапи 1–3 не змінено — джерело реєстру інше, логіка та сама"""
+    """FAILURE · етапи 1–3 не змінено — джерело реєстру інше, логіка та сама"""
     import subprocess
 
     require_tag("stage-03")
@@ -416,11 +416,11 @@ def check_stage_three_is_untouched() -> None:
 
 
 def check_a_dead_server_becomes_a_step_result_not_a_crash() -> None:
-    """ВІДМОВА · bridge: недоступний інструмент повертає текст відмови, а не валить цикл
+    """FAILURE · bridge: недоступний інструмент повертає текст відмови, а не валить цикл
 
     Перша редакція ходила на **живий** сервер: гілка «Інструмент недоступний» не
     виконувалась ніколи, і мутація `if not result.ok:` → `if False:` лишала перевірку
-    зеленою. Вона носила префікс ВІДМОВА, коштувала підняття процесу й доводила лише те,
+    зеленою. Вона носила префікс FAILURE, коштувала підняття процесу й доводила лише те,
     що щасливий шлях повертає непорожній рядок.
     """
     _require_mcp()
@@ -459,7 +459,7 @@ def check_every_rule_has_a_situation_that_triggers_it() -> None:
 
 
 def check_checklist_composition_is_pinned() -> None:
-    """ВІДМОВА · decision: склад чекліста закріплено — підміна клонами не проходить тихо"""
+    """FAILURE · decision: склад чекліста закріплено — підміна клонами не проходить тихо"""
     names = [s.name for s in SITUATIONS]
     assert len(names) == len(set(names)) == 7, f"склад змінився: {names}"
     signals = {key for s in SITUATIONS for key in s.signals}
@@ -476,7 +476,7 @@ def check_safety_outranks_convenience() -> None:
 
 
 def check_decision_prose_is_generated_from_the_code() -> None:
-    """ВІДМОВА · decision: таблиця в DECISION.md збігається з тим, що дає код"""
+    """FAILURE · decision: таблиця в DECISION.md збігається з тим, що дає код"""
     page = (Path(__file__).parent / "DECISION.md").read_text(encoding="utf-8")
     assert table() in page, (
         "DECISION.md розійшовся з decision.table() — правила в коді й у прозі різні"
@@ -561,7 +561,7 @@ def check_stage_three_routes_are_identical_over_mcp() -> None:
 
 
 def check_the_mcp_registry_really_replaces_the_local_one() -> None:
-    """ВІДМОВА · підміна реєстру справді відбувається, а не лише обіцяється"""
+    """FAILURE · підміна реєстру справді відбувається, а не лише обіцяється"""
     _require_mcp()
     before = dict(stage_one_loop.REGISTRY)
     with tools_from_mcp(access=PUBLIC) as built:
@@ -577,7 +577,7 @@ def check_checks_cover_failure_modes() -> None:
     """e2e · режимів відмови не менше третини (NFR-6)"""
     labels = [(c.__doc__ or "") for c in CHECKS]
     assert all(labels), "перевірка без опису не читається у виводі"
-    failures = [d for d in labels if d.startswith("ВІДМОВА")]
+    failures = [d for d in labels if d.startswith("FAILURE")]
     assert len(failures) * 3 >= len(CHECKS), (
         f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини"
     )
@@ -590,15 +590,12 @@ def check_lesson_fits_the_reading_budget() -> None:
 
 
 def check_lesson_numbers_match_the_suite() -> None:
-    """ВІДМОВА · урок: числа в прозі збігаються з тим, що друкує команда"""
+    """FAILURE · урок: числа в прозі збігаються з тим, що друкує команда"""
     total = len(CHECKS)
-    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
+    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
     here = Path(__file__).parent
-    for name, sentence in (
-        ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("CHECKLIST.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
-    ):
+    sentence = f"{total} checks, {failures} of them on failure modes"
+    for name in ("README.md", "CHECKLIST.md"):
         page = (here / name).read_text(encoding="utf-8")
         assert sentence in page, (
             f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
@@ -607,7 +604,7 @@ def check_lesson_numbers_match_the_suite() -> None:
 
 
 def check_a_broken_schema_does_not_break_the_registry() -> None:
-    """ВІДМОВА · bridge: чужа схема згортається в порожню, а не валить складання реєстру
+    """FAILURE · bridge: чужа схема згортається в порожню, а не валить складання реєстру
 
     Форми взято з реального прогону проти саморобного сервера: `mcp.types.Tool.input_schema`
     оголошений як `dict[str, Any]`, тож бібліотека **вмісту не валідує** — чужий сервер міг
@@ -631,7 +628,7 @@ def check_a_broken_schema_does_not_break_the_registry() -> None:
 
 
 def check_required_never_names_a_field_that_is_not_there() -> None:
-    """ВІДМОВА · bridge: `required` не може називати поле, якого немає у схемі"""
+    """FAILURE · bridge: `required` не може називати поле, якого немає у схемі"""
     described = "опис довший за тридцять символів, щоб пройти вимогу до опису"
     info = ToolInfo(
         "search_knowledge_base",
@@ -654,7 +651,7 @@ def check_required_never_names_a_field_that_is_not_there() -> None:
 
 
 def check_a_duplicate_name_does_not_shadow_the_first_declaration() -> None:
-    """ВІДМОВА · bridge: дубльоване імʼя не затінює перше оголошення й потрапляє у відхилені"""
+    """FAILURE · bridge: дубльоване імʼя не затінює перше оголошення й потрапляє у відхилені"""
     described = "опис довший за тридцять символів, щоб пройти вимогу до опису"
     honest = ToolInfo(
         "search_knowledge_base",

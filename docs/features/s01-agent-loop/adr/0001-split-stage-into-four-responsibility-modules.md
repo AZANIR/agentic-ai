@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-23"
 feature_size: "S"
 ticket: "n/a"
 ---
 
-# 0001 — Розкласти етап на чотири модулі за відповідальністю
+# 0001 — Split the stage into four responsibility modules
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -15,70 +15,73 @@ ticket: "n/a"
 
 ## Context
 
-Етап 1 містить цикл ReAct і три захисні механізми: ліміт кроків, валідацію аргументів і гейт
-підтвердження незворотної дії. Разом це ~180 рядків коду. Розкладка, обрана тут, копіюється на
-всі дев'ять наступних етапів — це не локальне рішення про один пакет, а шаблон курсу.
+Stage 1 contains the ReAct loop and three guards: the step limit, argument validation and the
+confirmation gate on an irreversible action. Together that is ~180 lines of code. The layout
+chosen here is copied into all nine following stages — this is not a local decision about one
+package but the template for the course.
 
 ## Decision drivers
 
-- Прозорість механіки — квальгол №1 (SAD §1): читач має бачити захисти як окремі речі, а не
-  як рядки всередині циклу.
-- Захисти успадковують етапи 2–10; якщо вони не мають імені й файлу, їх ніхто не перенесе.
-- Урок веде читача послідовно — потрібна одиниця, більша за функцію, але менша за пакет.
-- Модуль циклу має вкладатися у ≤120 рядків виконуваного коду (spec §6).
+- Transparent mechanics is quality goal №1 (SAD §1): the reader has to see the guards as separate
+  things, not as lines inside the loop.
+- Stages 2–10 inherit the guards; if they have no name and no file, nobody will carry them over.
+- The lesson walks the reader through in order — it needs a unit larger than a function and
+  smaller than a package.
+- The loop module has to fit into ≤120 lines of executable code (spec §6).
 
 ## Considered options
 
-1. **Чотири модулі за відповідальністю** — `loop` (цикл + ліміт + гейт), `validate`, `tools`,
-   `run`; перевірки окремо в `check`.
-2. **Один файл `agent.py`** — читається згори вниз, як у статті-джерелі.
-3. **Два модулі: `agent` + `tools`** — класичний поділ «механіка окремо, інструменти окремо».
-4. **Пакет із підпакетами `domain/app/infra`** — як у продакшн-сервісі.
+1. **Four modules by responsibility** — `loop` (the loop + the limit + the gate), `validate`,
+   `tools`, `run`; the checks separately in `check`.
+2. **A single `agent.py`** — read top to bottom, as in the source article.
+3. **Two modules: `agent` + `tools`** — the classic split of "mechanics apart, tools apart".
+4. **A package with `domain/app/infra` subpackages** — as in a production service.
 
 ## Decision outcome
 
-**Chosen:** Option 1. Він єдиний робить кожен захист **видимим із дерева файлів**, а не з
-коментарів усередині функції. Варіант 2 дає ~250 рядків в одному модулі й на етапах 6 і 10
-перетворюється на нечитабельний файл. Варіант 3 ховає валідацію всередині циклу — тобто
-знищує рівно ту властивість, заради якої етап існує. Варіант 4 дав би п'ять рівнів вкладеності
-на 180 рядках, і читач вивчив би розкладку замість агента.
+**Chosen:** Option 1. It is the only one that makes each guard **visible from the file tree**
+rather than from comments inside a function. Option 2 gives ~250 lines in one module and turns
+into an unreadable file at stages 6 and 10. Option 3 hides validation inside the loop — that is,
+it destroys the exact property the stage exists for. Option 4 would give five levels of nesting
+over 180 lines, and the reader would learn the layout instead of the agent.
 
-Межа проста і перевірювана: **один модуль — одна відповідальність, кожен вкладається в один
-екран.**
+The rule is simple and checkable: **one module, one responsibility, each fitting on one screen.**
 
 ## Consequences
 
 **Positive**
-- Захисти мають імена й файли, тож етапи 2–10 їх переносять, а не винаходять заново.
-- Урок веде читача файл за файлом, кожен — окрема закінчена думка.
-- Ліміт «≤120 рядків» на модуль циклу стає перевірюваним, бо цикл більше нічого не містить.
+- The guards have names and files, so stages 2–10 carry them over rather than reinventing them.
+- The lesson leads the reader file by file, each one a separate finished thought.
+- The "≤120 lines" limit on the loop module becomes checkable, because the loop contains nothing
+  else.
 
 **Negative**
-- Читач стрибає між чотирма файлами замість одного суцільного тексту — це реальна втрата
-  порівняно з кодом статті. Компенсується тим, що урок явно веде порядком читання.
-- Чотири модулі на ~180 рядків виглядають надмірно, якщо дивитись лише на етап 1 і не бачити,
-  що те саме повториться дев'ять разів.
+- The reader jumps between four files instead of one continuous text — a real loss compared with
+  the article's code. Compensated by the lesson stating the reading order explicitly.
+- Four modules over ~180 lines look excessive if you only look at stage 1 and do not see that the
+  same thing will repeat nine times.
 
 **Neutral**
-- Злити модулі назад в один файл легко; розділити злитий файл через рік — ні. Рішення
-  оборотне в дешевий бік.
-- Кількість модулів не фіксується як догма: етап, якому вистачає двох, візьме два.
+- Merging the modules back into one file is easy; splitting a merged file a year later is not. The
+  decision is reversible in the cheap direction.
+- The number of modules is not fixed as dogma: a stage that only needs two will take two.
 
-## Оновлення 2026-08-23 (після рев'ю)
+## Update 2026-08-23 (after the review)
 
-Модулів стало **п'ять**: гейт підтвердження виїхав із `loop.py` в окремий `gate.py`.
+There are now **five** modules: the confirmation gate moved out of `loop.py` into its own
+`gate.py`.
 
-Це не перегляд рішення, а його застосування. Рев'ю показало, що гейт має працювати на рівні
-**кроку**, а не окремого виклику; нова логіка не вміщалася в цикл, не порушивши ліміт у 120
-рядків. Мітигація була записана заздалегідь у [[../sad.md]] §11 саме на цей випадок — і
-спрацювала так, як планувалося.
+This is not a revision of the decision but an application of it. The review showed that the gate
+has to work at the level of **the step**, not of an individual call; the new logic did not fit
+into the loop without breaking the 120-line limit. The mitigation had been written down in advance
+in [[../sad.md]] §11 for exactly this case — and it worked as planned.
 
-Межа з розділу Decision outcome лишається чинною й далі керує розкладкою: **один модуль — одна
-відповідальність, кожен вкладається в один екран**. Кількість модулів ніколи не була догмою.
+The rule from the Decision outcome section stands and continues to govern the layout: **one
+module, one responsibility, each fitting on one screen**. The number of modules was never dogma.
 
 ## Links
 
-- Спека: [[../spec.md]] §6 (розмір модулів), AC-02, AC-03, AC-04
+- Spec: [[../spec.md]] §6 (module sizes), AC-02, AC-03, AC-04
 - SAD: [[../sad.md]] §5
-- ADR репозиторію: [[../../../adr/0001-single-installable-package-with-per-stage-extras]]
-- Пов'язані ADR: [[0002-confirm-irreversible-action-by-second-run]], [[0003-hand-written-argument-validation-inside-the-stage]]
+- Repository ADR: [[../../../adr/0001-single-installable-package-with-per-stage-extras]]
+- Related ADRs: [[0002-confirm-irreversible-action-by-second-run]], [[0003-hand-written-argument-validation-inside-the-stage]]

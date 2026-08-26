@@ -27,17 +27,22 @@ Thumbs.db
 .idea/
 .vscode/
 
-# per-developer sdd settings
+# Per-developer SDD settings
 .claude/*.local.md
 .worktrees/
 
-# Локальні копії статей-джерел: належать авторові, у публічний репозиторій не йдуть.
-# Конспекти й посилання — у docs/readme.md
-docs/[0-9][0-9]-*.md
+# Article drafts, if any are ever kept here again. The published articles live in the
+# blog repository; this repository links to them from docs/readme.md.
 sources/
 
-# IDE-специфіка; копія плану збережена в planning/
+# IDE specifics; the plan itself is kept in planning/
 .cursor/
 
 # Секрети продакшн-збірки живуть на машині, не в репозиторії.
 deploy/.env.prod
+
+# uv is not used by this project: pip plus pyproject. `uv run` leaves this behind.
+uv.lock
+
+# scripts/mutate.py writes this while a mutation is applied; a crash can leave it behind
+.mutation-in-progress

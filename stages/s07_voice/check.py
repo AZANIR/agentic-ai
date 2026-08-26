@@ -99,7 +99,7 @@ def check_the_batch_pipeline_reports_first_audio_and_its_parts() -> None:
 
 
 def check_the_streaming_breakdown_adds_up_with_a_slow_consumer() -> None:
-    """ВІДМОВА · закон збереження: кроки + віддача = загальний час, і третього доданка немає"""
+    """FAILURE · закон збереження: кроки + віддача = загальний час, і третього доданка немає"""
     clock = FakeClock()
     stream = streaming(
         SAID,
@@ -137,7 +137,7 @@ def check_the_streaming_breakdown_adds_up_with_a_slow_consumer() -> None:
 
 
 def check_an_unfinished_run_refuses_to_report_a_total() -> None:
-    """ВІДМОВА · частково спожитий стрім: `total` — не нуль, а «ще не відомо»"""
+    """FAILURE · частково спожитий стрім: `total` — не нуль, а «ще не відомо»"""
     clock = FakeClock()
     stream = streaming(
         SAID,
@@ -183,7 +183,7 @@ def check_streaming_reaches_first_audio_at_least_twice_as_fast() -> None:
 
 
 def check_the_total_duration_stays_about_the_same() -> None:
-    """ВІДМОВА · раніша віддача НЕ зменшує роботи — виграш має дві різні частини"""
+    """FAILURE · раніша віддача НЕ зменшує роботи — виграш має дві різні частини"""
     batched = _run_batch().timing
     stream, _ = _run_stream()
 
@@ -238,7 +238,7 @@ def check_every_stage_is_named_and_timed() -> None:
 
 
 def check_p95_is_visibly_larger_than_the_mean() -> None:
-    """ВІДМОВА · розподіл: p95 помітно більший за середнє — звітують не тим числом"""
+    """FAILURE · розподіл: p95 помітно більший за середнє — звітують не тим числом"""
     # Дев'яносто швидких прогонів і десять повільних — типовий хвіст будь-якого конвеєра
     # з мережею. Середнє його майже не помічає; людина помічає одразу.
     values = [400.0] * 90 + [1600.0] * 10
@@ -255,7 +255,7 @@ def check_p95_is_visibly_larger_than_the_mean() -> None:
 
 
 def check_p95_keeps_its_promise_at_every_sample_size() -> None:
-    """ВІДМОВА · p95: не більше 5 % прогонів гірші за нього — на БУДЬ-ЯКОМУ розмірі вибірки"""
+    """FAILURE · p95: не більше 5 % прогонів гірші за нього — на БУДЬ-ЯКОМУ розмірі вибірки"""
     # Сто прогонів — щасливе число: там округлення й найближчий ранг збігаються, тож
     # перевірка вище хибу не бачила. Розмірів, на яких вони розходяться, — приблизно
     # половина: 11–19, 30–39, 51–59 …
@@ -278,7 +278,7 @@ def check_p95_keeps_its_promise_at_every_sample_size() -> None:
 
 
 def check_a_distribution_of_nothing_is_refused() -> None:
-    """ВІДМОВА · розподіл із нуля прогонів — помилка, а не нулі"""
+    """FAILURE · розподіл із нуля прогонів — помилка, а не нулі"""
     try:
         summarise([])
     except ValueError as error:
@@ -294,7 +294,7 @@ def check_a_distribution_of_nothing_is_refused() -> None:
 
 
 def check_noise_does_not_interrupt() -> None:
-    """ВІДМОВА · barge-in: тихий звук не перериває відповідь"""
+    """FAILURE · barge-in: тихий звук не перериває відповідь"""
     decision = should_interrupt(Sound(level=0.1, millis=100.0))
 
     assert not decision.interrupt, decision
@@ -302,7 +302,7 @@ def check_noise_does_not_interrupt() -> None:
 
 
 def check_short_speech_does_not_interrupt() -> None:
-    """ВІДМОВА · barge-in: гучний, але короткий звук не перериває — умов дві"""
+    """FAILURE · barge-in: гучний, але короткий звук не перериває — умов дві"""
     decision = should_interrupt(Sound(level=0.9, millis=80.0))
 
     assert not decision.interrupt, (
@@ -313,7 +313,7 @@ def check_short_speech_does_not_interrupt() -> None:
 
 
 def check_speech_does_interrupt_and_says_why() -> None:
-    """ВІДМОВА · дзеркальна: мовлення таки перериває — детектор не глухий"""
+    """FAILURE · дзеркальна: мовлення таки перериває — детектор не глухий"""
     decision = should_interrupt(Sound(level=0.9, millis=300.0))
 
     assert decision.interrupt, (
@@ -324,7 +324,7 @@ def check_speech_does_interrupt_and_says_why() -> None:
 
 
 def check_both_thresholds_actually_decide() -> None:
-    """ВІДМОВА · barge-in: кожна з двох умов справді впливає на рішення"""
+    """FAILURE · barge-in: кожна з двох умов справді впливає на рішення"""
     loud_long = Sound(level=SPEECH_LEVEL + 0.1, millis=MIN_SPEECH_MILLIS + 10)
     assert should_interrupt(loud_long).interrupt
 
@@ -340,7 +340,7 @@ def check_both_thresholds_actually_decide() -> None:
 
 
 def check_prefetch_buys_a_measured_number_of_milliseconds() -> None:
-    """ВІДМОВА · prefetch: два числа порівнюються НАВПРОСТЕЦЬ, без зшивання ззовні"""
+    """FAILURE · prefetch: два числа порівнюються НАВПРОСТЕЦЬ, без зшивання ззовні"""
     calls: list[str] = []
 
     def tool() -> None:
@@ -367,7 +367,7 @@ def check_prefetch_buys_a_measured_number_of_milliseconds() -> None:
 
 
 def check_a_discarded_prefetch_does_not_delay_the_answer() -> None:
-    """ВІДМОВА · prefetch: на непотрібний результат НЕ чекають — навіть повільний"""
+    """FAILURE · prefetch: на непотрібний результат НЕ чекають — навіть повільний"""
     # Інструмент навмисно ПОВІЛЬНІШИЙ за роздум. Перша редакція спала `max(tool, think)`
     # незалежно від потреби, тож відповідь чекала на результат, який рядком нижче
     # оголошувався марною роботою. Обидві точки виклику були підібрані так (500 проти
@@ -390,7 +390,7 @@ def check_a_discarded_prefetch_does_not_delay_the_answer() -> None:
 
 
 def check_an_unused_prefetch_is_named_as_wasted_work() -> None:
-    """ВІДМОВА · prefetch: непотрібний виклик відбувся, і це названо марною роботою"""
+    """FAILURE · prefetch: непотрібний виклик відбувся, і це названо марною роботою"""
     calls: list[str] = []
     both = {"tool_millis": TOOL_MILLIS, "think_millis": THINK_MILLIS}
     outcome = prefetched(lambda: calls.append("called"), clock=FakeClock(), needed=False, **both)
@@ -414,7 +414,7 @@ def check_an_unused_prefetch_is_named_as_wasted_work() -> None:
 
 
 def check_empty_transcription_calls_neither_model_nor_synthesis() -> None:
-    """ВІДМОВА · мовчання — не запит: ані модель, ані синтез не викликаються"""
+    """FAILURE · мовчання — не запит: ані модель, ані синтез не викликаються"""
     clock = FakeClock()
     reply = batch(
         Audio(seconds=1.0, says="   "),
@@ -432,7 +432,7 @@ def check_empty_transcription_calls_neither_model_nor_synthesis() -> None:
 
 
 def check_streaming_also_refuses_silence() -> None:
-    """ВІДМОВА · мовчання зупиняє й стрімінговий конвеєр — обидва, не один"""
+    """FAILURE · мовчання зупиняє й стрімінговий конвеєр — обидва, не один"""
     clock = FakeClock()
     stream = streaming(
         Audio(seconds=1.0, says=""),
@@ -447,7 +447,7 @@ def check_streaming_also_refuses_silence() -> None:
 
 
 def check_a_model_that_says_nothing_is_not_reported_as_instant() -> None:
-    """ВІДМОВА · порожня відповідь моделі: перший звук — «не було», а не нуль мілісекунд"""
+    """FAILURE · порожня відповідь моделі: перший звук — «не було», а не нуль мілісекунд"""
     stream, spoken = _run_stream(think_chunks=silent_model())
 
     assert spoken == [], spoken
@@ -461,7 +461,7 @@ def check_a_model_that_says_nothing_is_not_reported_as_instant() -> None:
 
 
 def check_the_chunks_refuse_a_second_walk() -> None:
-    """ВІДМОВА · фрагменти: другий прохід — відмова, а не мовчазний хвіст"""
+    """FAILURE · фрагменти: другий прохід — відмова, а не мовчазний хвіст"""
     stream = streaming(
         SAID,
         clock=FakeClock(),
@@ -488,7 +488,7 @@ def check_the_chunks_refuse_a_second_walk() -> None:
 
 
 def check_the_pipeline_never_reads_the_system_clock() -> None:
-    """ВІДМОВА · годинник: конвеєр не ІМПОРТУЄ жодного джерела недетермінізму"""
+    """FAILURE · годинник: конвеєр не ІМПОРТУЄ жодного джерела недетермінізму"""
     import ast
 
     here = Path(__file__).parent
@@ -520,7 +520,7 @@ def check_the_pipeline_never_reads_the_system_clock() -> None:
 
 
 def check_two_runs_in_flight_do_not_corrupt_each_other() -> None:
-    """ВІДМОВА · два стріми одночасно: розклади не змішуються (NFR-6)"""
+    """FAILURE · два стріми одночасно: розклади не змішуються (NFR-6)"""
     # Двадцять послідовних прогонів давали однакове число ЗА ПОБУДОВОЮ: кожен будував
     # власний `FakeClock` над чистою функцією. Мигтіння, від якого існує NFR-6, вони
     # спостерігати не могли. Небезпечна форма — стан на рівні модуля, і видно її лише
@@ -558,7 +558,7 @@ def check_two_runs_in_flight_do_not_corrupt_each_other() -> None:
 
 
 def check_the_fake_clock_does_not_actually_sleep() -> None:
-    """ВІДМОВА · підроблений годинник не спить — інакше двадцять прогонів коштували б хвилини"""
+    """FAILURE · підроблений годинник не спить — інакше двадцять прогонів коштували б хвилини"""
     import time as real_time
 
     started = real_time.perf_counter()
@@ -574,7 +574,7 @@ def check_the_fake_clock_does_not_actually_sleep() -> None:
 
 
 def check_the_clock_factory_defaults_to_fake() -> None:
-    """ВІДМОВА · фабрика: дефолт — підробка; справжній годинник лише за прапорцем"""
+    """FAILURE · фабрика: дефолт — підробка; справжній годинник лише за прапорцем"""
     assert isinstance(get_clock(), FakeClock), type(get_clock())
     assert isinstance(get_clock(real=True), RealClock), type(get_clock(real=True))
 
@@ -584,7 +584,7 @@ def check_the_clock_factory_defaults_to_fake() -> None:
 
 
 def check_the_stopwatch_refuses_a_second_first_audio() -> None:
-    """ВІДМОВА · секундомір: перший звук позначається один раз"""
+    """FAILURE · секундомір: перший звук позначається один раз"""
     watch = Stopwatch(FakeClock())
     watch.first_audio()
     try:
@@ -611,7 +611,7 @@ def _script() -> str:
 
 
 def check_the_microphone_needs_an_explicit_action() -> None:
-    """ВІДМОВА · сторінка: мікрофон береться лише в тілі `start()`, і зупинка звільняє"""
+    """FAILURE · сторінка: мікрофон береться лише в тілі `start()`, і зупинка звільняє"""
     script = _script()
 
     # Позиційне включення, а не сусідство рядків. Перша редакція різала текст по ПЕРШОМУ
@@ -639,7 +639,7 @@ def check_the_microphone_needs_an_explicit_action() -> None:
 
 
 def check_the_page_recovers_from_a_failure_after_permission() -> None:
-    """ВІДМОВА · сторінка: помилка ПІСЛЯ дозволу звільняє мікрофон і не вбиває кнопку"""
+    """FAILURE · сторінка: помилка ПІСЛЯ дозволу звільняє мікрофон і не вбиває кнопку"""
     script = _script()
 
     # Найгірший стан сторінки: дозвіл узято, мікрофон живий, крапка горить — і зламалось
@@ -664,7 +664,7 @@ def check_the_page_recovers_from_a_failure_after_permission() -> None:
 
 
 def check_the_page_shows_what_actually_happened_not_what_it_intended() -> None:
-    """ВІДМОВА · сторінка: обірваний сокет гасить індикатор, а порожня відповідь — не нуль"""
+    """FAILURE · сторінка: обірваний сокет гасить індикатор, а порожня відповідь — не нуль"""
     script = _script()
 
     # Сервер закриває сокет у гілці «моделей немає» і при будь-якій помилці адаптера.
@@ -683,7 +683,7 @@ def check_the_page_shows_what_actually_happened_not_what_it_intended() -> None:
 
 
 def check_the_page_writes_down_numbers_and_nothing_else() -> None:
-    """ВІДМОВА · сеанс лишає числа — і не лишає ані семплів, ані тексту"""
+    """FAILURE · сеанс лишає числа — і не лишає ані семплів, ані тексту"""
     page = PAGE.read_text(encoding="utf-8")
     socket = (HERE / "ws.py").read_text(encoding="utf-8")
 
@@ -708,7 +708,7 @@ def check_the_page_writes_down_numbers_and_nothing_else() -> None:
 
 
 def check_a_missing_model_is_explained_not_crashed() -> None:
-    """ВІДМОВА · відсутня модель: сказано, що встановити, а не технічна помилка"""
+    """FAILURE · відсутня модель: сказано, що встановити, а не технічна помилка"""
     # ОБИДВІ гілки, а не та, якій пощастило на цій машині. Перша редакція писала
     # `assert absent is None or absent == MISSING` — істинне завжди, — і шлях «моделі на
     # місці» не виконувався ніде. А він і був зламаний: `stages.s07_voice.real` не існував.
@@ -731,7 +731,7 @@ def check_a_missing_model_is_explained_not_crashed() -> None:
 
 
 def check_the_live_mode_actually_exists_and_is_reachable() -> None:
-    """ВІДМОВА · живий режим: адаптери існують, і задокументована команда веде саме до них"""
+    """FAILURE · живий режим: адаптери існують, і задокументована команда веде саме до них"""
     import ast
 
     # Перша редакція лишила `from stages.s07_voice.real import …` у двох фабриках, а файлу
@@ -771,7 +771,7 @@ def check_the_live_mode_actually_exists_and_is_reachable() -> None:
 
 
 def check_the_socket_reuses_the_pipeline_it_does_not_copy_it() -> None:
-    """ВІДМОВА · сокет бере ТОЙ САМИЙ конвеєр — інакше числа розійдуться (AC-11)"""
+    """FAILURE · сокет бере ТОЙ САМИЙ конвеєр — інакше числа розійдуться (AC-11)"""
     socket = (HERE / "ws.py").read_text(encoding="utf-8")
 
     assert "from stages.s07_voice.pipeline import" in socket, (
@@ -795,7 +795,7 @@ def check_the_socket_reuses_the_pipeline_it_does_not_copy_it() -> None:
 
 
 def check_the_trace_carries_the_same_breakdown_as_the_timing() -> None:
-    """ВІДМОВА · трейс і розклад — два механізми, і одним звіряється інший (AC-11)"""
+    """FAILURE · трейс і розклад — два механізми, і одним звіряється інший (AC-11)"""
     import tempfile
     from pathlib import Path as _Path
 
@@ -828,7 +828,7 @@ def check_the_trace_carries_the_same_breakdown_as_the_timing() -> None:
 
 
 def check_the_socket_actually_runs_a_conversation() -> None:
-    """ВІДМОВА · живий режим ЗАПУСКАЄТЬСЯ — читання файлу цього не доводить"""
+    """FAILURE · живий режим ЗАПУСКАЄТЬСЯ — читання файлу цього не доводить"""
     import json
 
     from shared.check_runner import NotVerified
@@ -881,7 +881,7 @@ def check_the_socket_actually_runs_a_conversation() -> None:
 
 
 def check_the_web_module_is_not_imported_on_a_bare_install() -> None:
-    """ВІДМОВА · перевірки не тягнуть веб-фреймворк — інакше базова установка червоніє"""
+    """FAILURE · перевірки не тягнуть веб-фреймворк — інакше базова установка червоніє"""
     import ast
 
     # Розбір ІМПОРТІВ, а не пошук у тексті. Перша редакція шукала рядок
@@ -977,7 +977,7 @@ def check_the_demo_shows_every_scene_with_real_numbers() -> None:
 
 
 def check_the_demo_needs_no_microphone_models_or_network() -> None:
-    """ВІДМОВА · демо: жодної моделі, жодного мікрофона, жодної мережі"""
+    """FAILURE · демо: жодної моделі, жодного мікрофона, жодної мережі"""
     source = (HERE / "run.py").read_text(encoding="utf-8")
 
     assert not code_mentions(source, {"faster_whisper", "piper", "socket", "requests"}), (
@@ -993,7 +993,7 @@ def check_the_demo_needs_no_microphone_models_or_network() -> None:
 def check_the_failure_modes_are_at_least_a_third() -> None:
     """перевірки: режимів відмови не менше третини (NFR-4)"""
     labels = [(c.__doc__ or "").split(NEWLINE)[0] for c in CHECKS]
-    failures = [d for d in labels if d.startswith("ВІДМОВА")]
+    failures = [d for d in labels if d.startswith("FAILURE")]
     assert len(failures) * 3 >= len(CHECKS), (
         f"режимів відмови {len(failures)} із {len(CHECKS)} — менше третини"
     )
@@ -1006,14 +1006,11 @@ def check_the_lesson_fits_the_reading_budget() -> None:
 
 
 def check_the_lesson_numbers_match_the_suite() -> None:
-    """ВІДМОВА · урок: числа в прозі збігаються з тим, що друкує команда"""
+    """FAILURE · урок: числа в прозі збігаються з тим, що друкує команда"""
     total = len(CHECKS)
-    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("ВІДМОВА"))
-    for name, sentence in (
-        ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("CHECKLIST.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
-    ):
+    failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
+    sentence = f"{total} checks, {failures} of them on failure modes"
+    for name in ("README.md", "CHECKLIST.md"):
         page = (HERE / name).read_text(encoding="utf-8")
         assert sentence in page, (
             f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
@@ -1022,7 +1019,7 @@ def check_the_lesson_numbers_match_the_suite() -> None:
 
 
 def check_the_lesson_numbers_match_the_measurements() -> None:
-    """ВІДМОВА · урок: числа конвеєра в прозі — обчислені, а не переписані"""
+    """FAILURE · урок: числа конвеєра в прозі — обчислені, а не переписані"""
     # Ця перевірка стверджує про ПРОЗУ, а не про властивість. Під мутацією вона червоніє
     # від того, що числа перерахувались зі зламаного коду, — і «червоних 3» замість
     # «червоних 2» читається як «спіймали тричі». Три вправи з дванадцяти розходились із
@@ -1031,35 +1028,33 @@ def check_the_lesson_numbers_match_the_measurements() -> None:
         require_intact_source(module)
 
     lesson = (HERE / "README.md").read_text(encoding="utf-8")
-    english = (HERE / "README.en.md").read_text(encoding="utf-8")
 
     batched = _run_batch().timing
     stream, _ = _run_stream()
     ratio = batched.first_audio / stream.timing.first_audio
 
-    for page, name in ((lesson, "README.md"), (english, "README.en.md")):
-        assert f"{batched.first_audio:.0f}" in page, f"{name}: числа батчу немає"
-        assert f"{stream.timing.first_audio:.0f}" in page, f"{name}: числа стрімінгу немає"
-        assert f"{ratio:.1f}" in page, f"{name}: відношення {ratio:.1f} немає"
+    assert f"{batched.first_audio:.0f}" in lesson, "README.md: числа батчу немає"
+    assert f"{stream.timing.first_audio:.0f}" in lesson, "README.md: числа стрімінгу немає"
+    assert f"{ratio:.1f}" in lesson, f"README.md: відношення {ratio:.1f} немає"
 
     for step in batched.steps:
         assert f"{step.millis:.0f}" in lesson, f"кроку {step.name} немає в уроці"
 
 
 def check_the_lesson_line_counts_match_the_modules() -> None:
-    """ВІДМОВА · урок: розмір `pipeline.py` у прозі — обчислений"""
+    """FAILURE · урок: розмір `pipeline.py` у прозі — обчислений"""
     require_intact_source("pipeline.py")
     lines = _executable_lines("pipeline.py")
     lesson = (HERE / "README.md").read_text(encoding="utf-8")
 
-    assert f"`pipeline.py` — {lines} із 110" in lesson, (
+    assert f"`pipeline.py` — {lines} of 110" in lesson, (
         f"pipeline.py має {lines} виконуваних рядків — урок називає інше число"
     )
     assert lines <= 110, f"{lines} > 110 (NFR-1)"
 
 
 def check_the_exercises_match_the_pinned_mutations() -> None:
-    """ВІДМОВА · вправи: диф і числа беруться з mutations.json, а не пишуться"""
+    """FAILURE · вправи: диф і числа беруться з mutations.json, а не пишуться"""
     import json
 
     pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
@@ -1068,8 +1063,8 @@ def check_the_exercises_match_the_pinned_mutations() -> None:
     for mutation in pinned:
         number = int(mutation["name"].split()[1])
         expected = mutation["expect_failed"]
-        assert f"## Вправа {number} ·" in text_of, f"вправи {number} немає в прозі"
-        assert f"**Червоних: {expected}.**" in text_of, number
+        assert f"## Exercise {number} ·" in text_of, f"вправи {number} немає в прозі"
+        assert f"**Red: {expected}.**" in text_of, number
         for side in ("old", "new"):
             for line in mutation[side].split(NEWLINE):
                 assert line.strip() in text_of, (
@@ -1077,14 +1072,13 @@ def check_the_exercises_match_the_pinned_mutations() -> None:
                     "побачить, ЩО саме міняти"
                 )
 
-    assert text_of.count("## Вправа") == len(pinned), len(pinned)
+    assert text_of.count("## Exercise") == len(pinned), len(pinned)
 
 
 def check_every_reader_file_exists() -> None:
     """матеріали: урок, карта, вправи, чеклісти й розвʼязок на місці"""
     for name in (
         "README.md",
-        "README.en.md",
         "exercises.md",
         "CHECKLIST.md",
         "DECISION.md",

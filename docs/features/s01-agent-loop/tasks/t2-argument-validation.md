@@ -1,6 +1,6 @@
 ---
 id: T2
-title: "Валідація аргументів інструмента проти оголошеної схеми"
+title: "Validate tool arguments against the declared schema"
 layer: "app"
 deps: []
 acs: ["AC-03"]
@@ -10,26 +10,30 @@ estimate: "S"
 status: "todo"
 ---
 
-# T2 — Валідація аргументів інструмента проти оголошеної схеми
+# T2 — Validate tool arguments against the declared schema
 
 ## Why
 
-Межа довіри: усе, що приходить від моделі, неперевірене. Власний код, а не бібліотека — [ADR-0003](../adr/0003-hand-written-argument-validation-inside-the-stage.md).
+The line of trust: everything arriving from the model is unverified. Hand-written code rather
+than a library — [ADR-0003](../adr/0003-hand-written-argument-validation-inside-the-stage.md).
 
 ## What
 
-`validate.py`: одна функція, що приймає схему й аргументи й повертає або порядок, або пояснення невідповідності. Три випадки: відсутнє обов'язкове поле, зайве поле, невірний тип. **Приведення типів не виконується** — текст там, де оголошено число, це відмова. Вкладені об'єкти й масиви не підтримуються; межу назвати в docstring.
+`validate.py`: a single function that takes a schema and arguments and returns either an all-clear
+or an explanation of the mismatch. Three cases: a missing required field, an extra field, a wrong
+type. **No type coercion is performed** — text where a number was declared is a rejection. Nested
+objects and arrays are not supported; name that boundary in the docstring.
 
 ## Definition of Done
 
-- [ ] Три випадки невідповідності дають зрозуміле пояснення українською
-- [ ] Коректні аргументи проходять без змін
-- [ ] Рядок замість числа — відмова, а не приведення
-- [ ] Модуль ≤ 60 рядків виконуваного коду (spec §6)
-- [ ] lint чистий
+- [ ] Three kinds of mismatch produce a comprehensible explanation
+- [ ] Valid arguments pass through unchanged
+- [ ] A string instead of a number is a rejection, not a coercion
+- [ ] The module is ≤ 60 lines of executable code (spec §6)
+- [ ] lint clean
 
 ## Notes
 
-Паралельний із T1: спільних файлів немає, можна робити одночасно.
+Parallel with T1: they share no files, so they can be done at the same time.
 
-Блокується: —
+Blocked by: —

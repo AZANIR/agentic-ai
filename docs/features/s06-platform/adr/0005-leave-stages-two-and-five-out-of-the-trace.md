@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0005 — Не протягувати трейсер в етапи 2 і 5
+# 0005 — Leave stages 2 and 5 out of the trace
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -15,53 +15,54 @@ ticket: "n/a"
 
 ## Context
 
-Специфікація обіцяє трейс, який відповідає на питання «чому агент так вирішив». Під час
-написання критеріїв виявилось, що етапи 2 і 5 не пишуть у трейс **жодного** кроку:
-`store.search()` трейсера не приймає, а `Memory.context_for()` вертає причини у
+The spec promises a trace that answers the question "why did the agent decide that". While the
+criteria were being written it turned out that stages 2 and 5 write **not a single** step into the
+trace: `store.search()` takes no tracer, and `Memory.context_for()` returns its reasons in
 `Context.skipped`.
 
-Тобто трейс сервісу покаже, **яку гілку** обрано, і не покаже, **чому** знайдено саме ці
-документи й саме ці факти. Половина обіцянки лишається за межами.
+So the service's trace will show **which branch** was chosen, and will not show **why** exactly
+these documents and exactly these facts were found. Half the promise stays outside.
 
 ## Decision drivers
 
-- C-1: правка етапів 1–5 потребує запису, і цей запис — саме він.
-- Додати `tracer=None` адитивно й дешево. Дешевизна — не аргумент за.
-- Етап 8 будує оцінювання **на трейсах** і скаже, чого йому справді бракує.
-- Причини вже існують у структурах (`Context.skipped`, оцінки пошуку) — вони не втрачені,
-  вони просто не у трейсі.
+- C-1: editing stages 1–5 requires a record, and this record is it.
+- Adding `tracer=None` is additive and cheap. Cheapness is not an argument in favour.
+- Stage 8 builds evaluation **on traces** and will say what it actually lacks.
+- The reasons already exist in the structures (`Context.skipped`, the search scores) — they are not
+  lost, they are simply not in the trace.
 
 ## Considered options
 
-1. **Не протягувати**; межу назвати в AC-02 і в уроці.
-2. **Протягнути необовʼязковий трейсер** в обидва етапи зараз.
-3. **Дублювати причини на боці сервісу**: сервіс сам записує те, що повернули структури.
+1. **Do not thread it through**; name the limit in AC-02 and in the lesson.
+2. **Thread an optional tracer** into both stages now.
+3. **Duplicate the reasons on the service side**: the service itself writes down what the
+   structures returned.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 виглядає правильною й ухвалюється **не тепер**. Причина не в дорожнечі правки, а в
-тому, що вимогу до неї сформулює етап 8: він читатиме трейси й скаже, яких полів бракує для
-оцінювання. Протягувати трейсер під здогад — це проєктувати інтерфейс під уявного споживача,
-і курс уже має рівно цей урок на етапі 4, де реєстр інструментів існував без жодного
-споживача й тому нічого не доводив.
+Option 2 looks like the right one and is being taken **not now**. The reason is not the cost of the
+edit but that the requirement for it will be formulated by stage 8: it will read the traces and say
+which fields evaluation is missing. Threading a tracer through on a guess means designing an
+interface for an imaginary consumer, and the course already has exactly this lesson at stage 4,
+where a tool registry existed with no consumer at all and therefore proved nothing.
 
-Option 3 дає трейс, який виглядає повним і бреше: причини записує той, хто рішення не
-ухвалював. Розходження між записаним і фактичним зʼявиться при першій же зміні в етапі 2 —
-мовчки.
+Option 3 gives a trace that looks complete and lies: the reasons are written down by whoever did
+not take the decision. The divergence between what is written and what happened will appear on the
+first change in stage 2 — silently.
 
-**Межа не приховується.** AC-02 називає її дослівно, урок повторює, а §11 несе рядок із
-власником і терміном.
+**The limit is not hidden.** AC-02 names it word for word, the lesson repeats it, and §11 carries a
+line with an owner and a due date.
 
 ## Consequences
 
 **Positive**
-- Етапи 1–5 лишаються незміненими; теза про межі між етапами не порушена.
-- Вимогу до трейсу сформулює той, хто його читатиме.
-- Немає трейсу, який виглядає повнішим, ніж є.
+- Stages 1–5 stay unchanged; the claim about the boundaries between stages is not broken.
+- The requirement for the trace will be formulated by whoever reads it.
+- There is no trace that looks fuller than it is.
 
 **Negative**
-- Трейс етапу 6 відповідає на «яка гілка» й не відповідає на «чому саме ці документи».
-  Це названо в AC-02, а не виявиться на етапі 8.
-- Борг зафіксовано в §11 із власником і терміном.
+- Stage 6's trace answers "which branch" and does not answer "why exactly these documents". That is
+  named in AC-02, rather than discovered at stage 8.
+- The debt is recorded in §11 with an owner and a due date.

@@ -1,33 +1,34 @@
-"""Чекліст «окремий MCP-інструмент чи ще один ендпоінт» — правилами, а не на око.
+"""The "a separate MCP tool or one more endpoint" checklist — by rules, not by eye.
 
-Найпоширеніша помилка з MCP виглядає як старанність: узяти своє REST API й оголосити кожен
-ендпоінт інструментом. Виходить сервер із сорока інструментами, у якому модель обирає гірше,
-ніж обирала б у п'яти — і це та сама вада, що на етапі 3, лише прийшла з іншого боку.
+The commonest MCP mistake looks like diligence: take your REST API and declare every endpoint a
+tool. The result is a server with forty tools where the model chooses worse than it would among
+five — and that is the same defect as on stage 3, arriving from the other side.
 
-> **MCP-інструмент — це не ендпоінт. Це завдання, яке хтось хоче виконати.**
+> **An MCP tool is not an endpoint. It is a job somebody wants done.**
 
-`GET /orders/{id}`, `GET /orders/{id}/items` і `GET /orders/{id}/shipping` — три ендпоінти й
-**один** інструмент: «розкажи про замовлення». Модель не хоче трьох викликів; вона хоче
-відповіді.
+`GET /orders/{id}`, `GET /orders/{id}/items` and `GET /orders/{id}/shipping` are three endpoints
+and **one** tool: "tell me about the order". The model does not want three calls; it wants an
+answer.
 
-Порядок правил — теж рішення. Спершу перевіряється, чи є **дія** окремим завданням, і лише
-потім усе інше: розмір відповіді, права, частота. Розмір відповіді звучить переконливо й
-насправді найслабший — його майже завжди можна полагодити параметром.
+The order of the rules is a decision too. First it is checked whether the **action** is a job of
+its own, and only then everything else: response size, permissions, frequency. Response size
+sounds convincing and is in fact the weakest of them — it can almost always be fixed with a
+parameter.
 
-Три вердикти:
+Three verdicts:
 
-    ОКРЕМИЙ ІНСТРУМЕНТ   завдання самостійне, модель обирає його свідомо
-    ПАРАМЕТР             те саме завдання, інший обсяг чи фільтр
-    НЕ ВИСТАВЛЯТИ        модель не має причин це викликати
+    SEPARATE TOOL   the job stands on its own, the model picks it deliberately
+    PARAMETER       the same job, a different volume or filter
+    DO NOT EXPOSE   the model has no reason to call this
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-TOOL = "ОКРЕМИЙ ІНСТРУМЕНТ"
-PARAMETER = "ПАРАМЕТР"
-HIDE = "НЕ ВИСТАВЛЯТИ"
+TOOL = "SEPARATE TOOL"
+PARAMETER = "PARAMETER"
+HIDE = "DO NOT EXPOSE"
 
 
 @dataclass(frozen=True)
@@ -52,71 +53,71 @@ class Situation:
 
 
 RULES = [
-    Rule("no_reason_to_call", HIDE, "Модель не має жодної причини це викликати"),
-    Rule("irreversible_without_confirm", HIDE, "Незворотна дія без способу підтвердити"),
-    Rule("distinct_task", TOOL, "Це самостійне завдання, а не варіант іншого"),
-    Rule("different_permissions", TOOL, "Потрібні інші права, ніж у сусідньої дії"),
-    Rule("same_task_other_shape", PARAMETER, "Те саме завдання, інший обсяг чи фільтр"),
-    Rule("one_of_many_endpoints", PARAMETER, "Один із багатьох ендпоінтів однієї сутності"),
+    Rule("no_reason_to_call", HIDE, "The model has no reason whatsoever to call this"),
+    Rule("irreversible_without_confirm", HIDE, "An irreversible action with no way to confirm"),
+    Rule("distinct_task", TOOL, "This is a job of its own, not a variant of another"),
+    Rule("different_permissions", TOOL, "It needs different permissions from the action beside it"),
+    Rule("same_task_other_shape", PARAMETER, "The same job, a different volume or filter"),
+    Rule("one_of_many_endpoints", PARAMETER, "One of many endpoints of a single entity"),
 ]
 
 SITUATIONS = [
     Situation(
-        name="Внутрішній ендпоінт міграції даних",
+        name="An internal data-migration endpoint",
         expected=HIDE,
-        why="Модель не має причин це викликати, а ціна помилки — вся база.",
+        why="The model has no reason to call it, and the price of a mistake is the whole database.",
         signals={"no_reason_to_call": True},
     ),
     Situation(
-        name="Видалення акаунта без гейта підтвердження",
+        name="Deleting an account with no confirmation gate",
         expected=HIDE,
-        why="Незворотне без підтвердження не виставляють. Спершу гейт, потім інструмент.",
+        why="The irreversible without a confirmation is not exposed. Gate first, tool after.",
         signals={"irreversible_without_confirm": True},
     ),
     Situation(
-        name="Оформити повернення замовлення",
+        name="Start a return for an order",
         expected=TOOL,
-        why="Самостійне завдання з власним результатом. Модель обирає його свідомо.",
+        why="A job of its own with its own result. The model picks it deliberately.",
         signals={"distinct_task": True},
     ),
     Situation(
-        name="Пошук у внутрішніх документах для операторів",
+        name="Search of internal documents for operators",
         expected=TOOL,
-        why="Інші права, ніж у публічного пошуку. Одним інструментом із прапорцем — не можна.",
+        why="Different permissions from the public search. One tool with a flag will not do.",
         signals={"different_permissions": True},
     ),
     Situation(
-        name="Список замовлень за останній місяць замість усіх",
+        name="Orders from the last month instead of all of them",
         expected=PARAMETER,
-        why="Те саме завдання, інший фільтр. Другий інструмент лише розмиває вибір.",
+        why="The same job, a different filter. A second tool only blurs the choice.",
         signals={"same_task_other_shape": True},
     ),
     Situation(
-        name="GET /orders/{id}/items поруч із GET /orders/{id}",
+        name="GET /orders/{id}/items next to GET /orders/{id}",
         expected=PARAMETER,
-        why="Модель хоче відповіді про замовлення, а не трьох викликів по його частинах.",
+        why="The model wants an answer about the order, not three calls about its parts.",
         signals={"one_of_many_endpoints": True},
     ),
     Situation(
-        name="Одна дія, яку користувач просить словами щодня",
+        name="One action users ask for in words every day",
         expected=TOOL,
-        why="Найпростіший випадок, і його теж варто мати в переліку: якщо просять — виставляй.",
+        why="The simplest case, and worth having on the list too: if they ask, expose it.",
         signals={"distinct_task": True},
     ),
 ]
 
 
 def decide(signals: dict[str, bool]) -> Verdict:
-    """Пройти правила згори вниз і зупинитися на першому, що спрацювало."""
+    """Walk the rules top to bottom and stop at the first one that fires."""
     for rule in RULES:
         if signals.get(rule.signal):
             return Verdict(answer=rule.answer, rule=rule.text)
-    return Verdict(answer=PARAMETER, rule="Жоден сигнал не спрацював — це параметр, не інструмент")
+    return Verdict(answer=PARAMETER, rule="No signal fired — this is a parameter, not a tool")
 
 
 def table() -> str:
-    """Той самий чекліст таблицею — з нього збирається DECISION.md."""
-    rows = ["| Ситуація | Відповідь | Чому |", "|---|---|---|"]
+    """The same checklist as a table — DECISION.md is assembled from it."""
+    rows = ["| Situation | Answer | Why |", "|---|---|---|"]
     rows += [f"| {s.name} | **{decide(s.signals).answer}** | {s.why} |" for s in SITUATIONS]
     return "\n".join(rows)
 

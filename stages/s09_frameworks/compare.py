@@ -25,7 +25,7 @@ from stages.s09_frameworks.counters import Tally
 
 HERE = Path(__file__).resolve().parent
 
-UNVERIFIED = "не перевірено"
+UNVERIFIED = "NOT EVALUATED"
 NEWLINE = chr(10)
 
 COLUMNS = (

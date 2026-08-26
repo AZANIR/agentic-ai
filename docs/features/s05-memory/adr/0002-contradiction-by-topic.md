@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "S"
@@ -8,7 +8,7 @@ ticket: "n/a"
 ---
 
 
-# 0002 — Суперечність визначається за темою факту, не за змістом
+# 0002 — A contradiction is decided by a fact's topic, not by its content
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -16,45 +16,47 @@ ticket: "n/a"
 
 ## Context
 
-Людина сказала адресу. Через місяць сказала іншу. У пам'яті не має лишитись двох активних
-адрес — інакше система відповідатиме то так, то так, залежно від того, який факт виграв за
-близькістю.
+A person gave an address. A month later they gave a different one. Two active addresses must not
+be left in memory — otherwise the system will answer one way or the other depending on which fact
+won on proximity.
 
-Питання: як зрозуміти, що новий факт **замінює** старий, а не доповнює його.
+The question: how to tell that a new fact **replaces** an old one rather than adding to it.
 
 ## Considered options
 
-1. **За темою:** факт несе поле «про що він», і новий факт тієї ж теми замінює старий.
-2. **За змістом:** порівнювати тексти й вирішувати, чи суперечать вони.
-3. **Не вирішувати:** зберігати обидва, розбиратися при вибірці.
+1. **By topic:** a fact carries a "what it is about" field, and a new fact on the same topic
+   replaces the old one.
+2. **By content:** compare the texts and decide whether they contradict.
+3. **Do not decide:** store both, sort it out at retrieval.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 3 переносить проблему туди, де її гірше видно. Два активні факти про адресу
-потраплять у контекст разом, і модель отримає суперечливі дані без жодної позначки. Вона
-щось відповість — і відповідь буде правдоподібною.
+Option 3 moves the problem to where it is harder to see. Two active facts about the address will
+end up in the context together, and the model will get contradictory data with no marker at all.
+It will answer something — and the answer will be plausible.
 
-Option 2 виглядає розумнішою й тягне за собою те, чого етап уникає: **щоб порівняти зміст,
-потрібен вивід**. Або друга модель, або правила, які самі стануть предметом налагодження.
-На етапі про пам'ять це замінило б тему уроку.
+Option 2 looks smarter and drags in exactly what the stage avoids: **comparing content requires
+inference**. Either a second model, or rules that will themselves become a debugging subject. At a
+stage about memory that would replace the lesson's subject.
 
-Тема — грубий інструмент, і саме тому чесний: вона робить рівно одне твердження — «це факт
-про те саме». Хто задає тему, той і відповідає за наслідки.
+Topic is a blunt instrument, and that is precisely what makes it honest: it makes exactly one
+statement — "this is a fact about the same thing". Whoever sets the topic answers for the
+consequences.
 
-**Межа названа прямо:** два факти про **різне**, які насправді суперечать («живу в Києві» /
-«переїхав до Львова» з різними темами), помічені не будуть. Виявлення суперечностей за
-змістом — окрема задача з окремою ціною, і вдавати, що етап її розв'язує, було б гірше за
-чесну прогалину.
+**The boundary is named plainly:** two facts about **different things** that in truth contradict
+("I live in Kyiv" / "I moved to Lviv" with different topics) will not be noticed. Detecting
+contradictions by content is a separate problem with a separate price, and pretending the stage
+solves it would be worse than an honest gap.
 
 ## Consequences
 
 **Positive**
-- Стану з двома активними правдами не існує — це властивість, а не побажання.
-- Заміна видима: старий запис лишається зі статусом і часом заміни.
-- Жодного виводу: правило перевіряється трьома рядками.
+- A state with two active truths does not exist — that is a property, not a wish.
+- The replacement is visible: the old record stays, with its status and the time of replacement.
+- No inference: the rule is checkable in three lines.
 
 **Negative**
-- Тема має бути правильною. Помилка в темі означає або втрачену заміну, або хибну.
-- Суперечності між різними темами не виявляються. Названо в плані тестів.
+- The topic has to be right. A mistake in the topic means either a lost replacement or a false one.
+- Contradictions across different topics go undetected. Named in the test plan.

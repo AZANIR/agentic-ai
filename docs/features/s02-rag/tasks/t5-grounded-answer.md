@@ -1,6 +1,6 @@
 ---
 id: T5
-title: "Складання відповіді з джерелом, яке додає система"
+title: "Composing an answer with a source the system attaches"
 layer: "app"
 deps: ["T4"]
 acs: ["AC-02", "AC-04"]
@@ -10,26 +10,26 @@ estimate: "S"
 status: "todo"
 ---
 
-# T5 — Складання відповіді з джерелом, яке додає система
+# T5 — Composing an answer with a source the system attaches
 
 ## Why
 
-Без цитати обґрунтована відповідь і галюцинація виглядають однаково. Хто саме цитує — предмет [ADR-0003](../adr/0003-system-attaches-the-source.md).
+Without a citation a grounded answer and a hallucination look the same. Who exactly cites is the subject of [ADR-0003](../adr/0003-system-attaches-the-source.md).
 
 ## What
 
-`answer.py`: знайдені фрагменти йдуть моделі **окремим позначеним блоком як дані**, не як інструкції. Джерело до відповіді додає система з переліку знайденого — модель не цитує. Нічого не знайдено вище порога → відповідь не формується взагалі.
+`answer.py`: the fragments found go to the model **in a separate marked block, as data**, not as instructions. The source is attached to the answer by the system from the list of what was found — the model does not cite. Nothing found above the threshold → no answer is composed at all.
 
 ## Definition of Done
 
-- [ ] Кожна видана відповідь несе джерело з переліку знайденого
-- [ ] Джерело, написане моделлю в тексті, не стає джерелом відповіді
-- [ ] Нічого вище порога — відповіді немає, названо поріг і найближчі оцінки
-- [ ] Знайдений текст передано моделі в окремому позначеному блоці
-- [ ] lint чистий
+- [ ] Every answer issued carries a source from the list of what was found
+- [ ] A source the model wrote into the text does not become the answer's source
+- [ ] Nothing above the threshold — there is no answer, the threshold and the closest scores are named
+- [ ] The retrieved text is passed to the model in a separate marked block
+- [ ] lint clean
 
 ## Notes
 
-Межа названа прямо в ADR-0003 і має бути в уроці: джерело гарантовано існує, але не гарантує, що відповідь із нього випливає.
+The boundary is named outright in ADR-0003 and has to be in the lesson: the source is guaranteed to exist, but it does not guarantee that the answer follows from it.
 
-Блокується: T4
+Blocked by: T4

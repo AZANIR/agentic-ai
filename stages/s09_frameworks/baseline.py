@@ -22,7 +22,7 @@ from shared.llm import get_model
 from shared.trace import trace_run
 from stages.s09_frameworks import contract
 
-NAME = "без фреймворка"
+NAME = "no framework"
 COORDINATION = "явна"
 WHY_SOURCE = "мій код: наступний крок — наступний рядок"
 

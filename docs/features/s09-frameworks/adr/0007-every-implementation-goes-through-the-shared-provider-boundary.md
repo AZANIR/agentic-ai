@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0007 — Клієнт провайдера — тільки крізь спільну межу, і це доводиться виконанням
+# 0007 — Every implementation goes through the shared provider boundary, and execution proves it
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,48 +15,49 @@ ticket: "n/a"
 
 ## Context
 
-Фреймворки люблять власних клієнтів. LangChain-екосистема має свої обгортки, CrewAI — свої,
-ADK — свої. Найкоротший шлях написати кожну реалізацію — дати фреймворкові зробити те, що він
-робить за замовчуванням.
+Frameworks love clients of their own. The LangChain ecosystem has its wrappers, CrewAI has its own,
+ADK has its own. The shortest way to write each implementation is to let the framework do what it
+does by default.
 
-Наслідків три, і всі мовчазні. Такий клієнт **не проходить** повз лічильник (ADR-0002), тобто
-колонка токенів стає порожньою або хибною. Він **не бачить** підробленої моделі, тобто етап
-перестає проходитись офлайн. І він **читає ключ з оточення сам**, тобто прогін на машині з
-чужим ключем піде в мережу без попередження.
+There are three consequences, and all of them are silent. Such a client **does not pass through**
+the counter (ADR-0002), so the token column comes out empty or false. It **does not see** the fake
+model, so the stage stops passing offline. And it **reads the key from the environment itself**, so
+a run on a machine that holds someone else's key goes to the network with no warning.
 
-Правило «усі беруть клієнта з `shared/llm.py`» у репозиторії вже є (ADR-0003 репозиторію). Тут
-воно вперше зустрічається з кодом, який має власну думку.
+The rule "everyone takes the client from `shared/llm.py`" already exists in the repository (the
+repository's ADR-0003). Here it meets, for the first time, code that has an opinion of its own.
 
 ## Decision Drivers
 
-- Офлайн — умова курсу, а не зручність.
-- Облік токенів неможливий повз межу.
-- Порушення має бути **спіймане**, а не задокументоване.
+- Offline is a condition of the course, not a convenience.
+- Token accounting is impossible outside the boundary.
+- A violation must be **caught**, not documented.
 
 ## Considered Options
 
-**А. Домовленість у CONVENTIONS.** Уже є; фреймворк її не читає.
+**A. An agreement in CONVENTIONS.** Already there; the framework does not read it.
 
-**Б. Перевірка оглядом імпортів.** Ловить прямий імпорт і не ловить клієнта, створеного
-фреймворком усередині.
+**B. A check by inspecting imports.** Catches a direct import, and does not catch a client the
+framework creates inside itself.
 
-**В. Перевірка виконанням: прогнати всі реалізації без ключа й без мережі.**
+**C. A check by execution: run every implementation with no key and no network.**
 
 ## Decision
 
-**В.** Кожна реалізація отримує клієнта **параметром**, а перевірка проганяє всі чотири в
-оточенні без ключа. Реалізація, що створила власного клієнта, або впаде на відсутньому ключі,
-або піде в мережу — і обидва результати спіймані, бо мережі в прогоні перевірок немає.
+**C.** Every implementation receives the client **as a parameter**, and the check runs all four in an
+environment with no key. An implementation that created a client of its own either dies on the
+missing key or goes to the network — and both outcomes are caught, because the check run has no
+network.
 
 ## Consequences
 
-**Добре.** Офлайн і облік токенів стали властивістю, доведеною прогоном. Обхід межі більше не
-може бути тихим.
+**Good.** Offline and token accounting became a property proven by a run. Going around the boundary
+can no longer be quiet.
 
-**Ціна.** Кожен фреймворк доводиться вмовляти прийняти чужого клієнта — це найбільша частина
-коду в кожній із трьох реалізацій. І це **сама по собі знахідка**: рядки, витрачені на те, щоб
-не дати фреймворкові зробити по-своєму, є ціною риштувань, і вони потрапляють у колонку «мої
-рядки» чесно.
+**The price.** Every framework has to be talked into accepting someone else's client — this is the
+largest part of the code in each of the three implementations. And that is **a finding in itself**:
+the lines spent on not letting the framework do it its own way are the price of the scaffolding, and
+they land in the "my lines" column honestly.
 
-**Межа.** Фреймворк, який неможливо вмовити, лишиться нереалізованим — і це буде результатом
-етапу, а не його провалом.
+**The limit.** A framework that cannot be talked into it stays unimplemented — and that will be a
+result of the stage, not its failure.

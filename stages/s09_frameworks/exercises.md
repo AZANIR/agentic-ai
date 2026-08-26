@@ -1,285 +1,291 @@
-# Вправи етапу 9 — зламай і подивись, що почервоніє
+# Stage 9 exercises — break it and watch what turns red
 
-Перед кожною вправою прогони набір і переконайся, що він зелений:
+Before each exercise, run the suite and make sure it is green:
 
 ```bash
 python -m stages.s09_frameworks.check
 ```
 
-Числа заміряні, не вгадані; звірка автоматична:
+The numbers are measured, not guessed; the reconciliation is automatic:
 
 ```bash
 python scripts/mutate.py s09 --expect
 ```
 
-**Читай не кількість, а назви.** Мутація, спіймана випадковою перевіркою, — це гірше, ніж
-спіймана тією, яка про неї стверджує.
+**Read the names, not the count.** A mutation caught by an incidental check is worse than one
+caught by the check that claims it.
 
-**Найважливіші стосуються не фреймворків, а чесності порівняння** — вправи 1, 3, 4 і 6. У всіх
-чотирьох стенд лишається працездатним, таблиця друкується, числа виглядають порівнянними. Саме
-тому їх складно помітити: зламане порівняння виглядає точно як ціле.
+**The most important ones are not about frameworks but about the honesty of the comparison** —
+exercises 1, 3, 4 and 6. In all four the bench stays operational, the table prints, the numbers
+look comparable. That is exactly why they are hard to notice: a broken comparison looks precisely
+like an intact one.
 
-**Три вправи — 5, 8 і 9 — це діри, які знайшов сам мутаційний прогін**, ще до того як хтось
-подивився на код. Дві з них були в перевірках, одна — у першій редакції самої вправи.
+**Three exercises — 5, 8 and 9 — are holes the mutation sweep found itself**, before anyone looked
+at the code. Two of them were in the checks, one was in the first draft of the exercise itself.
 
 ---
 
-## Вправа 1 · Контракт перестає дивитись на шлях
+## Exercise 1 · The contract stops looking at the path
 
 `stages/s09_frameworks/contract.py`:
 
 ```python
-# було
+# before
     if result.tools_used != TOOLS:
 
-# стало
+# after
     if False:
 ```
 
-**Червоних: 2.**
+**Red: 2.**
 
-Контракт більше не перевіряє, **які** інструменти покликано. Результат при цьому не
-змінюється: відповідь та сама, зупинка та сама, форма та сама.
+The contract no longer checks **which** tools were called. The result does not change: the same
+answer, the same stop, the same shape.
 
-І саме тому це найдорожча мутація етапу. Реалізація, що покликала зайвий інструмент і дійшла
-того самого тексту, тепер проходить — і потрапляє в таблицю з числами, які виглядають
-порівнянними. Порівняння еталонного виводу цього не ловить **за побудовою**: воно дивиться на
-пункт призначення, а етап 8 уже пояснив, чому цього замало.
+And that is exactly why it is the most expensive mutation of the stage. An implementation that
+called an extra tool and arrived at the same text now passes — and lands in the table with numbers
+that look comparable. Comparing against a golden output does not catch this **by construction**:
+it looks at the destination, and stage 8 already explained why that is not enough.
 
 ---
 
-## Вправа 2 · Контракт приймає будь-яку зупинку
+## Exercise 2 · The contract accepts any stop
 
 `stages/s09_frameworks/contract.py`:
 
 ```python
-# було
+# before
     if result.stopped_by != ANSWERED:
 
-# стало
+# after
     if result.stopped_by is None:
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Реалізація, що вичерпала бюджет кроків і зупинилась без відповіді, тепер вважається такою, що
-виконала задачу. Число в колонці «мої рядки» лишається — і воно тепер описує реалізацію, яка
-задачі не робить.
+An implementation that exhausted its step budget and stopped without an answer is now considered
+to have done the task. The number in the "my lines" column stays — and it now describes an
+implementation that does not do the task.
 
 ---
 
-## Вправа 3 · Надбавка рахується від того, що просила реалізація
+## Exercise 3 · The overhead is counted from what the implementation asked for
 
 `stages/s09_frameworks/counters.py`:
 
 ```python
-# було
+# before
             matched = [tokens(owned) for owned in self.owned if owned in part]
 
-# стало
+# after
             matched = [tokens(part)]
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Тепер «просив автор» дорівнює «пішло насправді» **завжди**, тож надбавка дорівнює нулю для
-всіх. Лічильник продовжує працювати, числа продовжують друкуватись, колонка на місці.
+Now "what the author asked for" equals "what actually went out" **always**, so the overhead is
+zero for everyone. The counter keeps working, the numbers keep printing, the column is in place.
 
-Просто вона більше нічого не міряє. І помітити це неможливо, дивлячись на таблицю: нуль у
-базової лінії правильний, а нуль у фреймворка виглядає як хороша новина.
+It simply no longer measures anything. And that is impossible to notice by looking at the table: a
+zero for the baseline is correct, and a zero for a framework looks like good news.
 
-Саме тому перевірка доводить прилад **на обох краях**: контрактний запит дає нуль, чужий
-текст — строго додатне число, і рівно на свій розмір.
+That is why the check proves the instrument **at both edges**: a purely contractual request gives
+zero, foreign text gives a strictly positive number, and exactly by its own size.
 
 ---
 
-## Вправа 4 · Невидимі рядки шукаються лише за `origin`
+## Exercise 4 · Invisible lines are located by `origin` alone
 
 `stages/s09_frameworks/counters.py`:
 
 ```python
-# було
+# before
     if locations := list(spec.submodule_search_locations or []):
         return str(Path(locations[0]))
     return str(Path(spec.origin).parent) if spec.origin else ""
 
-# стало
+# after
     return str(Path(spec.origin).parent) if spec.origin else ""
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Це не вигадана мутація — це **справжня вада першої редакції**, яку зловила власна перевірка.
+This is not an invented mutation — it is a **real defect of the first draft**, caught by its own
+check.
 
-`langgraph` — namespace-пакет: у нього `origin` дорівнює `None`. Пошук лише за `origin`
-повертає порожній корінь, трасування не бачить жодного файлу, і колонка невидимих рядків
-показує **нуль**.
+`langgraph` is a namespace package: its `origin` is `None`. Locating it by `origin` alone returns
+an empty root, tracing sees no file at all, and the invisible-lines column shows **zero**.
 
-Тихий нуль у колонці, яка існує саме для того, щоб не бути нулем. Фреймворк виглядав би
-безкоштовним — тобто мутація не просто ламає вимір, вона ламає його на користь висновку,
-якого хочеться.
+A quiet zero in a column that exists precisely in order not to be zero. The framework would look
+free — so the mutation does not merely break the measurement, it breaks it in favour of the
+conclusion one would like to reach.
 
 ---
 
-## Вправа 5 · «Місць прози» перестає бачити описи задач
+## Exercise 5 · "Prose places" stops seeing task descriptions
 
 `stages/s09_frameworks/compare.py`:
 
 ```python
-# було
+# before
     {"role", "goal", "backstory", "description", "instruction", "expected_output"}
 
-# стало
+# after
     {"role", "goal"}
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Перелік більше не рахує там, де живе поведінка **задачі**, — лише там, де живе поведінка
-агента. Неявна координація одразу виглядає вдвічі дешевшою.
+The set no longer counts where the behaviour of the **task** lives — only where the behaviour of
+the agent lives. Implicit coordination immediately looks twice as cheap.
 
-**Ця вправа спершу не червоніла нічого**, і це варте окремої уваги. Перевірка вимагала «у
-CrewAI щонайменше чотири місця прози», а звужений перелік лишав рівно чотири: двоє агентів на
-два поля. Поріг, підібраний під поточне число, пропускає рівно ту зміну, від якої мав би
-захищати.
+**This exercise turned nothing red at first**, and that deserves its own attention. The check
+demanded "at least four prose places in CrewAI", and the narrowed set left exactly four: two
+agents times two fields. A threshold tuned to the current number lets through exactly the change
+it was supposed to guard against.
 
-Тепер перевірка стверджує про **склад** переліку, а не про число, і доводить вимір на
-синтетичному джерелі — де відповідь відома наперед.
+Now the check asserts the **composition** of the set rather than a number, and proves the
+measurement on a synthetic source — where the answer is known in advance.
 
 ---
 
-## Вправа 6 · Порушник контракту тихо зникає з таблиці
+## Exercise 6 · A contract violator quietly disappears from the table
 
 `stages/s09_frameworks/compare.py`:
 
 ```python
-# було
+# before
         if self.broken:
             return [
 
-# стало
+# after
         if False:
             return [
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Реалізація, що порушила контракт, отримує звичайний рядок із числами замість причини. Таблиця
-знову виглядає повною — і саме в цьому біда: три чесні рядки й один нечесний невідрізнимі.
+An implementation that broke the contract gets an ordinary row with numbers instead of a reason.
+The table looks complete again — and that is exactly the trouble: three honest rows and one
+dishonest one are indistinguishable.
 
-Мовчазне включення гірше за виключення. Виключений рядок помітно; включений неправильний —
-ні.
+Silent inclusion is worse than exclusion. An excluded row is noticeable; an included wrong one is
+not.
 
 ---
 
-## Вправа 7 · Прапорець ADK мовчить, коли ключа немає
+## Exercise 7 · The ADK flag stays silent when the key is missing
 
 `stages/s09_frameworks/via_adk.py`:
 
 ```python
-# було
+# before
     if wanted() and (reason := unavailable_because()):
 
-# стало
+# after
     if False and (reason := unavailable_because()):
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Читач явно ввімкнув `S09_ADK=1`, креденшелів немає, і харнес мовчки показує три рядки замість
-чотирьох.
+The reader explicitly turned on `S09_ADK=1`, there are no credentials, and the harness silently
+shows three rows instead of four.
 
-Найтонше в тому, що це виглядає **правильно**: «не перевірено» — законний стан, і три рядки
-цілком читабельні. Але той, хто попросив четвертий, не дізнається, що нічого не сталося.
+The subtle part is that this looks **right**: "not evaluated" is a legitimate state, and three
+rows are perfectly readable. But whoever asked for the fourth will not learn that nothing
+happened.
 
-Прапорець, який просили ввімкнути й який мовчки не спрацював, гірший за його відсутність.
+A flag you were asked to turn on and that silently did not fire is worse than no flag at all.
 
 ---
 
-## Вправа 8 · Причина недоступності зводиться до однієї
+## Exercise 8 · The reason for unavailability collapses into one
 
 `stages/s09_frameworks/via_crewai.py`:
 
 ```python
-# було
+# before
     if sys.version_info[:2] > MAX_PYTHON:
 
-# стало
+# after
     if False:
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Зникає розрізнення між «пакета немає» і «пакет не встановлюється на цьому інтерпретаторі».
-Читач на Python 3.14 бачить пораду `pip install -e ".[s09]"` — і виконує її, і вона не працює,
-і причини він не дізнається.
+The distinction between "the package is not installed" and "the package cannot be installed on
+this interpreter" disappears. A reader on Python 3.14 sees the advice `pip install -e ".[s09]"` —
+and follows it, and it does not work, and they never learn why.
 
-**Ця вправа теж спершу не червоніла.** Перевірка приймала будь-яку причину («Python» **або**
-«пакета немає»), тож зведення двох станів до одного проходило наскрізь. Тепер вона стверджує
-саме **розрізнення**: на інтерпретаторі вище підтримуваного причина мусить називати версію.
+**This exercise also turned nothing red at first.** The check accepted any reason ("Python" **or**
+"package not installed"), so collapsing two states into one passed straight through. Now it
+asserts the **distinction** itself: on an interpreter above the supported one, the reason must
+name the version.
 
 ---
 
-## Вправа 9 · Базова лінія зникає з порівняння
+## Exercise 9 · The baseline disappears from the comparison
 
 `stages/s09_frameworks/run.py`:
 
 ```python
-# було
+# before
     (baseline, "baseline.py", ()),
 
-# стало
-    (нічого — рядок прибрано)
+# after
+    (nothing — the line is removed)
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Таблиця стає порівнянням трьох фреймворків між собою — тобто відповідає на питання «який із
-них», а етап ставить інше: «чи потрібен він тут».
+The table becomes a comparison of three frameworks against each other — that is, it answers "which
+of them", while the stage asks something else: "is one needed here at all".
 
-**Перша редакція цієї вправи була порожньою.** Вона додавала базовій лінії трасування
-`langgraph` і сподівалась, що колонка невидимих рядків зіпсується. Не зіпсувалась: базова
-лінія не виконує коду `langgraph`, тож рахувати там нічого. Мутація, яка нічого не ламає,
-вчить, що перевірки не мають зубів, — навіть коли вони їх мають.
+**The first draft of this exercise was empty.** It added `langgraph` tracing to the baseline and
+hoped the invisible-lines column would break. It did not: the baseline executes no `langgraph`
+code, so there is nothing to count there. A mutation that breaks nothing teaches that the checks
+have no teeth — even when they do.
 
 ---
 
-## Вправа 10 · Таблиця більше не розбирається назад
+## Exercise 10 · The table no longer parses back
 
 `stages/s09_frameworks/compare.py`:
 
 ```python
-# було
+# before
         found[cells[0]] = cells[1:]
 
-# стало
+# after
         found[cells[0]] = cells[1:-1]
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Розбір втрачає останню колонку. Числа прогону лишаються правильними, файл лишається
-правильним — розходиться лише звірка між ними.
+Parsing loses the last column. The run's numbers stay correct, the file stays correct — only the
+reconciliation between them diverges.
 
-І в цьому весь сенс другого джерела: якби перевірка рахувала суму двічі тим самим кодом, вона
-зійшлася б і тут. Рівність, обчислена з одного джерела, — тотожність.
+And that is the whole point of a second source: if the check computed the sum twice with the same
+code, it would agree here too. An equality computed from a single source is an identity.
 
 ---
 
-## Що робити далі
+## What to do next
 
-Прогін `python scripts/mutate.py s09 --expect` має закінчитись рядком «Усі числа у вправах
-збігаються з прогоном». Якщо ні — розійшлася **проза**, а не код.
+The run `python scripts/mutate.py s09 --expect` should end with the line saying every number in
+the exercises matches the run. If it does not, what diverged is the **prose**, not the code.
 
-Далі варте твого часу:
+Worth your time after that:
 
-1. **Постав Python 3.12 і прожени етап там.** CrewAI встановиться — і ось тут починається
-   справжня вправа: **ніхто не знає, що буде в його рядку.** Очікування етапу — ненульова
-   надбавка токенів. Але цілком можливо, що замість чисел ти побачиш «контракт порушено»:
-   фреймворк ролей може покликати інструмент двічі або зупинитись інакше.
+1. **Install Python 3.12 and drive the stage there.** CrewAI will install — and that is where the
+   real exercise starts: **nobody knows what will be in its row.** The stage's expectation is a
+   non-zero token overhead. But it is entirely possible you will see "contract violated" instead of
+   numbers: a role framework may call the tool twice or stop differently.
 
-   Обидва результати — результат. Запиши, що вийшло, і порівняй із тим, що обіцяв урок.
-2. **Додай п'яту реалізацію** — чистий виклик провайдера без будь-якої координації. Подивись,
-   де вона стане в колонці «мої рядки», і чи додасть це новий висновок.
-3. **Зміни задачу на таку, де є розгалуження.** Перерахуй таблицю. Числа зміняться — і саме
-   тому правило вибору сформульоване через колонки, а не через назви фреймворків.
+   Both outcomes are outcomes. Write down what happened and compare it with what the lesson
+   promised.
+2. **Add a fifth implementation** — a bare provider call with no coordination at all. See where it
+   lands in the "my lines" column, and whether it adds a new conclusion.
+3. **Change the task to one that branches.** Recompute the table. The numbers will change — and
+   that is exactly why the choosing rule is stated through columns rather than through framework
+   names.

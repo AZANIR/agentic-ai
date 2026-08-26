@@ -53,7 +53,7 @@ def check_config_reads_provider() -> None:
 
 
 def check_config_rejects_unsafe_prod() -> None:
-    """ВІДМОВА · config: prod без API_KEYS не стартує"""
+    """FAILURE · config: prod без API_KEYS не стартує"""
     unsafe = {
         "APP_PROFILE": PROD,
         "LLM_BASE_URL": "https://api.groq.com/openai/v1",
@@ -71,7 +71,7 @@ def check_config_rejects_unsafe_prod() -> None:
 
 
 def check_config_rejects_bad_profile() -> None:
-    """ВІДМОВА · config: невідомий APP_PROFILE не мовчить"""
+    """FAILURE · config: невідомий APP_PROFILE не мовчить"""
     try:
         Settings.load(source={"APP_PROFILE": "staging"})
     except ConfigError as exc:
@@ -122,7 +122,7 @@ def check_fake_llm_counts_tokens() -> None:
 
 
 def check_fake_llm_exhaustion_is_loud() -> None:
-    """ВІДМОВА · fake_llm: короткий сценарій падає з поясненням, а не мовчки"""
+    """FAILURE · fake_llm: короткий сценарій падає з поясненням, а не мовчки"""
     client = FakeLLM(script=[text("одна відповідь")])
     client.chat.completions.create(model="fake", messages=[])
     try:
@@ -154,7 +154,7 @@ def check_llm_returns_fake_without_key() -> None:
 
 
 def check_llm_refuses_without_script() -> None:
-    """ВІДМОВА · llm: без ключа і без сценарію — зрозуміла помилка, не вигадана відповідь"""
+    """FAILURE · llm: без ключа і без сценарію — зрозуміла помилка, не вигадана відповідь"""
     try:
         get_client()
     except ConfigError as exc:
@@ -224,7 +224,7 @@ def check_trace_writes_and_reads_back() -> None:
 
 
 def check_trace_records_failures() -> None:
-    """ВІДМОВА · trace: виняток усередині прогону лишає слід run_error"""
+    """FAILURE · trace: виняток усередині прогону лишає слід run_error"""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "t.jsonl"
         try:
@@ -239,7 +239,7 @@ def check_trace_records_failures() -> None:
 
 
 def check_an_unimplemented_sink_is_refused_with_its_reason() -> None:
-    """ВІДМОВА · trace: нереалізований стік відхиляється, і причина названа
+    """FAILURE · trace: нереалізований стік відхиляється, і причина названа
 
     Ця гілка не виконувалась жодною перевіркою — і саме тому попередня редакція її
     повідомлення прожила з фактичною помилкою: воно посилалось на ADR етапу 6, який
@@ -269,7 +269,7 @@ def check_an_unimplemented_sink_is_refused_with_its_reason() -> None:
 
 
 def check_a_torn_trace_line_is_skipped_not_fatal() -> None:
-    """ВІДМОВА · trace: обірваний хвіст пропускається, а не валить читання
+    """FAILURE · trace: обірваний хвіст пропускається, а не валить читання
 
     Файл дописується без переписування, тож убитий посеред запису процес лишає
     обірваний рядок. Читач, який на ньому падає, робить непридатним увесь трейс заради

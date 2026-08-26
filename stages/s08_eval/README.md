@@ -1,40 +1,42 @@
-# Етап 8 — Оцінювання: три вердикти замість одного враження
+# Stage 8 — Evaluation: three verdicts instead of one impression
 
-> **Інфраструктура каже, чи система працює. Оцінювання каже, чи її рішення хороші.** Це різні
-> питання, і сервіс із бездоганним аптаймом може впевнено відповідати неправильно.
+> **Infrastructure tells you whether the system is up. Evaluation tells you whether its
+> decisions are good.** Different questions — and a service with flawless uptime can answer
+> wrong with complete confidence.
 
-Сім етапів побудували систему. Питання «чи вона працює» досі має ту саму відповідь, що й до
-першого рядка коду: «я прогнав кілька разів, начебто нормально».
+Seven stages built a system. The question "does it work" still has the answer it had
+before the first line of code: "I ran it a few times, seemed fine."
 
-## Що ти зможеш після цього етапу
+## What you will be able to do after this stage
 
-- Назвати три рівні оцінювання й сказати, що бачить кожен із них, чого не бачать двоє інших.
-- Відрізнити агента, що **дійшов правильно**, від агента, що **дійшов випадково** — на
-  конкретних кейсах, а не в теорії.
-- Побачити на власному прогоні, як перестановка двох відповідей місцями змінює вердикт судді.
-- Сказати, чому «не оцінено» рахується окремо і чому знаменник — усі кейси.
-- Назвати, чого трасуванню бракує для оцінювання, — числом, а не здогадом.
+- Name the three levels of evaluation and say what each of them sees that the other two do not.
+- Tell an agent that **arrived correctly** from an agent that **arrived by accident** — on
+  concrete cases, not in theory.
+- See on your own run how swapping two answers around changes the judge's verdict.
+- Say why "unscored" is counted separately and why the denominator is every case.
+- Name what tracing lacks for evaluation — as a number, not a guess.
 
-## Запусти перед читанням
+## Run this before reading
 
 ```bash
-python -m stages.s08_eval.run     # вісім сцен, без ключа й без мережі
-python -m stages.s08_eval.check   # 31 перевірка, з них 15 на режими відмови
+python -m stages.s08_eval.run     # eight scenes, no key and no network
+python -m stages.s08_eval.check   # 31 checks, 15 of them on failure modes
 python scripts/mutate.py s08 --expect
 ```
 
-## Частина 1. Оцінювати треба шлях, а не лише пункт призначення
+## Part 1. Evaluate the path, not just the destination
 
-Головна теза етапу — з тієї самої статті-джерела, і вона не про метрики.
+The stage's headline thesis is from the same source article, and it is not about metrics.
 
-Агент може викликати всі інструменти правильно, дістати потрібні документи, розсудити
-розумно на кожному кроці — і провалити задачу. Або спіткнутись, покликати не той інструмент,
-викрутитись і дати правильну відповідь.
+An agent can call every tool correctly, retrieve the right documents, reason sensibly at every
+step — and fail the task. Or stumble, call the wrong tool, wriggle out of it and give the
+right answer.
 
-**Якщо дивитись лише на останнє повідомлення, ці два випадки виглядають однаково.** Один був
-щасливою випадковістю, другий — інженерією.
+**Looking only at the last message, those two cases look identical.** One was a lucky accident,
+the other was engineering.
 
-У наборі етапу вони стоять поруч:
+In the stage's set they stand side by side — a straight path, the same answer reached through
+recovery, and a lucky accident:
 
 ```
 прямий шлях                           e2e: пройдено   траєкторія: пройдено
@@ -42,56 +44,59 @@ python scripts/mutate.py s08 --expect
 щаслива випадковість                  e2e: пройдено   траєкторія: провалено
 ```
 
-Три однакові відповіді, три різні історії. Оцінювач, для якого ці рядки однакові, не
-відрізняє інженерію від того, що просто зійшлося, — і не скаже, що чинити, коли зійдеться
-менше.
+Three identical answers, three different stories. An evaluator for which these rows are the
+same does not distinguish engineering from something that merely worked out — and it will not
+say what to do when less of it works out.
 
-## Частина 2. Найважливіше речення всього етапу
+## Part 2. The most important sentence of the whole stage
 
-> **Суддя-модель — це вимірювальний прилад, а прилади калібрують.**
+> **A model judge is a measuring instrument, and instruments get calibrated.**
 
-Оцінювач, який оголошує вердикт судді істиною, зробив рівно ту помилку, від якої весь етап
-застерігає: повірив числу, не спитавши, звідки воно.
+An evaluator that declares the judge's verdict to be the truth has made exactly the mistake the
+stage warns against: it believed a number without asking where it came from.
 
-Тому доказ цього етапу — **не таблиця оцінок**, а зловлений біас:
+So the proof of this stage is **not a table of scores** but a caught bias:
 
 ```
-position bias: ЗНАЙДЕНО — 3 із 3        (упереджений суддя)
-position bias: згода — 0 із 3           (стабільний суддя)
+position bias: ЗНАЙДЕНО — 3 із 3        (the biased judge)
+position bias: згода — 0 із 3           (the steady judge)
 
 length bias: ЗНАЙДЕНО — 2 із 2
    коли буде доставка: 3 -> 5 (+2 за 81 зайвих символів)
    як повернути товар: 4 -> 6 (+2 за 78 зайвих символів)
 ```
 
-Перші три перевороти нічого не варті без наступних нулів. **Детектор, що знаходить біас
-завжди, не відрізняє упередженого суддю від чесного — і тому детектором не є.** Дзеркальна
-половина тут не оздоба, а умова, за якої перша половина взагалі щось означає.
+The first three flips are worth nothing without the zeros that follow. **A detector that always
+finds bias cannot tell a biased judge from an honest one — and therefore is not a detector.**
+The mirror half is not decoration here but the condition under which the first half means
+anything at all.
 
-**Підроблений суддя упереджений навмисно.** Він не імітує конкретну модель — він грає роль
-**зламаного приладу**, так само як мутація грає роль зламаного коду. Що саме він робить не
-так, написано в його docstring, а не заховано: перша з поданих отримує безкоштовний бал,
-кожні сорок символів додають бал незалежно від змісту. З реальним ключем той самий детектор
-іде проти справжньої моделі й дає той самий звіт.
+**The fake judge is biased on purpose.** It does not imitate any particular model — it plays
+the role of a **broken instrument**, exactly as a mutation plays the role of broken code. What
+it does wrong is written in its docstring rather than hidden: the first answer submitted gets a
+free point, and every forty characters add a point regardless of content. With a real key the
+same detector goes against a real model and gives the same report.
 
-## Частина 3. Три рівні — і правило приписування
+## Part 3. Three levels — and the rule of attribution
 
-Рівнів три, і правило, який дефект якому рівню належить, одне й однозначне:
+There are three levels, and the rule for which defect belongs to which is single and
+unambiguous:
 
 ```
-e2e         про ОСТАННЮ відповідь і ні про що інше
-траєкторія  про ПОСЛІДОВНІСТЬ кроків: порядок, кількість, зайві виклики
-компонент   про ОДИН крок і його власний результат: відмовив, відхилив, віддав порожньо
+e2e         about the LAST answer and about nothing else
+траєкторія  about the SEQUENCE of steps: order, count, redundant calls
+компонент   about ONE step and its own result: refused, rejected, returned empty
 ```
 
-Один кейс може провалити два рівні — це не подвійний облік, а два різні факти. Агент, що
-покликав не той інструмент і отримав відмову, має **і** хибний шлях, **і** зламаний крок;
-читач має бачити обидва.
+One case can fail two levels — that is not double counting but two different facts. An agent
+that called the wrong tool and got a refusal has **both** a wrong path **and** a broken step;
+the reader has to see both.
 
-Зведеного бала немає й не буде. Зважена сума вимагала б ваг, а будь-які ваги — це прихована
-думка про те, який рівень важливіший, вбудована в число, яке ніхто не обговорював.
+There is no combined score and there will not be one. A weighted sum would demand weights, and
+any weights are a hidden opinion about which level matters more, built into a number nobody
+discussed.
 
-На двадцяти одному кейсі набору виходить так:
+On the set's twenty-one cases:
 
 ```
 рівень        пройд  провал  не оцін  частка
@@ -100,194 +105,199 @@ e2e              12       7        2     57%
 компонент        13       7        1     62%
 ```
 
-## Частина 4. Третій стан і знаменник
+## Part 4. The third state and the denominator
 
-Дві помилки, що роблять звіт **зеленішим**, і саме тому найдорожчі.
+Two mistakes that make the report **greener**, and that is exactly why they are the most
+expensive.
 
-**Перша: «не оцінено» видається за «пройдено».** Трейс без кроків потрібного виду не доводить
-справності — він доводить, що дивитись нема на що. Рівень, який зараховує відсутність даних
-як успіх, показує тим зеленіший звіт, чим бідніший трейс. Прогін, у якому трасування взагалі
-відвалилось, отримає сто відсотків.
+**The first: "unscored" is passed off as "passed".** A trace with no steps of the required kind
+does not prove health — it proves there is nothing to look at. A level that scores missing data
+as success shows a greener report the poorer the trace is. A run in which tracing fell over
+entirely will get a hundred percent.
 
-**Друга: знаменник береться від оцінених.** Формула виглядає чеснішою: «рахуємо частку від
-того, що змогли оцінити». Наслідок протилежний, і має два обличчя:
+**The second: the denominator is taken from the evaluated.** The formula looks more honest: "we
+count the share of what we managed to evaluate". The consequence is the opposite, and has two
+faces:
 
-| Як падає суддя | Чесна частка | Улеслива частка |
+| How the judge fails | Honest share | Flattering share |
 |---|---|---|
-| рівномірно (квота) | 57 % → 5 % | тримається в смузі 4 п. п. |
-| корельовано (ламається на безладних відповідях) | 57 % → 24 % | 57 % → **100 %** |
+| uniformly (quota) | 57 % → 5 % | stays inside a 4 pp band |
+| correlated (breaks on messy answers) | 57 % → 24 % | 57 % → **100 %** |
 
-У першому режимі число не бреше — воно **мовчить** про те, що покриття впало з двадцяти
-одного кейса до трьох. У другому з набору випадають переважно провальні кейси, і звіт показує
-ідеальну якість зламаним приладом.
+In the first mode the number does not lie — it **goes silent** about coverage collapsing from
+twenty-one cases to three. In the second, the cases that drop out are mostly the failing ones,
+and the report shows perfect quality through a broken instrument.
 
-Першу помилку колись знаходять — коли хтось питає «а скільки ми взагалі оцінили». Другу не
-шукають ніколи: вона приходить із доброю новиною. Тому «не оцінено» стоїть окремою колонкою,
-а ділиться на все.
+The first mistake gets found eventually — when somebody asks how much was evaluated at all.
+Nobody ever goes looking for the second: it arrives with good news. So "unscored" stands in a
+column of its own, and the division is by everything.
 
-Виміряти обидва режими самому:
+Measure both modes yourself:
 
 ```bash
 python -m stages.s08_eval.solutions.exercise_2_the_denominator_climbs
 ```
 
-## Частина 5. Читаємо код — сім файлів
+## Part 5. Reading the code — seven files
 
-### `trajectory.py` — ключ групування подається параметром
+### `trajectory.py` — the grouping key is a parameter
 
-`70 із 110`. Два етапи групують по-різному, і **обидва праві**: етап 1 пише один `trace_run`
-на сценарій, тож траєкторія — це трейс; сервіс етапу 6 пише один `trace_run` на процес, тож
-траєкторія — це запит.
+`70 of 110`. Two stages group differently, and **both are right**: stage 1 writes one
+`trace_run` per scenario, so a trajectory is a trace; the stage 6 service writes one `trace_run`
+per process, so a trajectory is a request.
 
-Групування по `trace_id` схлопнуло б увесь файл сервісу в одну траєкторію. Групування по
-`trace_ref` не дало б на етапі 1 нічого. Фіксувати одне означало б оголосити другий етап
-зламаним.
+Grouping by `trace_id` would collapse the service's whole file into a single trajectory.
+Grouping by `trace_ref` would give nothing at stage 1. Fixing one would declare the other
+stage broken.
 
-Порядок кроків береться з `seq`, а не з порядку в файлі. Поки пише один дописувач, це
-байдуже — і саме тому перевірка **навмисно перевертає рядки** записаного трейсу: властивість,
-яку неможливо порушити на щасливому шляху, вимагає, щоб перевірка сама створила умови, у
-яких вона порушується.
+Step order comes from `seq`, not from the order in the file. While a single appender is
+writing, that makes no difference — and that is exactly why the check **deliberately reverses
+the lines** of the written trace: a property that cannot be violated on the happy path requires
+the check itself to create the conditions in which it is violated.
 
-### `cases.py` — кейси породжуються, а не зберігаються
+### `cases.py` — cases are generated, not stored
 
-`36 із 110`. Записані файли трейсів переживуть зміну формату **мовчки**, і етап оцінюватиме
-формат, якого вже немає. Тут опис кейса проганяється крізь той самий `shared.trace`, що й усі
-етапи: трейс справжній, а зміна формату ламає породження гучно, разом з усіма етапами.
+`36 of 110`. Recorded trace files survive a format change **silently**, and the stage would go
+on evaluating a format that no longer exists. Here a case description is run through the same
+`shared.trace` as every stage: the trace is real, and a format change breaks generation
+loudly, together with all the stages.
 
-**Крайність виводиться, а не оголошується.** Мітка `edge: true` задовольнила б вимогу «третина
-крайніх» перемиканням прапорця, і набір із двадцяти щасливих шляхів лишився б зеленим. Тут
-крайність читається зі спостережної властивості: у трейсі є крок відмови, ліміту чи
-невідомого інструмента, або відповіді немає взагалі. Дев'ять із двадцяти одного.
+**Edge is derived, not declared.** An `edge: true` label would satisfy the "a third are edge"
+requirement by flipping a flag, and a set of twenty happy paths would stay green. Here edge is
+read from an observable property: the trace contains a step that refused, hit a limit or named
+an unknown tool, or there is no answer at all. Nine out of twenty-one.
 
-### `levels.py` — три вердикти, ніколи не один
+### `levels.py` — three verdicts, never one
 
-`46 із 110`. Кожен вердикт несе **вид оцінювача** поруч: детермінований або судить. Це не
-оздоба, а вимога, і перевіряється вона машинно — лічильник викликів судді показує нуль для
-кожного детермінованого оцінювача, а сумарна кількість викликів за прогін дорівнює кількості
-оцінювачів, що судять. Девʼятнадцять викликів на двадцять один кейс: на два трейси без відповіді суддю не кличуть узагалі — за відсутні дані ніхто не платить.
+`46 of 110`. Every verdict carries the **kind of evaluator** alongside it: deterministic or
+judging. That is not decoration but a requirement, and it is verified by machine — the
+judge-call counter reads zero for every deterministic evaluator, and the total calls per run equal
+the number of judging evaluators. Nineteen calls for twenty-one cases: for two
+traces with no answer the judge is not called at all — nobody pays for missing data.
 
-### `judge.py` — два протоколи, не один
+### `judge.py` — two protocols, not one
 
-`99 із 110`. Попарний і поточковий міряють різне й потрібні різному:
+`99 of 110`. Pairwise and pointwise measure different things and are needed for different
+things:
 
 ```
-compare(задача, перша, друга) -> хто переміг    ловить position bias
-score(задача, відповідь, еталон) -> бал         ловить length bias
+compare(task, first, second) -> the winner    catches position bias
+score(task, answer, expected) -> a score      catches length bias
 ```
 
-У попарному немає **бала**, у поточковому немає **порядку**. Один протокол не показав би
-обох біасів, і саме тому їх два.
+The pairwise one has no **score**, the pointwise one has no **order**. One protocol would not
+have shown both biases, and that is exactly why there are two.
 
-Відмова судді — **закритий перелік**: ключа не налаштовано, провайдер відмовив за квотою чи
-частотою, вичерпано бюджет, збіг тайм-аут, відповідь нерозбірлива. Усе це «не оцінено». Усе
-інше — провал.
+A judge's unavailability is a **closed list**: no key configured, the provider refused on quota or
+rate, the budget is spent, a timeout hit, the answer was unparseable. All of that is
+"unscored". Everything else is a failure.
 
-### `bias.py` — детектор стоїть над суддею, не всередині
+### `bias.py` — the detector sits above the judge, not inside it
 
-`56 із 110`. Суддя, який сам себе перевіряє на упередженість, перевіряє власне уявлення про
-упередженість. Детектор нічого не знає про те, як суддя влаштований: він подає ті самі дані
-по-різному й дивиться, чи змінився вердикт.
+`56 of 110`. A judge that checks itself for bias is checking its own idea of bias. The detector
+knows nothing about how the judge is built: it presents the same data differently and watches
+whether the verdict changed.
 
-Пари для позиції **зважені навмисно**: обидві відповіді однаково обґрунтовані й однакові за
-довжиною, тож розрізнити їх може лише порядок подачі. Незважена пара показала б суміш двох
-біасів, і читач не знав би, який саме побачив.
+The pairs for position are **deliberately balanced**: both answers are equally well-founded and
+equal in length, so only the order of presentation can tell them apart. An unbalanced pair
+would show a mixture of two biases, and the reader would not know which one they saw.
 
-Нічия — **окреме значення**, а не відсутність вердикта: перехід «перемогла A» → «нічия» теж
-переворот, бо вердикт змінився від подачі.
+A tie is a **value of its own**, not the absence of a verdict: the transition "A won" → "tie"
+is a flip too, because the verdict changed with the presentation.
 
-### `report.py` — звіт розбирається назад
+### `report.py` — the report is parsed back
 
-`67 із 110`. `parse()` читає **записаний файл** і рахує заново. Рівність, обчислена з одного
-джерела, — тотожність: вона зійдеться завжди, зокрема й тоді, коли кейс до звіту не доїхав.
-Два незалежні джерела — єдиний спосіб це спіймати.
+`67 of 110`. `parse()` reads the **written file** and counts again. An equality computed from
+one source is an identity: it will always reconcile, including when a case never made it into
+the report. Two independent sources are the only way to catch that.
 
-### `online.py` — дешеві чеки на всьому, суддя на частці
+### `online.py` — cheap checks on everything, the judge on a share
 
-`61 із 110`. Жоден крок оцінювання не стоїть між запитом і відповіддю: усе читається з трейсу
-**після**. Сервіс, чию затримку етап 7 щойно міряв цілим етапом, не отримує невиміряного
-доданка.
+`61 of 110`. No evaluation step stands between the request and the response: everything is read
+from the trace **afterwards**. The service whose latency stage 7 spent a whole stage
+measuring does not get an unmeasured term added to it.
 
-Ціна названа прямо: **запит, який до трасувальника не дійшов, не оцінюється ніяк.** Інлайнові
-чеки зловили б і його — за рахунок затримки на кожному запиті.
+The price is named directly: **a request that never reached the tracer is not evaluated at
+all.** Inline checks would have caught it too — at the cost of latency on every request.
 
-Відбір детермінований, за хешем ідентифікатора:
+The selection is deterministic, by a hash of the identifier:
 
 ```
 семпл на 1000 запитах: 106 до судді = 10.6%
 заявлено 10%, межа ±3%, мінімальний потік 200
 ```
 
-Випадкове число проти порога зробило б перевірку мигтливою, а допуск довелося б розширити
-настільки, що він перестав би розрізняти десять відсотків і один.
+A random number against a threshold would make the check flicker, and the tolerance would have
+to be widened so far that it would stop distinguishing ten percent from one.
 
-## Частина 6. Чого бракує у трейсі — виміряно, а не припущено
+## Part 6. What the traces lack — measured, not assumed
 
-Етап 6 двічі відклав рішення сюди: «етап 8 скаже, чого йому справді бракує». Ось відповідь.
+Stage 6 deferred the decision here twice: "stage 8 will say what it actually lacks". Here is
+the answer.
 
-Ключем прогону слугують **три різні поля** — `scenario`, `scene`, `trace_ref`, — а **чотири**
-етапи не позначають прогін ніяк: 2, 3, 4 і 7. У четвертого є `phase`, але це фаза **відмови**:
-на щасливому шляху вона `None`, тож ключем бути не може.
+**Three different fields** serve as the run key — `scenario`, `scene`, `trace_ref` — and
+**four** stages mark the run with nothing at all: 2, 3, 4 and 7. Stage 4 has a `phase`, but
+that is the phase of a **failure**: on the happy path it is `None`, so it cannot be a key.
 
-Перша редакція цього абзацу називала чотири поля й два етапи — і помилялась двічі, рахуючи
-`phase` за ключ і забувши про етап 7. Тому тепер перелік **обчислюється** з джерел розбором
-викликів трасувальника, а перевірка звіряє його з прозою: число про те, чого бракує
-вимірюванню, не сміє саме бути здогадом.
+The first edition of this paragraph named four fields and two stages — wrong twice, counting `phase` as a key and forgetting stage 7. So the list is now **computed** from the
+sources by parsing the tracer calls, and a check reconciles it with the prose: a number about
+what measurement lacks must not itself be a guess.
 
-На трейсі сервісу оцінювач сліпий на два виміри:
-відповідей у трейсі немає, тож порожню відповідь не спіймати; термінального кроку запиту
-немає, тож незавершений прогін не спіймати.
+On the service's trace the evaluator is blind on two measurements: no answers are recorded, so an
+empty answer cannot be caught; no terminal step for the request, so an unfinished run cannot
+be caught.
 
-Ключове тут — що сліпий вимір **не перетворюється на зауваження**. Інакше кожна траєкторія
-сервісу отримала б «прогін не завершився», і сто відсотків трафіку були б позначені
-проблемними через те, чого оцінювач не може побачити. Це та сама помилка, що й «порожнє
-зараховано як пройдено», лише дзеркальна: там відсутність даних видали за успіх, тут — за
-провал. Правильна відповідь обидва рази третя.
+The key thing is that a blind measurement **does not turn into a finding**. Otherwise
+every service trajectory would get "the run did not finish", and a hundred percent of traffic
+would be marked problematic because of something the evaluator cannot see. This is the same
+mistake as "empty counted as passed", only mirrored: there, missing data was read as success;
+here, as failure. Both times the right answer is the third one.
 
-**Вимога до сховища трейсів** сформульована тут же, і вона виявилась меншою за здогад:
-прочитати все одним проходом, групувати ключем на боці читача, дописувати без переписування,
-відновлювати порядок із `seq`, читатись `cat`-ом. JSONL дає всі п'ять; зовнішній стік не
-додає жодної. Обіцянка, що мандрувала трьома етапами, закрита відповіддю, а не четвертим
-перенесенням.
+**The requirement for the trace store** is formulated here, and it turned out smaller than
+the guess: read everything in one pass, group by a key on the reader's side, append
+without rewriting, recover order from `seq`, be readable with `cat`. JSONL gives all five; an
+external sink adds none. A promise that travelled through three stages is closed with an answer
+rather than a fourth deferral.
 
-## Частина 7. Що зламати
+## Part 7. What to break
 
-Чотирнадцять мутацій у [`exercises.md`](exercises.md). Найдорожчі стосуються не оцінювання, а
-**чесності звіту**: порожній рівень стає пройденим, знаменник береться від оцінених, відмова
-приладу рахується провалом агента, сліпий вимір стає зауваженням. Усі вони лишають харнес
-працездатним і роблять звіт приємнішим на вигляд.
+Fourteen mutations in [`exercises.md`](exercises.md). The most expensive ones are not about
+evaluation but about the **honesty of the report**: an empty level becomes passed, the
+denominator is taken from the evaluated, an instrument failure is billed to the agent, a blind
+measurement becomes a finding. All of them leave the harness working and make the report look
+nicer.
 
 ```bash
 python scripts/mutate.py s08 --expect
 ```
 
-**Читай не кількість, а назви.** Мутація, спіймана випадковою перевіркою, гірша за спійману
-тією, яка про неї стверджує.
+**Read the names, not the count.** A mutation caught by an incidental check is worse than one
+caught by the check that asserts about it.
 
-## Межі цього етапу — щоб ти не переніс їх у продакшн
+## The limits of this stage — so you do not carry them into production
 
-- **Двадцять один кейс — не статистика.** Довірчих інтервалів тут немає, і вдавати
-  протилежне гірше, ніж не рахувати їх узагалі.
-- **Підроблений суддя не доводить, що справжні судді упереджені.** Це показано в літературі.
-  Він дає детекторові що виявляти.
-- **Семплінг перевіряється локально**, у тому самому процесі. Справжнє розгортання —
-  `НЕ ПЕРЕВІРЕНО`.
-- **±3 відсоткові пункти — межа вправи** на потоці від двохсот. Справжня залежить від обсягу
-  трафіку й ціни судження.
-- **З реальним суддею детермінізм не гарантується** — перевірка мигтіння з ключем стає
-  `НЕ ПЕРЕВІРЕНО`, а не зеленою.
-- **Дрейфу в часі немає.** Він потребує збереженої історії, якої цей етап свідомо не веде.
-  Числа, з яких дрейф рахують, етап друкує; порівняння вікон — етап 10.
+- **Twenty-one cases are not statistics.** There are no confidence intervals here, and
+  pretending otherwise is worse than not counting them at all.
+- **A fake judge does not prove that real judges are biased.** That is shown in the literature.
+  It gives the detector something to detect.
+- **Sampling is verified locally**, in the same process. A real deployment is `NOT EVALUATED`.
+- **±3 percentage points is the exercise's bound** on a stream from two hundred. The real one
+  depends on traffic volume and the price of a judgement.
+- **With a real judge determinism is not guaranteed** — the flicker check with a key becomes
+  `NOT EVALUATED` rather than green.
+- **There is no drift over time.** It needs stored history, which this stage deliberately does
+  not keep. The stage prints the numbers drift is computed from; comparing windows is stage 10.
 
-## Числа
+## The numbers
 
-| Що | Скільки |
+| What | How many |
 |---|---|
-| Кейсів у наборі / з них крайніх | 21 / 9 |
-| Перевірок / на режими відмови | 31 / 15 |
-| Мутацій у вправах | 14 |
-| Викликів судді за прогін | 19 |
+| Cases in the set / edge among them | 21 / 9 |
+| Checks / on failure modes | 31 / 15 |
+| Mutations in the exercises | 14 |
+| Judge calls per run | 19 |
 
-## Далі
+## Next
 
-Етап 9 — фреймворки: те саме, але чужим кодом, і з питанням, що саме ти віддаєш разом із
-контролем.
+Stage 9 — frameworks: the same thing but in somebody else's code, and with the question of what
+exactly you hand over along with control.

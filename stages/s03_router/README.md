@@ -1,112 +1,118 @@
-# Етап 3 — Роутер: коли одного агента замало
+# Stage 3 — Router: when one agent is not enough
 
-> Попередній етап: [Етап 2 — RAG](../s02_rag/README.md) ·
-> Код цього етапу зафіксовано теґом `stage-03`
+> Previous stage: [Stage 2 — RAG](../s02_rag/README.md) ·
+> This stage's code is pinned at tag `stage-03`
 
-## Що ти зможеш після цього етапу
+## What you will be able to do after this stage
 
-- пояснити, чому один роздутий агент програє трьом вузьким, і назвати межу, за якою це
-  починається;
-- написати маршрутизацію самостійно й побачити, що в ній немає нічого, крім `while` і словника;
-- спроєктувати схему стану свідомо — і сказати, у скільки обійдеться додати туди поле;
-- зупинити цикл ревізій лічильником, а не рахунком за виклики;
-- провести рівень доступу через передачу так, щоб він не зник по дорозі;
-- відповісти на питання «чи потрібен нам supervisor» за чеклістом — і найчастіше почути «ні».
+- explain why one bloated agent loses to three narrow ones, and name the boundary where that
+  starts;
+- write the routing yourself and see that there is nothing in it beyond a `while` and a
+  dictionary;
+- design a state schema deliberately — and say what adding a field to it will cost;
+- stop a revision loop with a counter rather than with an invoice;
+- carry the access level through a handoff so that it does not go missing on the way;
+- answer "do we need a supervisor" from a checklist — and most often hear "no".
 
-## Запусти перед читанням
+## Run this before you read
 
 ```bash
 python -m stages.s03_router.run
-python -m stages.s03_router.run --prompt    # покаже промпт, за яким обирається маршрут
+python -m stages.s03_router.run --prompt    # shows the prompt the route is chosen by
 python -m stages.s03_router.check
-python -m stages.s03_router.decision        # чекліст «чи потрібен supervisor»
+python -m stages.s03_router.decision        # the "do you need a supervisor" checklist
 ```
 
-Ключ до API не потрібен. LangGraph теж не потрібен: без нього етап проходиться до кінця, а
-перевірка порівняння маршрутів чесно каже, що її **не виконано**.
+No API key needed. LangGraph is not needed either: without it the stage still runs end to end,
+and the route-comparison check honestly says it was **not verified**.
 
-## Частина 1. Чому один агент перестає справлятись
+## Part 1. Why one agent stops coping
 
-На етапі 1 у агента було три інструменти, на етапі 2 з'явився четвертий. Спокуса очевидна:
-додати п'ятий, десятий, двадцятий. Опис кожного йде в той самий промпт.
+In stage 1 the agent had three tools; in stage 2 a fourth appeared. The temptation is obvious:
+add a fifth, a tenth, a twentieth. Every description goes into the same prompt.
 
-У якийсь момент модель починає обирати гірше, ніж обирала на п'яти інструментах. Найпоширеніша
-реакція — переписати промпт, і вона не працює, бо проблема не в промпті:
+At some point the model starts choosing worse than it did with five tools. The most common
+reaction is to rewrite the prompt, and it does not work, because the problem is not in the
+prompt:
 
-> **Одна модель тримає в голові один опис задачі. Що ширший той опис, то розмитіший вибір.**
+> **One model holds one description of the task in its head. The wider that description, the
+> blurrier the choice.**
 
-Це не властивість конкретної моделі й не мине з наступною версією. Це те саме, що відбувається
-з людиною, якій дали посадову інструкцію на сорок пунктів.
+This is not a property of one particular model and it will not go away with the next version. It
+is the same thing that happens to a person handed a forty-point job description.
 
-## Частина 2. Найважливіше речення всього етапу
+## Part 2. The one sentence that matters most in this stage
 
-> **Supervisor — це той самий агент, у якого інструменти є агентами.**
+> **A supervisor is the same agent, with other agents as its tools.**
 
-Ніякої нової архітектури не з'являється. Той самий цикл етапу 1, той самий реєстр, той самий
-виклик моделі — просто за назвою «інструмента» стоїть не функція, а інший агент зі своїм
-вузьким набором.
+No new architecture appears. The same loop as in stage 1, the same registry, the same model call
+— except that behind the "tool" name stands not a function but another agent with its own narrow
+set.
 
-З цього одразу випливають дві речі, які й роблять етап нетривіальним:
+Two things follow immediately, and they are what make this stage non-trivial:
 
-- **Спеціаліст отримує задачу, а не питальника.** Усе, що знав supervisor і не передав, для
-  спеціаліста не існує. Права доступу — перше, що на цьому губиться.
-- **Supervisor може не погодитись із відповіддю.** З'являється цикл ревізій, а разом із ним —
-  можливість крутитися нескінченно за твої гроші.
+- **The specialist receives a task, not the asker.** Everything the supervisor knew and did not
+  pass on does not exist for the specialist. Access rights are the first thing lost this way.
+- **The supervisor may disagree with the answer.** That brings a revision loop, and with it the
+  possibility of spinning forever on your money.
 
-## Частина 3. Читаємо код — п'ять файлів
+## Part 3. Reading the code — five files
 
-### `state.py` — схема стану, найдорожче рішення етапу
+### `state.py` — the state schema, the most expensive decision of the stage
 
-Стан читають і пишуть **усі** вузли. Найпростіше зробити його словником: додати поле — один
-рядок, ніхто нічого не оголошує. Саме так виглядає більшість прикладів.
+**Every** node reads and writes the state. The easiest thing is to make it a dictionary: adding a
+field is one line and nobody declares anything. That is what most examples look like.
 
-І саме тому в них не видно головного:
+And that is exactly why the main point is invisible in them:
 
-> **Коли додати поле коштує один рядок, ніхто не питає, скільки воно коштує насправді.**
+> **When adding a field costs one line, nobody asks what the field actually costs.**
 
-А коштує воно стільки, скільки вузлів устигне на нього спертися, — і жоден із них не скаже, що
-воно з'явилось. Через півроку поле не можна ні перейменувати, ні прибрати, бо невідомо, хто
-його читає.
+And it costs as much as the number of nodes that come to depend on it — none of which will
+mention that it appeared. Six months later the field can neither be renamed nor removed, because
+nobody knows who reads it.
 
-Тут схема оголошена, і `__slots__` робить її контрактом безкоштовно:
+Here the schema is declared, and `__slots__` makes it a contract for free:
 
 ```python
 class State:
-    __slots__ = DECLARED   # читання чи запис чогось іншого — помилка
+    __slots__ = DECLARED   # reading or writing anything else is an error
 ```
 
-Подивись на сцену 2 демо: там надруковано **весь** перелік того, що граф знає про задачу.
-Десять полів. Щоб додати одинадцяте, доведеться відкрити цей файл — тобто побачити всіх, хто
-його читає. У цьому вся ціна, і вона стягується в момент дії, а не через півроку.
+Look at scene 2 of the demo: it prints **the whole** list of what the graph knows about a task.
+Ten fields. To add an eleventh you have to open this file — that is, see everyone who reads it.
+That is the entire cost, and it is charged at the moment of the action rather than six months
+later.
 
-**Три поля незмінні після створення.** Головне — `access`: рівень доступу приходить із виклику
-графа, і жоден вузол не має права його підвищити.
+**Three fields are immutable after creation.** The main one is `access`: the access level comes
+in from the call into the graph, and no node has the right to raise it.
 
-### `specialists.py` — три вузькі компетенції з уже написаного
+### `specialists.py` — three narrow competences built from what already exists
 
-Спеціаліст замовлень — це цикл етапу 1 із його реєстром і трьома захистами. Спеціаліст знань —
-пошук етапу 2 з фільтром доступу. Третій, найпростіший, доданий тут.
+The orders specialist is stage 1's loop with its registry and its three guards. The knowledge
+specialist is stage 2's retrieval with the access filter. The third and simplest one is added
+here.
 
-**Опис компетенції важливіший за назву вузла.** Маршрут обирає модель, і обирає вона за описом:
-`orders` їй нічого не каже, а «статус конкретного замовлення за його номером, оформлення
-повернення» — каже. Запусти `--prompt` і подивись, що саме бачить модель.
+**The competence description matters more than the node's name.** The model picks the route, and
+it picks it by the description: `orders` tells it nothing, whereas "the status of a specific
+order by its number, processing a return" does. Run `--prompt` and look at what the model
+actually sees.
 
-**Рівень доступу спеціаліст бере зі стану, не з аргументів:**
+**The specialist takes the access level from the state, not from its arguments:**
 
 ```python
 found = knowledge_base().search(state.query, access=state.access, top_k=3)
 ```
 
-Аргумент можна забути, додаючи четвертого спеціаліста. Поле стану — ні.
+An argument can be forgotten while adding a fourth specialist. A state field cannot.
 
-### `graph.py` — увесь supervisor на пів екрана
+### `graph.py` — the whole supervisor in half a screen
 
-Сорок дев'ять виконуваних рядків із вісімдесяти. Прочитавши їх, важко не помітити: **тут немає нічого нового**.
-Словник, виклик моделі, `while` із лічильником.
+Forty-nine executable lines out of eighty. Read them and it is hard not to notice: **there is
+nothing new here**. A dictionary, a model call, a `while` with a counter.
 
-Три місця варто прочитати повільно:
+Three places are worth reading slowly:
 
-**Маршрут обирає модель, а граф його перевіряє.**
+**The model picks the route, and the graph validates it.**
 
 ```python
 choice = _ask(client, route_prompt(state), model)
@@ -114,95 +120,102 @@ if choice not in SPECIALISTS:
     return _refuse(state)
 ```
 
-Модель може назвати вузол, якого немає, — і назве, рано чи пізно. Сцена 4 демо це показує:
-модель сказала `weather`, жодного спеціаліста не викликано, у відповіді перелічені реальні
-компетенції. **Модель має право помилитись; граф не має права їй повірити на слово.**
+The model can name a node that does not exist — and it will, sooner or later. Scene 4 of the demo
+shows this: the model said `weather`, no specialist was invoked, and the answer lists the real
+competences. **The model has the right to be wrong; the graph does not have the right to take it
+at its word.**
 
-**Цикл ревізій має лічильник, і лічильник живе у стані.** Це той самий захист, що ліміт кроків
-на етапі 1, у тому самому місці — до дії, не після.
+**The revision loop has a counter, and the counter lives in the state.** It is the same guard as
+stage 1's step limit, in the same place — before the action, not after.
 
-**Виняток спеціаліста й поламаний контракт — різні події**, і реакції в них протилежні:
+**A specialist's exception and a broken contract are different events**, and the reactions to
+them are opposite:
 
-    спеціаліст кинув виняток        подія середовища   -> результат кроку, граф живе
-    вузол прочитав невідоме поле    помилка програміста -> падаємо, називаючи поле
+    a specialist raised           an environment event    -> becomes a step result, the graph lives
+    a node read an unknown field  a programmer's error    -> we stop, naming the field
 
-Перше нормально: склад може бути недоступний. Друге означає, що контракт зламано, і працювати
-далі на порожньому значенні гірше, ніж упасти.
+The first is normal: the warehouse can be down. The second means the contract is broken, and
+carrying on with an empty value is worse than stopping.
 
-### `langgraph_impl.py` — те саме бібліотекою
+### `langgraph_impl.py` — the same thing with a library
 
 ```bash
 pip install -e ".[s03]"
 ```
 
-Читати **після** `graph.py`, заради впізнавання:
+Read it **after** `graph.py`, for the recognition:
 
-    наш словник спеціалістів   ->  add_node на кожного
-    наш if choice not in ...   ->  add_conditional_edges
-    наш while з лічильником    ->  ребро, що повертається у вузол
-    наш state.finish_reason    ->  END
+    our specialists dictionary  ->  add_node for each of them
+    our if choice not in ...    ->  add_conditional_edges
+    our while with a counter    ->  an edge going back into the node
+    our state.finish_reason     ->  END
 
-Перевірка порівнює сім маршрутів і падає при розбіжності. Без встановленої бібліотеки вона
-друкує, що AC-06 **не перевірено** — різниця між «збіглося» і «не перевіряли» має бути видимою.
+The check compares seven routes and fails on any divergence. Without the library installed it
+prints that AC-06 was **not verified** — the difference between "they matched" and "we did not
+look" has to be visible.
 
-**Одна розбіжність варта уваги.** Стан LangGraph — це `TypedDict`, тобто словник: `state.get("typo")`
-поверне мовчазний `None`. Наш `state.py` навмисно робить інакше. Це не вада бібліотеки — вона не
-знає наперед, які вузли ти додаси, і обирає гнучкість. Ціна цієї гнучкості — рівно та, про яку
-йшлося вище, і побачити її поруч корисніше, ніж прочитати про неї.
+**One divergence is worth attention.** LangGraph's state is a `TypedDict`, that is, a dictionary:
+`state.get("typo")` returns a silent `None`. Our `state.py` deliberately does otherwise. This is
+not a flaw in the library — it cannot know in advance which nodes you will add, and it chooses
+flexibility. The price of that flexibility is exactly the one described above, and seeing it side
+by side is more useful than reading about it.
 
-### `decision.py` — чи потрібен тут supervisor
+### `decision.py` — do you need a supervisor here
 
-Найчастіша відповідь — **не потрібен**. Граф із трьох агентів виглядає як архітектура, а один
-агент із трьома інструментами — як щось недороблене; на цьому відчутті будуються системи, у
-яких кожна відповідь коштує трьох викликів моделі замість одного.
+The most common answer is **no**. A graph of three agents looks like architecture, while one
+agent with three tools looks unfinished; systems in which every answer costs three model calls
+instead of one are built on that feeling.
 
-Вердикти три, а не два, і середній найважливіший: **класифікатор** — дешевий вибір гілки без
-циклу ревізій. Більшість систем, які будують як supervisor, потребували саме його.
+There are three verdicts, not two, and the middle one is the most important: **classifier** — a
+cheap branch choice with no revision loop. Most systems built as supervisors needed exactly that.
 
-Порядок правил теж рішення: спершу структурні обмеження, потім вартість, і лише наприкінці
-розмір — найслабший аргумент, який звучить найчастіше. Повністю — у [`DECISION.md`](DECISION.md).
+The order of the rules is a decision too: structural constraints first, then cost, and only at
+the end size — the weakest argument, and the one heard most often. The full version is in
+[`DECISION.md`](DECISION.md).
 
-## Частина 4. Що зламати
+## Part 4. What to break
 
-Після кожної зміни запусти `python -m stages.s03_router.check` і подивись, **скільки саме**
-перевірок стало червоними й **які**.
+After each change run `python -m stages.s03_router.check` and look at **how many** checks went red
+and **which ones**.
 
-1. **Прибери звірку маршруту з реєстром** у `graph.py`. Модель тепер може відправити задачу
-   у вузол, якого не існує.
-2. **Зроби ліміт ревізій недосяжним** (`>= 10_000`). Червоніє й друга реалізація теж.
-3. **Дай спеціалістові знань фіксований рівень доступу** замість `state.access` — спершу
-   `"public"`, потім `"internal"`. Два майже неперетинні набори червоного.
-4. **Дозволь писати в `access`** — двома способами: `if False:` і `FROZEN = frozenset()`.
-5. **Спорожни перелік компетенцій** у промпті маршруту.
-6. **Прибери одну ситуацію з чекліста**, лишивши правило без неї.
+1. **Remove the route-against-registry validation** in `graph.py`. The model can now send a task
+   to a node that does not exist.
+2. **Make the revision limit unreachable** (`>= 10_000`). The second implementation goes red too.
+3. **Give the knowledge specialist a fixed access level** instead of `state.access` — first
+   `"public"`, then `"internal"`. Two almost disjoint sets of red.
+4. **Allow writes to `access`** — in two ways: `if False:` and `FROZEN = frozenset()`.
+5. **Empty the list of competences** in the routing prompt.
+6. **Remove one situation from the checklist**, leaving the rule without it.
 
-Розбір із виміряними результатами — у [`exercises.md`](exercises.md).
+The walkthrough with measured results is in [`exercises.md`](exercises.md).
 
-## Ручний чекліст: справжня модель
+## Manual checklist: a real model
 
-Перевірки йдуть на підробці, тож маршрут у них детермінований. Що станеться зі справжньою
-моделлю — окремо, у [`CHECKLIST.md`](CHECKLIST.md), і це найцікавіша частина етапу.
+The checks run on a fake, so the route in them is deterministic. What happens with a real model
+is separate, in [`CHECKLIST.md`](CHECKLIST.md), and it is the most interesting part of the stage.
 
-## Межі цього етапу — щоб ти не переніс їх у продакшн
+## The limits of this stage — so you do not carry them into production
 
-- **Власний граф не придатний до продакшну.** Тридцять сім рядків показують механіку; вони не
-  вміють ні паралельних гілок, ні чекпоінтів, ні відновлення після падіння.
-- **Маршрут на підробці правильний за побудовою.** Справжня модель маршрутизує інакше й іноді
-  гірше. Це не вада реалізації, а величина, яку вимірюють, — етап 8.
-- **Спеціалісти в одному процесі.** Мережа приходить на етапі 4 (MCP) і на етапі 6 (деплой).
-- **Пам'яті між прогонами немає.** Стан живе один прогін; пам'ять — етап 5.
-- **Кожен маршрут коштує виклику моделі.** На етапі 6 це стане питанням бюджету, і там же
-  з'явиться дешевший класифікатор як свідомий компроміс.
+- **The hand-rolled graph is not production-fit.** Thirty-seven lines show the mechanics; they
+  can do neither parallel branches, nor checkpoints, nor recovery after a crash.
+- **On the fake the route is correct by construction.** A real model routes differently and
+  sometimes worse. That is not a defect of the implementation but a quantity you measure — stage
+  8.
+- **The specialists share one process.** The network arrives in stage 4 (MCP) and stage 6
+  (deployment).
+- **There is no memory between runs.** State lives for one run; memory is stage 5.
+- **Every route costs a model call.** In stage 6 that becomes a budget question, and the cheaper
+  classifier appears there as a deliberate trade-off.
 
-## Числа
+## The numbers
 
-**перевірок: 38, з них на режими відмови: 20** — рівно половина, як і на попередніх етапах.
-Серед них є перевірка, яка звіряє **числа в цьому уроці** з тим, що друкує команда: на етапі 2
-проза розійшлася з набором, і читач, який послухався б поради запустити перевірки, побачив би
-розбіжність першою ж командою.
+**38 checks, 20 of them on failure modes** — exactly half, as in the previous stages. Among
+them is a check that reconciles **the numbers in this lesson** with what the command prints: in
+stage 2 the prose drifted away from the suite, and a reader who took the advice to run the checks
+would have seen the discrepancy with their very first command.
 
-## Далі
+## Next
 
-Етап 4 — **MCP**: агент етапу 3 переходить із локальних функцій на протокол, не змінюючи
-власної логіки. Питання етапу: чому `list_tools()` робить інтеграцію дискаверабельною, і чому
-кілька добре продуманих інструментів кращі за мапу всіх ендпоінтів твого API.
+Stage 4 — **MCP**: the stage 3 agent moves from local functions onto a protocol without changing
+its own logic. The stage's question: why `list_tools()` makes an integration discoverable, and
+why a few well-considered tools beat a map of every endpoint in your API.

@@ -1,67 +1,69 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "S"
 ticket: "n/a"
 ---
 
-# 0005 — Пін на мінорну версію MCP, а не підлога
+# 0005 — Pin MCP to a minor line, not a floor
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
 - **Deciders:** Contributor, Tech Lead
-- **Amends:** ADR репозиторію 0001 (extras несуть підлоги, не піни)
+- **Amends:** repository ADR 0001 (extras carry floors, not pins)
 
 ## Context
 
-ADR репозиторію 0001 каже: версії в extras — це **підлоги**, не піни. Причина була добра:
-фальшивий пін на неперевіреному пакеті гірший за чесну підлогу.
+Repository ADR 0001 says: versions in extras are **floors**, not pins. The reason was a good one:
+a false pin on an unverified package is worse than an honest floor.
 
-Ризик SAD §11 («API бібліотеки MCP зміниться») спрацював **до того, як був написаний перший
-рядок коду етапу**. Extra казав `mcp>=1.2`; установка дала **2.0.0**, і в ній:
+The SAD §11 risk ("the MCP library's API will change") fired **before the first line of the
+stage's code was written**. The extra said `mcp>=1.2`; the install gave **2.0.0**, and in it:
 
-    mcp.server.fastmcp        -> модуля не існує
-    FastMCP                   -> перейменовано на MCPServer
+    mcp.server.fastmcp        -> the module does not exist
+    FastMCP                   -> renamed to MCPServer
     tool.inputSchema          -> tool.input_schema
     result.isError            -> result.is_error
     result.structuredContent  -> result.structured_content
 
-Тобто зникла точка входу, з якої починається стаття-джерело, і перейменувалися всі поля, які
-читає клієнт. Підлога `>=1.2` описувала API, якого більше немає.
+That is, the entry point the source article starts from disappeared, and every field the client
+reads was renamed. The floor `>=1.2` described an API that no longer exists.
 
 ## Considered options
 
-1. **Пін на мінорну гілку:** `mcp>=2.0,<3`.
-2. **Лишити підлогу** `>=1.2` і писати код під 2.0 — тобто брехати в метаданих.
-3. **Точний пін** `==2.0.0`.
+1. **A pin to the minor line:** `mcp>=2.0,<3`.
+2. **Keep the floor** `>=1.2` and write the code against 2.0 — that is, lie in the metadata.
+3. **An exact pin** `==2.0.0`.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 відпадає одразу: підлога `>=1.2` стверджує, що код працює з 1.2, а він не працює.
-Це не педантизм — читач, у якого встановиться 1.9, отримає `ModuleNotFoundError` і не матиме
-жодного натяку, що причина у версії.
+Option 2 is out immediately: the floor `>=1.2` asserts that the code works with 1.2, and it does
+not. This is not pedantry — a reader who ends up with 1.9 installed will get a
+`ModuleNotFoundError` with no hint whatsoever that the cause is the version.
 
-Option 3 надійніша й дорожча, ніж потрібно: точний пін ламається на кожному патчі й перетворює
-курс на роботу з оновлення пінів. Мінорна гілка — та межа, за якою бібліотека сама обіцяє не
-ламати API.
+Option 3 is more reliable and more expensive than needed: an exact pin breaks on every patch and
+turns the course into pin-maintenance work. A minor line is the boundary at which the library
+itself promises not to break the API.
 
-**Виняток обмежений цим пакетом.** Решта extras лишаються підлогами: у них API стабільний
-роками. MCP — молодий протокол, чия специфікація змінилась настільки, що це стало новиною
-самої статті-джерела. Ставитись до нього як до `numpy` означало б ігнорувати те, що він сам
-про себе каже.
+**The exception is limited to this package.** The other extras stay floors: their APIs have been
+stable for years. MCP is a young protocol whose specification changed enough that it became the
+news of the source article itself. Treating it like `numpy` would mean ignoring what it says
+about itself.
 
 ## Consequences
 
 **Positive**
-- `pip install -e ".[s04]"` дає бібліотеку, з якою код справді працює.
-- Вихід 3.0 зламає установку **голосно**, а не мовчазним `ModuleNotFoundError` усередині коду.
-- Урок може показати конкретні імена й поля, не додаючи «залежно від версії».
+- `pip install -e ".[s04]"` gives a library the code actually works with.
+- The release of 3.0 will break the install **loudly**, rather than with a silent
+  `ModuleNotFoundError` deep inside the code.
+- The lesson can show concrete names and fields without adding "depending on the version".
 
 **Negative**
-- Один пакет живе за іншим правилом, ніж решта. Записано тут, щоб наступний читач не вирішив,
-  що це недогляд.
-- Перехід на 3.0 стане окремою роботою, а не наслідком чергового `pip install`. Це і є мета.
+- One package lives by a different rule from the rest. Recorded here so that the next reader does
+  not conclude it was an oversight.
+- Moving to 3.0 becomes a piece of work of its own rather than a consequence of the next
+  `pip install`. That is the point.
