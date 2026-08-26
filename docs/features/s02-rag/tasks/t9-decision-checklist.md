@@ -1,6 +1,6 @@
 ---
 id: T9
-title: "DECISION.md — чекліст «RAG чи fine-tuning»"
+title: "DECISION.md — the \"RAG or fine-tuning\" checklist"
 layer: "docs"
 deps: []
 acs: ["AC-07"]
@@ -10,25 +10,25 @@ estimate: "S"
 status: "todo"
 ---
 
-# T9 — DECISION.md — чекліст «RAG чи fine-tuning»
+# T9 — DECISION.md — the "RAG or fine-tuning" checklist
 
 ## Why
 
-Ціль §2 №3: чекліст, яким користуються, а не читають ([spec AC-07](../spec.md)).
+Goal №3 in §2: a checklist that gets used rather than read ([spec AC-07](../spec.md)).
 
 ## What
 
-`DECISION.md`: питання по порядку, зупинка на першому «так». Шість ситуацій із відомою відповіддю як самоперевірка чеклиста. Не переказ статті-джерела — робочий інструмент.
+`DECISION.md`: questions in order, stopping at the first "yes". Six situations with a known answer as the checklist's own self-check. Not a retelling of the source article — a working instrument.
 
 ## Definition of Done
 
-- [ ] Шість ситуацій, для кожної рівно одна відповідь
-- [ ] Жодна ситуація не дає двох відповідей і жодна не лишається без відповіді
-- [ ] Чекліст читається за ≤ 5 хв
-- [ ] Перевірка проганяє всі шість ситуацій автоматично
+- [ ] Six situations, exactly one answer for each
+- [ ] No situation gives two answers and none is left without an answer
+- [ ] The checklist reads in ≤ 5 min
+- [ ] A check works through all seven situations automatically
 
 ## Notes
 
-Паралельний із рештою: залежностей немає.
+Parallel with everything else: it has no dependencies.
 
-Блокується: —
+Blocked by: —

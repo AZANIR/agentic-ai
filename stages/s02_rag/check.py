@@ -266,7 +266,7 @@ def check_overlap_does_not_produce_a_fragment_inside_another() -> None:
         assert len(texts) == len(set(texts)), f"дублікати фрагментів у {document.name}"
 
 
-def check_decision_checklist_keeps_the_six_situations_it_documents() -> None:
+def check_decision_checklist_keeps_the_seven_situations_it_documents() -> None:
     """FAILURE · decision: склад чекліста закріплено — заміна ситуацій не проходить тихо"""
     names = [s.name for s in SITUATIONS]
     assert len(names) == len(set(names)) == 7, f"склад чекліста змінився: {names}"
@@ -653,7 +653,7 @@ def check_stage_one_loop_is_untouched() -> None:
 
 
 def check_decision_checklist_answers_all_situations() -> None:
-    """decision: кожна з шести ситуацій має рівно одну відповідь"""
+    """decision: кожна з семи ситуацій має рівно одну відповідь"""
     assert len(SITUATIONS) == 7, len(SITUATIONS)
     for situation in SITUATIONS:
         verdict = decide(situation.signals)
@@ -715,7 +715,7 @@ CHECKS = [
     check_provider_choice_actually_reads_the_configuration,
     check_unusable_embedder_configuration_is_refused_at_startup,
     check_overlap_does_not_produce_a_fragment_inside_another,
-    check_decision_checklist_keeps_the_six_situations_it_documents,
+    check_decision_checklist_keeps_the_seven_situations_it_documents,
     check_every_rule_is_exercised_by_a_situation,
     check_demo_runs_offline_and_shows_five_scenes,
     check_agent_answer_carries_a_source_from_the_transcript,
