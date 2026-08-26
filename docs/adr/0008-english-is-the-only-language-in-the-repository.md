@@ -34,9 +34,9 @@ makes no argument.
 specs, ADRs, review records, docstrings, explanatory comments, reader-facing messages including
 check failures, and commit messages.
 
-Ukrainian is not forbidden; it is simply not what gets committed. Drafts, working notes and
-everything under `sources/` stay in whatever language suits their author, which is one reason
-`sources/` is gitignored.
+Ukrainian is not forbidden; it is simply not what gets committed. Drafts and working notes
+stay in whatever language suits their author — nothing outside version control is bound by this
+rule.
 
 The failure-mode marker in check docstrings changes with everything else: `ВІДМОВА ·` becomes
 `FAILURE ·`. It is read by `shared/check_runner.py`, by every stage's own coverage check and by

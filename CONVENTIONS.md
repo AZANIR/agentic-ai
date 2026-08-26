@@ -128,9 +128,9 @@ This replaces the earlier rule, which kept prose in Ukrainian. The change is rep
 and applies to files that already exist: a half-translated repository is worse than either
 whole, because a reader cannot tell which half is current.
 
-**Ukrainian is not forbidden — it is simply not what gets committed.** Drafts, working notes
-and anything under `sources/` stay in whatever language suits their author; `sources/` is
-gitignored precisely so that choice costs nothing.
+**Ukrainian is not forbidden — it is simply not what gets committed.** Drafts and working
+notes stay in whatever language suits their author; nothing outside version control is bound by
+this rule.
 
 ## Code style
 

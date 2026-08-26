@@ -1062,14 +1062,12 @@ article does not describe.
 An article about an unwritten stage would describe code that does not exist — exactly the
 defect this course is built against.
 
-### Two directories
+### Where an article lives
 
-| Directory | What is in it | Published |
-|---|---|---|
-| `sources/docs/` | The author's working reference — never enters the repository | no |
-| `sources/artstroy/{slug}/` | **Our** articles in Astro format | yes, in [artstroy](https://github.com/AZANIR/artstroy) |
-
-All of `sources/` is gitignored.
+Articles are written straight into the blog repository, at
+`src/content/articles/{slug}/index.mdx`, together with their `imgs/` and their `claims.json`.
+This repository keeps no copy: a second copy is a second thing to keep in step, and the one
+that is not published is the one that quietly goes stale.
 
 ### The artstroy format (checked against their zod schema)
 
@@ -1084,7 +1082,7 @@ authors: ["leonid-m"]
 publishedTime: "YYYY-MM-DDT00:00:00.000Z"
 ```
 
-Directory: `{slug_snake_case}/index.mdx` plus `imgs/`.
+Directory: `{slug_snake_case}/index.mdx` plus `imgs/` and `claims.json`.
 Branch: `article/{slug-kebab}`. Commit: `content(article): add {description}`.
 
 ### The site's style rules
@@ -1144,8 +1142,14 @@ file is declared in `claims.json` together with its reason — the same requirem
 on decisions with no source stage: either a source, or a stated reason why there is none. A
 declaration with no reason is a defect; a silent exemption would turn the check into decoration.
 
-The script is **not** part of `check_all.py`: the articles live outside the repository
-(`sources/` is gitignored), so for anyone else the run would always be `NOT EVALUATED`.
+The script is **not** part of `check_all.py`: it reads the blog repository, which it expects
+beside this one (or at `ARTSTROY_REPO`). Without it the run reports `NOT EVALUATED` rather than
+failing — for most clones the articles simply are not there.
+
+It accepts **both** failure-mode markers, `FAILURE ·` and the older `ВІДМОВА ·`, and that is not
+a compatibility tail. The repository moved to English (ADR-0008) while tags cannot be rewritten,
+so `stage-01`…`stage-10` keep the old marker forever. A counter that knew only the new one
+reported zero at every tag and declared a discrepancy in seven articles out of ten.
 
 ## 9. Checklist before starting a stage
 

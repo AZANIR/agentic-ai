@@ -33,7 +33,7 @@
 
 ## Чого цей скрипт не робить
 
-- Не читає мережу. Стаття береться з диска, код — з теґа. Нема теки `sources/` — `НЕ ПЕРЕВІРЕНО`.
+- Не читає мережу. Стаття береться з репозиторію блога, код — з теґа цього репозиторію.
 - Не судить прозу. Він звіряє те, що має джерело: посилання, фрагменти, числа з `claims.json`.
 - Не знає, чи фрагмент **спрощений навмисно**. Незнайдений фрагмент — це знахідка, яку автор
   або виправляє, або декларує в тексті поруч зі сніпетом.
@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
 import subprocess
 import sys
@@ -50,7 +51,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ARTICLES = REPO_ROOT / "sources" / "artstroy"
+# Статті живуть у репозиторії блога — там їх публікують, і там же лежать їхні
+# `claims.json`. Друга копія тут означала б, що звіряється те, що нікуди не йде.
+BLOG = Path(os.environ.get("ARTSTROY_REPO", REPO_ROOT.parent / "artstroy"))
+ARTICLES = BLOG / "src" / "content" / "articles"
 
 RED, GREEN, YELLOW, DIM, OFF = (
     "\033[31m",
@@ -76,6 +80,12 @@ FORBIDDEN = (
     "згенеровано з",
     "ai-асистент",
 )
+
+# Маркер режиму відмови в docstring перевірки. Обидва, і це не хвіст сумісності:
+# репозиторій переїхав на англійську (ADR-0008), а теґи переписати неможливо — на
+# `stage-01`..`stage-10` назавжди лишається старий маркер. Лічильник, що знає лише новий,
+# показав би нуль на кожному теґу й оголосив би розбіжність у семи статтях із десяти.
+FAILURE_MARKERS = ("FAILURE", "ВІДМОВА")
 
 FRONTMATTER = re.compile(r"^---\n(?P<body>.*?)\n---\n", re.DOTALL)
 FIELD = re.compile(r"^(?P<key>[a-zA-Z_]+):\s*(?P<value>.*?)\s*$", re.MULTILINE)
@@ -288,7 +298,7 @@ def compute(how: str, *, tag: str, stage: str, file: str = "") -> int | None:
         found = _checks_in(source)
         if how == "checks":
             return len(found)
-        return sum(1 for f in found if (ast.get_docstring(f) or "").startswith("FAILURE"))
+        return sum(1 for f in found if (ast.get_docstring(f) or "").startswith(FAILURE_MARKERS))
     if how == "executable_lines":
         source = at_tag(tag, f"{folder}/{file}")
         return None if source is None else _executable_lines(source)
@@ -454,14 +464,17 @@ def main(selector: str | None = None) -> int:
         print(f"{YELLOW}НЕ ПЕРЕВІРЕНО{OFF} · git недоступний — статті звіряються з теґами")
         return 0
     if not ARTICLES.exists():
-        print(f"{YELLOW}НЕ ПЕРЕВІРЕНО{OFF} · теки `sources/artstroy/` немає.")
-        print(f"{DIM}   Вона поза репозиторієм за задумом: статті належать авторові.{OFF}")
+        print(f"{YELLOW}НЕ ПЕРЕВІРЕНО{OFF} · репозиторію блога немає за {BLOG}.")
+        print(f"{DIM}   Постав його поруч або назви шлях у ARTSTROY_REPO.{OFF}")
         return 0
 
     folders = [
         p
         for p in sorted(ARTICLES.iterdir())
-        if p.is_dir() and (p / "index.mdx").exists() and (selector is None or selector in p.name)
+        if p.is_dir()
+        and (p / "index.mdx").exists()
+        and (p / "claims.json").exists()
+        and (selector is None or selector in p.name)
     ]
     if not folders:
         print(f"{YELLOW}НЕ ПЕРЕВІРЕНО{OFF} · жодної статті не знайдено для {selector!r}")

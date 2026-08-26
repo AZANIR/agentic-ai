@@ -26,8 +26,8 @@ python scripts/migrate.py up      # migrations (needs docker compose up)
 4. **Everything must work offline and with no API key.** If a check needs the network, the
    check is broken, not the network.
 5. **Everything committed here is in English.** Prose, docstrings, comments, check messages,
-   commit messages. See the language table in CONVENTIONS.md. Drafts and anything under
-   `sources/` may be in any language — they are gitignored.
+   commit messages. See the language table in CONVENTIONS.md. Drafts outside version
+   control may be in any language.
 6. **No mention of AI assistants in commits, PRs or documentation** — no co-authorship, no
    "generated with", no tool names.
 
