@@ -1,68 +1,68 @@
 ---
 status: Accepted
-owner: "Власник репозиторію"
+owner: "Repository owner"
 reviewers: []
 updated_at: "2026-08-22"
-feature_size: "n/a (фундаментальне рішення репозиторію)"
+feature_size: "n/a (foundational decision for the repository)"
 ticket: "n/a"
 ---
 
-# 0004 — Тримати реляційні дані й вектори в одному Postgres із pgvector
+# 0004 — Keep relational data and vectors in one Postgres with pgvector
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
-- **Deciders:** власник репозиторію
+- **Deciders:** repository owner
 
 ## Context
 
-Курс потребує двох видів персистентності: реляційної (замовлення NovaShop, факти пам'яті
-користувача, сесії) і векторної (документи RAG з етапу 2, семантична пам'ять з етапу 5). Цільове
-розгортання — **одна VM на ~4 ГБ RAM**, на якій уже мають поміститись застосунок, Redis, Caddy і
-опційно Prometheus, Grafana та Langfuse.
+The course needs two kinds of persistence: relational (NovaShop orders, user memory facts,
+sessions) and vector (the RAG documents from stage 2, the semantic memory from stage 5). The
+target deployment is **one VM with about 4 GB of RAM**, which also has to hold the application,
+Redis, Caddy and optionally Prometheus, Grafana and Langfuse.
 
 ## Decision drivers
 
-- Одна VM з жорстким лімітом пам'яті (карта: Constraints).
-- Стаття 6 вже передбачає Postgres — додавати ще один сервіс без потреби суперечить її тезі
-  «boring on purpose».
-- Кожен додатковий сервіс — це ще один бекап, ще один процес для моніторингу і ще одна причина
-  для деплою впасти в читача на етапі 6.
-- Обсяги даних курсу мізерні: десятки документів, сотні фактів.
+- One VM with a hard memory ceiling (map: Constraints).
+- The platform stage already assumes Postgres — adding another service without need contradicts
+  its own "boring on purpose" thesis.
+- Every additional service is another backup, another process to monitor and another way for the
+  deployment to fail on the reader at stage 6.
+- The course's data volumes are tiny: dozens of documents, hundreds of facts.
 
 ## Considered options
 
-1. **Postgres 16 + розширення `pgvector`** — одна БД для обох задач.
-2. **Postgres + окремий векторний сервіс** (Qdrant або Chroma) — швидший векторний пошук,
-   спеціалізовані можливості.
-3. **SQLite + FAISS у файлі** — нуль сервісів, але не годиться для конкурентного доступу
-   з кількох процесів (а етап 6 навмисне піднімає два воркери).
+1. **Postgres 16 plus the `pgvector` extension** — one database for both jobs.
+2. **Postgres plus a dedicated vector service** (Qdrant or Chroma) — faster vector search,
+   specialised features.
+3. **SQLite plus FAISS in a file** — zero services, but unfit for concurrent access from several
+   processes, and stage 6 deliberately starts two workers.
 
 ## Decision outcome
 
-**Chosen:** Option 1. На обсягах курсу різниця у швидкості між `pgvector` і Qdrant непомітна, а
-різниця в операційній вартості — один сервіс проти двох — помітна одразу, на першому ж деплої.
-Варіант 3 відпадає через етап 6: демонстрація пастки з кількома воркерами вимагає сховища,
-що коректно працює з кількох процесів.
+**Chosen:** Option 1. At the course's volumes the speed difference between `pgvector` and Qdrant
+is imperceptible, while the difference in operational cost — one service against two — is
+apparent on the very first deployment. Option 3 is ruled out by stage 6: demonstrating the
+multi-worker trap requires a store that behaves correctly across processes.
 
 ## Consequences
 
 **Positive**
-- Один бекап, один рядок підключення, один сервіс у `docker compose`.
-- Транзакційна цілісність між фактом пам'яті та його вектором — вони в одній БД.
-- Профіль `core` вкладається у ~2 ГБ RAM.
+- One backup, one connection string, one service in `docker compose`.
+- Transactional integrity between a memory fact and its vector — they are in the same database.
+- The `core` profile fits into about 2 GB of RAM.
 
 **Negative**
-- `pgvector` програє спеціалізованим сховищам на мільйонах векторів. Для курсу неважливо,
-  але читач має знати межу — це записано в уроці етапу 2.
-- Потрібне розширення в образі Postgres (`pgvector/pgvector:pg16`), тобто не стандартний
-  офіційний образ.
+- `pgvector` loses to specialised stores at millions of vectors. Irrelevant for the course, but
+  the reader has to know the boundary — it is written into the stage 2 lesson.
+- The Postgres image needs the extension (`pgvector/pgvector:pg16`), so not the plain official
+  image.
 
 **Neutral**
-- Винести вектори в окремий сервіс пізніше можна **без зміни коду етапів** — інтерфейс
-  `shared/stores/vector` лишиться тим самим, зміниться лише реалізація (ADR-0002).
+- Moving vectors into a separate service later needs **no change to stage code** — the
+  `shared/stores/vector` interface stays, only the implementation changes (ADR-0002).
 
 ## Links
 
-- Спека: [[../../planning/2026-08-22-agentic-ai-course-design.md]] §7, §8.1
-- Карта архітектури: [[../architecture-map.md]] §Datastores
-- Пов'язані ADR: [[0002-profile-switched-adapters]]
+- Spec: [[../../planning/2026-08-22-agentic-ai-course-design.md]] §7, §8.1
+- Architecture map: [[../architecture-map.md]] §Datastores
+- Related ADRs: [[0002-profile-switched-adapters]]

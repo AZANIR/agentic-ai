@@ -1,68 +1,70 @@
 ---
 status: Accepted
-owner: "Власник репозиторію"
+owner: "Repository owner"
 reviewers: []
 updated_at: "2026-08-22"
-feature_size: "n/a (фундаментальне рішення репозиторію)"
+feature_size: "n/a (foundational decision for the repository)"
 ticket: "n/a"
 ---
 
-# 0005 — Писати трейс кроків з етапу 1, у власний JSONL, зі стоком у Langfuse на проді
+# 0005 — Write step traces from stage 1, into our own JSONL, with a Langfuse sink in production
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
-- **Deciders:** власник репозиторію
+- **Deciders:** repository owner
 
 ## Context
 
-Стаття 6 містить пряме зізнання автора: *«I'd instrument tracing before the system got complex,
-not after»* — трасування додали, коли вже працювали три агенти й три MCP-обгортки, і його
-довелося натягувати на заплутану систему. Етап 8 курсу (оцінка агентів) працює **поверх трейсів**:
-без них він змушений був би переписувати всі попередні етапи.
+The usual confession from people who have built these systems is *"I'd instrument tracing before
+the system got complex, not after"* — tracing gets added once three agents and three MCP wrappers
+are already running, and then has to be stretched over a tangle. Stage 8 of this course
+(evaluating agents) works **on top of traces**: without them it would have to rewrite every
+earlier stage.
 
 ## Decision drivers
 
-- Порада статті 6 має бути виконана, а не переказана — інакше курс вчить того, чого сам не робить.
-- Етап 8 читає траєкторії, а не лише фінальні відповіді (спека §9, s08).
-- Читач має побачити трейс **на етапі 1**, коли ще нічого не задеплоєно й нічого не піднято.
-- Продакшн-режим потребує справжнього інструменту трасування, а не файлу.
+- That advice has to be followed rather than quoted — otherwise the course teaches what it does
+  not do.
+- Stage 8 reads trajectories, not just final answers (spec §9, s08).
+- The reader should see a trace **at stage 1**, when nothing is deployed and nothing is running.
+- Production mode needs a real tracing tool, not a file.
 
 ## Considered options
 
-1. **Власний мінімальний трейсер у `shared/trace.py`** — JSONL у файл (профіль `local`),
-   Langfuse (профіль `prod`), один інтерфейс запису.
-2. **Langfuse з етапу 1** — одразу справжній інструмент, без власного формату.
-3. **Додати трасування на етапі 8**, коли воно вперше знадобиться.
-4. **OpenTelemetry з етапу 1** — індустріальний стандарт, готові експортери.
+1. **A minimal tracer of our own in `shared/trace.py`** — JSONL to a file (profile `local`),
+   Langfuse (profile `prod`), one write interface.
+2. **Langfuse from stage 1** — a real tool immediately, no format of our own.
+3. **Add tracing at stage 8**, when it is first needed.
+4. **OpenTelemetry from stage 1** — the industry standard, exporters ready made.
 
 ## Decision outcome
 
-**Chosen:** Option 1. Варіант 2 змусив би читача підняти чотири контейнери, щоб побачити ReAct-цикл
-з чотирьох кроків — це відлякує рівно на тому етапі, де має бути найлегше. Варіант 3 — це та сама
-помилка, у якій кається стаття 6, повторена свідомо. Варіант 4 накладає на новачка модель
-span/context propagation до того, як він зрозумів, що таке крок агента.
+**Chosen:** Option 1. Option 2 would make the reader bring up four containers to watch a
+four-step ReAct loop — off-putting at exactly the stage that should be the easiest. Option 3 is
+the very mistake practitioners regret, repeated deliberately. Option 4 imposes the
+span/context-propagation model on a newcomer before they understand what an agent step is.
 
 ## Consequences
 
 **Positive**
-- Етап 8 не переписує жодного попереднього етапу — дані вже накопичені.
-- Читач бачить трейс на етапі 1, маючи лише Python і текстовий редактор.
-- Той самий виклик `trace.step(...)` працює локально й у проді — змінюється тільки стік (ADR-0002).
+- Stage 8 rewrites none of the earlier stages — the data is already there.
+- The reader sees a trace at stage 1 with nothing but Python and a text editor.
+- The same `trace.step(...)` call works locally and in production; only the sink changes
+  (ADR-0002).
 
 **Negative**
-- Власний формат треба мапити на модель Langfuse (trace → observation) — це реальна робота
-  на етапі 6, і мапінг може виявитись неточним для вкладених викликів.
-- Ще один самописний компонент на підтримці.
+- Our format has to be mapped onto Langfuse's model (trace → observation) — real work at stage 6,
+  and the mapping may turn out imprecise for nested calls.
+- One more hand-written component to maintain.
 
 **Neutral**
-- OpenTelemetry можна додати **третім стоком** за тим самим інтерфейсом, якщо репозиторій
-  колись інтегруватимуть у наявну обсервабельність.
-- Формат JSONL навмисне простий: один рядок = один крок. Якщо знадобиться вкладеність глибше
-  двох рівнів, формат доведеться переглянути.
+- OpenTelemetry can be added as a **third sink** behind the same interface, if the repository is
+  ever integrated into existing observability.
+- The JSONL format is deliberately plain: one line, one step. Anything deeper than two levels of
+  nesting would force a revision.
 
 ## Links
 
-- Спека: [[../../planning/2026-08-22-agentic-ai-course-design.md]] §5.2, §8.3
-- Карта архітектури: [[../architecture-map.md]] §Conventions, §Datastores
-- Стаття-джерело: [[../06-i-built-a-multi-connector-ai-platform-on-a-single-vm-heres-the-real-architecture.md]]
-- Пов'язані ADR: [[0002-profile-switched-adapters]], [[0006-assert-checks-over-test-framework]]
+- Spec: [[../../planning/2026-08-22-agentic-ai-course-design.md]] §5.2, §8.3
+- Architecture map: [[../architecture-map.md]] §Conventions, §Datastores
+- Related ADRs: [[0002-profile-switched-adapters]], [[0006-assert-checks-over-test-framework]]

@@ -1,65 +1,69 @@
 ---
 status: Accepted
-owner: "Власник репозиторію"
+owner: "Repository owner"
 reviewers: []
 updated_at: "2026-08-22"
-feature_size: "n/a (фундаментальне рішення репозиторію)"
+feature_size: "n/a (foundational decision for the repository)"
 ticket: "n/a"
 ---
 
-# 0001 — Тримати всі етапи в одному інсталюваному Python-пакеті з extras на етап
+# 0001 — Keep every stage in one installable Python package with per-stage extras
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
-- **Deciders:** власник репозиторію
+- **Deciders:** repository owner
 
 ## Context
 
-Репозиторій містить 10 навчальних етапів і два деплойних сервіси (етапи 6 і 10). Етап 10 має
-**імпортувати** зрілі модулі етапів 1–9, а не копіювати їх — це і є урок про різницю між
-навчальним і продакшн-кодом. Водночас частина етапів тягне важкі залежності (LangGraph, CrewAI,
-Google ADK, `faster-whisper`), яких не повинен ставити читач, що дійшов лише до етапу 2.
+The repository holds ten teaching stages and two deployable services (stages 6 and 10). Stage 10
+has to **import** the mature modules of stages 1–9 rather than copy them — that is the lesson
+about the difference between teaching code and production code. At the same time, some stages
+pull heavy dependencies (LangGraph, CrewAI, Google ADK, `faster-whisper`) that a reader who has
+only reached stage 2 should not have to install.
 
 ## Decision drivers
 
-- Етапи мають бути самодостатніми: читач може почати з етапу 5, не проходячи 1–4 (спека §5.4).
-- Етап 10 імпортує, а не дублює (спека §5.4).
-- Важкі залежності не мають ставитись усім (карта: Constraints — читач не має платити й чекати).
-- Один спосіб запуску для всіх етапів: `python -m stages.sNN_slug.run`.
+- Stages have to be self-contained: a reader can start at stage 5 without doing 1–4 (spec §5.4).
+- Stage 10 imports rather than duplicates (spec §5.4).
+- Heavy dependencies must not be installed for everyone (map: Constraints — the reader should
+  neither pay nor wait).
+- One way to run every stage: `python -m stages.sNN_slug.run`.
 
 ## Considered options
 
-1. **Один пакет + optional-dependencies на етап** — `pip install -e .[s09]` ставить лише те, що треба.
-2. **Окремий `requirements.txt` у кожній папці етапу** — очевидніше для новачка, але імпорт між
-   етапами не працює без ручного `sys.path`, і етап 10 змушений копіювати код.
-3. **Монорепо з кількох незалежних пакетів** — коректно інженерно, але кожен етап треба
-   встановлювати окремо; поріг входу зростає без користі для навчання.
+1. **One package plus optional-dependencies per stage** — `pip install -e .[s09]` installs only
+   what is needed.
+2. **A separate `requirements.txt` in each stage directory** — more obvious to a newcomer, but
+   imports between stages do not work without hand-edited `sys.path`, and stage 10 is forced to
+   copy code.
+3. **A monorepo of several independent packages** — correct engineering, but every stage has to
+   be installed separately; the barrier to entry rises with no teaching benefit.
 
 ## Decision outcome
 
-**Chosen:** Option 1. Лише він одночасно дає працюючий імпорт між етапами (умова для етапу 10) і
-вибіркове встановлення важких залежностей. Варіант 2 виглядає простішим рівно доти, доки не
-доходиш до capstone — там він змушує до копіювання, тобто до саме тієї помилки, від якої курс
-відмовляє.
+**Chosen:** Option 1. Only it gives both working imports between stages (the condition for stage
+10) and selective installation of heavy dependencies. Option 2 looks simpler right up until the
+capstone, where it forces copying — precisely the mistake the course argues against.
 
 ## Consequences
 
 **Positive**
-- `python -m stages.s01_agent_loop.run` працює однаково для всіх етапів.
-- Етап 10 робить `from stages.s03_router import ...` — без хаків із шляхами.
-- Читач ставить лише потрібне: `pip install -e .[s09]` для етапу 9.
+- `python -m stages.s01_agent_loop.run` works identically for every stage.
+- Stage 10 does `from stages.s03_router import ...`, with no path hacks.
+- The reader installs only what they need: `pip install -e .[s09]` for stage 9.
 
 **Negative**
-- Читач одразу стикається з синтаксисом extras — це трохи більше, ніж `pip install -r`.
-  Пом'якшується тим, що `SETUP.md` дає готову команду на кожен етап.
-- `pyproject.toml` стає центральним файлом, який змінюється майже щоетапу.
+- The reader meets extras syntax immediately — slightly more than `pip install -r`. Mitigated by
+  `SETUP.md` giving a ready command per stage.
+- `pyproject.toml` becomes a central file that changes almost every stage.
 
 **Neutral**
-- Перехід на `uv` або `poetry` пізніше не змінює структуру — лише інструмент установки.
-- Якщо етапів стане більше, extras множаться; при ~20 варто перейти на групи залежностей.
+- Moving to `uv` or `poetry` later changes nothing structural — only the install tool.
+- With more stages the extras multiply; at around twenty it becomes worth moving to dependency
+  groups.
 
 ## Links
 
-- Спека: [[../../planning/2026-08-22-agentic-ai-course-design.md]] §5.4, §7
-- Карта архітектури: [[../architecture-map.md]] §Stack
-- Пов'язані ADR: [[0002-profile-switched-adapters]]
+- Spec: [[../../planning/2026-08-22-agentic-ai-course-design.md]] §5.4, §7
+- Architecture map: [[../architecture-map.md]] §Stack
+- Related ADRs: [[0002-profile-switched-adapters]]
