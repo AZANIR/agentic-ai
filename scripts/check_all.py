@@ -143,7 +143,32 @@ def _echo_unverified(output: str) -> None:
 # перевірка, чиє число зміряне на 3.14, мовчить на 3.13 і навпаки. Тому `--strict-
 # unverified` призначений для тієї роботи, а не для щоденного локального прогону —
 # і саме тому скарга друкує готовий блок, а не просто «не збіглося».
-ALLOWED_UNVERIFIED: dict[str, dict[str, str]] = {}
+ALLOWED_UNVERIFIED: dict[str, dict[str, str]] = {
+    "stages.s08_eval.check": {
+        "крос-контекст: читаємо трейси етапів, не змінюючи жодного етапу (AC-02)": (
+            "traces/ is empty in the extras job; the check needs a prior stage run"
+        ),
+    },
+    "stages.s09_frameworks.check": {
+        "контракт: усі реалізації виконують ту саму задачу, і це доводиться прогоном (AC-02)": (
+            "s09 extras are not installed here (CrewAI shim is broken); the flag stays off"
+        ),
+        "FAILURE · межа: жодна реалізація не створює власного клієнта (AC-11)": (
+            "s09 extras are not installed here (CrewAI shim is broken); the flag stays off"
+        ),
+        "FAILURE · урок: числа таблиці обчислені, а не набрані руками": (
+            "the lesson's numbers were measured on Python 3.14, this job is 3.13"
+        ),
+    },
+    "stages.s10_capstone.check": {
+        "FAILURE · навантаження: без інструмента — третій стан (AC-08b)": (
+            "no load tool in extras; locust is not installed, latency numbers stay local"
+        ),
+        "FAILURE · деплой: прогін проти справжнього HTTPS — третій стан (AC-13c)": (
+            "a run against real HTTPS needs a live machine; offline green would mean unverified"
+        ),
+    },
+}
 
 _UNVERIFIED_HEAD = re.compile(r"\d+ перевірок пройшли, \d+ НЕ ПЕРЕВІРЕНО:")
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
