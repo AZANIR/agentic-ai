@@ -99,168 +99,178 @@ is concrete, and a missing requirement is silent.
 Each one is **Fix** / **Defer** (owner plus due date in §8 of the spec) / **Not an issue**
 (with the reason). No open stage-1 finding ships.
 
-## 5. Уроки, які вже коштували помилок
+## 5. Lessons already paid for in mistakes
 
-Кожен — із реальної події на етапах 1–3. Перечитувати перед кожним етапом.
+Each one comes from a real event on stages 1–3. Re-read them before every stage.
 
-### Прочитаний файл не доводить, що він запускається
+### A file that has been read is not proof that it runs
 
-Два незалежні рев'юери в чистому контексті прочитали `ws.py`, простежили критерій до рядка й
-описали, що там відбувається. Живий режим при цьому не працював **жодного разу з дня
-написання**: `from __future__ import annotations` робив анотацію сокета рядком, тип
-імпортувався всередині фабрики, і FastAPI, не розвʼязавши імені, вважав сокет query-параметром.
-Кожне зʼєднання закривалося ще до `accept()`.
+Two independent reviewers in clean context read `ws.py`, traced the criterion to its line, and
+described what happens there. Live mode had meanwhile not worked **once since the day it was
+written**: `from __future__ import annotations` turned the socket annotation into a string, the
+type was imported inside a factory, and FastAPI, unable to resolve the name, treated the socket
+as a query parameter. Every connection closed before `accept()`.
 
-Знайшов це перший запуск, через хвилину після того, як обидва рев'ю завершились.
+The first run found it, a minute after both reviews finished.
 
-Причина, з якої не знайшли раніше: **усі перевірки цього модуля читали його як текст.** Так
-було зроблено навмисно й правильно — щоб набір не тягнув веб-фреймворк на базовій установці. І
-саме через це модуль не виконувався ніде, включно з CI.
+Why nobody found it earlier: **every check for that module read it as text.** That was done
+deliberately and correctly, so the suite would not drag a web framework into the base install.
+And precisely because of it, the module executed nowhere, CI included.
 
-**Правило:** якщо перевірки модуля лише **читають** його, потрібна щонайменше одна, яка його
-**виконує**. Немає опційного пакета — `НЕ ПЕРЕВІРЕНО`, а в роботі з extras спрацьовує правило
-«нічого не лишається неперевіреним». Читання доводить намір, запуск доводить факт.
+**Rule:** if a module's checks only **read** it, at least one has to **run** it. No optional
+package — `NOT EVALUATED`, and the extras job then applies the "nothing is left unverified"
+rule. Reading proves intent; running proves fact.
 
-### Інваріант із двох доданків там, де учасників троє, лишається зеленим і бреше
+### An invariant with two terms where there are three participants stays green and lies
 
-«Сума кроків дорівнює загальному часу» — правда, доки конвеєр володіє часом одноосібно. Щойно
-фрагменти забирає споживач у своєму темпі, його пауза мовчки лягає на **наступний** крок.
-Заміряно: модель, що спала 750 мс, показувала 2750; сума при цьому сходилась ідеально.
+"The sum of the steps equals the total time" is true while the pipeline owns the clock alone.
+The moment a consumer takes fragments at its own pace, its pause lands silently on the **next**
+step. Measured: a model that slept 750 ms reported 2750, and the sum still added up perfectly.
 
-Найдорожчим кроком ставав той, після якого найдовше думав браузер, — і саме його читач пішов
-би оптимізувати.
+The most expensive step became whichever one the browser happened to think after — and that is
+exactly the one a reader would go and optimise.
 
-**Правило:** інваріант суми має називати **всіх** власників часу, і залишок «не приписане
-нікому» перевірятись окремо на нуль. Плюс дзеркальна половина: не лише «сума сходиться», а й
-«ця частина дорівнює тому, скільки працював саме цей учасник». Без другої половини закон
-збереження задовольняється й тоді, коли чужий час записали на когось конкретного.
+**Rule:** a sum invariant has to name **every** owner of time, and the remainder "attributed to
+nobody" has to be checked separately against zero. Plus the mirror half: not only "the sum adds
+up" but "this share equals how long that participant actually worked". Without the second half,
+conservation is satisfied even when someone else's time was booked to a named step.
 
-**Побічно:** `total` не можна обчислювати як суму частин — інакше закон стає тотожністю й
-перестає ловити крок, який забули поміряти.
+**Aside:** `total` must not be computed as the sum of its parts — that turns the law into an
+identity and it stops catching a step nobody measured.
 
-### Гранична арифметика перевіряється на кількох розмірах входу, не на одному
+### Boundary arithmetic is checked across several input sizes, not one
 
-p95 брався як `round(0.95·n)` замість `ceil(0.95·n)`. На ста прогонах ці формули збігаються — і
-перевірка стояла рівно на ста. На тридцяти p95 випадав на найшвидший прогін при 6.7 % гірших
-за нього, а `tail_ratio` ставав меншим за одиницю: «хвоста немає». Розходяться вони на 95 із
-перших 200 розмірів вибірки.
+p95 was taken as `round(0.95·n)` instead of `ceil(0.95·n)`. At a hundred runs the two formulas
+agree — and the check stood at exactly a hundred. At thirty, p95 landed on the fastest run with
+6.7 % worse than it, and `tail_ratio` dropped below one: "there is no tail". They disagree on 95
+of the first 200 sample sizes.
 
-**Правило:** перевірка формули з `round`, `ceil`, `//` або зрізом ганяє **перелік** розмірів,
-а не один. Один розмір — це одна щаслива точка, і вона майже завжди щаслива, бо її обрали,
-дивлячись на код.
+**Rule:** a check on a formula using `round`, `ceil`, `//` or a slice runs a **list** of sizes,
+not one. A single size is one happy point, and it is almost always happy, because it was chosen
+while looking at the code.
 
-### Інструкція, що карає за послух, гірша за її відсутність
+### An instruction that punishes obedience is worse than no instruction
 
-`pip install -e ".[voice]"`, а наступним рядком — `uvicorn ...`. Extra `voice` містив ваги
-моделей і жодного веб-пакета. Читач, який **не** встановив нічого, бачив ввічливе повідомлення
-«встанови ось це»; читач, який встановив, отримував `command not found`, а до того —
-`ModuleNotFoundError` з файлу, якого в репозиторії не існувало взагалі.
+`pip install -e ".[voice]"`, and on the next line `uvicorn ...`. The `voice` extra held model
+weights and no web package at all. A reader who installed **nothing** got a polite "install
+this" message; a reader who installed it got `command not found`, and before that a
+`ModuleNotFoundError` from a file that did not exist in the repository.
 
-Той самий клас: задокументована команда `uvicorn ...:create_app --factory` піднімала
-**підроблений** режим, бо `--factory` не вміє передавати аргументів.
+Same class: the documented `uvicorn ...:create_app --factory` brought up the **fake** mode,
+because `--factory` cannot pass arguments.
 
-**Правило:** команди з уроку звіряються з маніфестом перевіркою — названий extra існує й
-приносить те, що кличе наступний рядок; названа фабрика вмикає той режим, про який каже проза.
+**Rule:** commands quoted in a lesson are checked against the manifest — the named extra exists
+and brings what the next line calls; the named factory enables the mode the prose claims.
 
-### «Підробка не може дати X за побудовою» — це чеснота, а не виправдання
+### "The fake cannot produce X by construction" is a virtue, not an excuse
 
-Критерій вимагав «сто прогонів **із розкидом затримок**». Підроблений годинник розкиду не дає —
-у цьому вся його цінність. Тому розподіл набирався літералами, а демо друкувало «прогонів:
-100» для списку, набраного руками, на етапі з тезою «оптимізувати можна лише те, що виміряно».
+The criterion demanded "a hundred runs **with a spread of latencies**". A fake clock produces no
+spread — that is its whole value. So the distribution was typed in as literals, and the demo
+printed "runs: 100" for a hand-written list, on a stage whose thesis is that only what is
+measured can be optimised.
 
-Вихід не в тому, щоб зробити годинник недетермінованим, і не в тому, щоб переписати критерій.
-Розкид треба внести **іншим шаром**: затримка моделі стала чистою функцією номера прогону.
-Сто справжніх прогонів, справжній хвіст, і повторний прогін дає ті самі сто чисел.
+The way out is neither to make the clock non-deterministic nor to rewrite the criterion. The
+spread belongs in **another layer**: the model's delay became a pure function of the run number.
+A hundred real runs, a real tail, and a repeat run gives the same hundred numbers.
 
-**Правило:** коли «Given» не настає через властивість підробки, шукай шар, де цю властивість
-можна внести детерміновано. Літерали в тесті задовольняють «Then» і не задовольняють «Given» —
-а перевіряють зазвичай саме «Then».
+**Rule:** when the "Given" cannot occur because of a property of the fake, look for the layer
+where that property can be introduced deterministically. Literals in a test satisfy the "Then"
+and not the "Given" — and it is usually the "Then" that gets checked.
 
-**Побічно:** хвіст із одного ярусу робить p95 рівним найгіршому. Два яруси — і різниця між
-«майже найгірший» і «найгірший» знову видима.
+**Aside:** a tail made of one tier makes p95 equal to the worst case. Two tiers, and the
+difference between "almost worst" and "worst" is visible again.
 
-### Мутаційний тест доводить, що тест реагує — не що він реагує **на те**
+### A mutation test proves the test reacts — not that it reacts **to that**
 
-Я вимкнув гейт, побачив червоне й оголосив доказ. Насправді перевірка падала з
-`FakeLLMError: сценарій вичерпано` — до ассерту вона не доходила. Тест із правильним вердиктом
-і хибною причиною **проходить мутаційну перевірку**, тобто виглядає надійним рівно за тим
-критерієм, яким його перевіряють.
+I disabled the gate, saw red, and declared it proven. In fact the check was failing with
+`FakeLLMError: script exhausted` — it never reached the assertion. A test with the right verdict
+and the wrong cause **passes mutation testing**, which means it looks reliable by exactly the
+criterion used to judge it.
 
-**Правило:** після мутації читати **причину** падіння, а не лише факт. Якщо це не `AssertionError`
-з осмисленим текстом — тест не доводить того, що ти думаєш.
+**Rule:** after a mutation, read the **cause** of the failure, not only the fact of it. If it is
+not an `AssertionError` with meaningful text, the test does not prove what you think.
 
-**Побічно:** сценарій підробки має містити крок **після** того, що перевіряється. Інакше
-вимкнений захист веде до вичерпання сценарію замість спрацювання ассерту.
+**Aside:** the fake's script has to contain a step **after** the one being checked. Otherwise a
+disabled guard leads to an exhausted script instead of a fired assertion.
 
-### Дефолти на межі довіри — тільки fail-closed
+### Defaults at a trust boundary are fail-closed only
 
-Перевірка невідомих полів працювала лише коли автор схеми не забув `additionalProperties: false`.
-Три наші інструменти його мали, тож ніщо не червоніло — а вправа просить читача додати четвертий.
+The unknown-field check worked only when the schema's author remembered
+`additionalProperties: false`. All three of our tools had it, so nothing went red — and the
+exercise asks the reader to add a fourth.
 
-**Правило:** захист, що працює лише при увімкненні, — це домовленість, а не межа довіри.
+**Rule:** a guard that works only when switched on is an understanding, not a trust boundary.
 
-### Резервна копія — поза системою, яку переписуєш
+### A backup lives outside the system you are rewriting
 
-Перед `git filter-branch` я зробив `git tag backup-before-rewrite`. `filter-branch` слухняно
-переписав **сам тег**, і локальні копії статей зникли безповоротно.
+Before `git filter-branch` I made `git tag backup-before-rewrite`. `filter-branch` dutifully
+rewrote **the tag itself**, and the local copies of the articles were gone for good.
 
-**Правило:** `cp -r` в теку поза репозиторієм **до** першої руйнівної команди. Резерв усередині
-того, що переписуєш, — не резерв.
+**Rule:** `cp -r` into a directory outside the repository **before** the first destructive
+command. A backup inside the thing you are rewriting is not a backup.
 
-**Побічно:** `filter-branch` лишає оригінали в `refs/original/`, і `git rev-list --all` їх бачить.
-Без `update-ref -d` + `gc --prune=now` вони поїхали б у push.
+**Aside:** `filter-branch` leaves the originals in `refs/original/`, and `git rev-list --all`
+still sees them. Without `update-ref -d` plus `gc --prune=now` they would have gone out in the
+push.
 
-### `ruff format` переписує код усередині markdown
+### `ruff format` rewrites code inside markdown
 
-Фрагмент `description="x",` він перетворює на `description = ("x",)` — ізольовано це справді
-валідний Python (присвоєння кортежу). Урок, повний фрагментів, — це проза, не код на компіляцію.
+It turns the fragment `description="x",` into `description = ("x",)` — in isolation that really
+is valid Python (a tuple assignment). A lesson full of fragments is prose, not code for the
+compiler.
 
-**Правило:** `extend-exclude = ["*.md"]` у `[tool.ruff]`. Уже зроблено.
+**Rule:** `extend-exclude = ["*.md"]` in `[tool.ruff]`. Already done.
 
-### `localhost` резолвиться спершу в IPv6
+### `localhost` resolves to IPv6 first
 
-Docker публікує порт лише на IPv4. Заміряно: IPv4 підключається за 26 мс, IPv6 відмовляє за 2041 мс.
+Docker publishes the port on IPv4 only. Measured: IPv4 connects in 26 ms, IPv6 refuses after
+2041 ms.
 
-**Правило:** `127.0.0.1` у всіх рядках підключення + `connect_timeout` у конекторі.
+**Rule:** `127.0.0.1` in every connection string, plus a `connect_timeout` in the connector.
 
-### Евристики в тестах ламаються об українську
+### Heuristics in tests break on inflected languages
 
-Двічі поспіль: `"Київ" in weather` (мова відмінює — «у Києві») і `"'" not in reason` як
-індикатор дампу структури («обов'язкових» містить апостроф).
+Twice in a row: `"Kyiv" in weather` (the language inflects — "in Kyiv" becomes a different word
+form) and `"'" not in reason` as an indicator of a dumped structure (the word for "required"
+contains an apostrophe).
 
-**Правило:** перевіряти те, що справді має значення (вміст, дужки структури, конкретні поля),
-а не непрямий признак, який випадково корелював.
+**Rule:** check what actually matters — the content, the structural brackets, the specific
+fields — rather than an indirect sign that happened to correlate.
 
-### Числа у прозі виводяться з коду, а не пишуться
+### Numbers in prose are derived from code, not typed
 
-У чернетці статті я показав виклик трейсу коротшим, ніж він є. Дефект жив 4 хвилини — до
-першої автоматичної звірки сніпета проти файлу.
+In an article draft I showed the trace call shorter than it is. The defect lived four minutes,
+until the first automatic check of the snippet against the file.
 
-**Правило:** кожне число і кожен фрагмент у статті звіряється скриптом проти репозиторію.
-Шаблон звірки — у §8.
+**Rule:** every number and every fragment in an article is verified by script against the
+repository. The verification is in §8.
 
-### Ліміт рядків уперся — винось модуль, не роздувай ліміт
+### When the line budget is reached, extract a module rather than raise the budget
 
-`loop.py` був на 116/120, і виправлення рев'ю додавали ~13 рядків. Мітигація була записана в
-`sad.md` §11 **заздалегідь** — гейт виїхав у `gate.py`, ліміт лишився цілим.
+`loop.py` stood at 116/120, and the review fixes added about 13 lines. The mitigation was
+written into `sad.md` §11 **in advance** — the gate moved out into `gate.py` and the budget
+stayed intact.
 
-**Правило:** ризик із заздалегідь прописаною мітигацією — це не аварія, а спрацювання плану.
+**Rule:** a risk with a mitigation written down beforehand is not an emergency; it is the plan
+working.
 
-### Тест на «погане не сталося» ніколи не замінює тесту на «хороше сталося»
+### A test that "the bad thing did not happen" never replaces a test that "the good thing did"
 
-Етап 2. Фільтр доступу мусить стояти **до** відбору top-k. Постав його після — внутрішній
-документ займе слот, потім його приберуть, і питальник отримає «нічого не знайдено» замість
-правильної відповіді, яка була третьою.
+Stage 2. The access filter has to sit **before** the top-k selection. Put it after, and an
+internal document takes a slot, gets removed afterwards, and the asker receives "nothing found"
+instead of the correct answer that was ranked third.
 
-**Витоку немає. Перевірка на витік лишається зеленою.** Зникає дозволена відповідь — а на це
-перевірки не було, поки я її не написав окремо.
+**Nothing leaked. The leak check stays green.** What disappears is the permitted answer — and
+there was no check for that until I wrote one separately.
 
-Той самий провал повторився вдруге в тому самому етапі, іншим механізмом: зняття
-`partial(search_knowledge_base, access=access)` не дає витоку (дефолт `PUBLIC` — fail-safe),
-зате оператор перестає бачити те, що йому можна. Знову жодна перевірка на витік не спрацювала.
+The same failure recurred within the same stage by a different mechanism: dropping
+`partial(search_knowledge_base, access=access)` causes no leak (the `PUBLIC` default is
+fail-safe), but the operator stops seeing what they are allowed to see. Again no leak check
+fired.
 
-**Правило:** до кожної перевірки «заборонене не пройшло» писати дзеркальну — «дозволене
-дійшло». Це різні твердження, і покриття одного дає хибне відчуття, що покрито обидва.
+**Rule:** for every "the forbidden thing did not get through" check, write its mirror — "the
+permitted thing arrived". These are different claims, and covering one gives a false sense that
+both are covered.
 
 ### Видимість дефекту може залежати від параметра, який до дефекту стосунку не має
 
