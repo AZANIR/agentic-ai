@@ -103,7 +103,7 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Install with per-stage extras
-        run: pip install -e ".[dev,s03,s04,s06,s07]"
+        run: pip install -e ".[dev,s03,s04,s06,s07,s09,adk]"
 
       - name: Migrate
         env:

@@ -43,3 +43,6 @@ deploy/.env.prod
 
 # uv is not used by this project: pip plus pyproject. `uv run` leaves this behind.
 uv.lock
+
+# scripts/mutate.py writes this while a mutation is applied; a crash can leave it behind
+.mutation-in-progress
