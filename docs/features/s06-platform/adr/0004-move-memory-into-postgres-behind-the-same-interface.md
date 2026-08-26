@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0004 — Памʼять переїжджає в Postgres за тим самим інтерфейсом
+# 0004 — Move memory into Postgres behind the same interface
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -15,66 +15,68 @@ ticket: "n/a"
 
 ## Context
 
-Етап 5 зберігає факти у файлі JSONL і прямо обіцяє: «етап 6 замінить сховище тим самим
-інтерфейсом — і саме тому інтерфейс тут вузький».
+Stage 5 keeps facts in a JSONL file and promises outright: "stage 6 will replace the store behind
+the same interface — and that is exactly why the interface here is narrow".
 
-Настав момент перевірити цю обіцянку. Якщо для переїзду доводиться правити `long_term.py`,
-значить інтерфейс не був вузьким, і обіцянка етапу 5 була прикрасою.
+The moment to test that promise has come. If the move requires editing `long_term.py`, then the
+interface was not narrow, and stage 5's promise was decoration.
 
 ## Decision drivers
 
-- Файл не переживає двох процесів: два одночасні записи втрачають дані.
-- AC-10 вимагає, щоб памʼять пережила перезапуск контейнера.
-- C-1 забороняє правити етапи 1–5.
-- Обіцянка, дана на попередньому етапі, — це борг, а не побажання.
+- A file does not survive two processes: two simultaneous writes lose data.
+- AC-10 requires memory to survive a container restart.
+- C-1 forbids editing stages 1–5.
+- A promise made at an earlier stage is a debt, not a wish.
 
 ## Considered options
 
-1. **Друга реалізація з тими самими методами**, яку обирає фабрика `shared/`; етап 5 і
-   його перевірки лишаються недоторканими й далі працюють із файлом.
-2. **Файл на змонтованому томі** — переживає перезапуск, не переживає два процеси.
-3. **Переписати `long_term.py`** під базу.
-4. **Винести інтерфейс у `Protocol`** і навчити `Memory` приймати сховище — тобто
-   правка етапу 5.
+1. **A second implementation with the same methods**, chosen by the factory in `shared/`; stage 5
+   and its checks stay untouched and go on working with the file.
+2. **A file on a mounted volume** — survives a restart, does not survive two processes.
+3. **Rewrite `long_term.py`** for the database.
+4. **Extract the interface into a `Protocol`** and teach `Memory` to accept a store — that is, an
+   edit to stage 5.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 задовольняє AC-10 буквально й лишає втрату даних при двох воркерах — тобто ту
-саму пастку, від якої етап застерігає у двох інших місцях.
+Option 2 satisfies AC-10 literally and leaves the data loss with two workers in place — that is,
+the very trap the stage warns about in two other places.
 
-Option 3 порушує C-1 і знецінює етап 5: якщо інтерфейс доводиться переписувати, читач має
-право спитати, навіщо його називали вузьким.
+Option 3 breaks C-1 and devalues stage 5: if the interface has to be rewritten, the reader is
+entitled to ask why it was ever called narrow.
 
-Option 4 — найчистіша інженерно й відхилена свідомо: вона правит етап 5, тобто порушує C-1,
-і робить це заради властивості, якої етап 5 не використовує.
+Option 4 is the cleanest engineering and is rejected deliberately: it edits stage 5, which breaks
+C-1, and it does so for a property stage 5 does not use.
 
-**Обіцянку етапу 5 виконано наполовину, і це записано тут, а не замовчано.** Етап 5 писав:
-«етап 6 замінить сховище тим самим інтерфейсом — і саме тому інтерфейс тут вузький».
-Вузьким виявився **набір методів**: `all_facts`, `remember`, `context_for` — цього справді
-досить, щоб написати другу реалізацію й підставити її в сервіс.
+**Stage 5's promise is half kept, and that is recorded here rather than passed over in silence.**
+Stage 5 wrote: "stage 6 will replace the store behind the same interface — and that is exactly why
+the interface here is narrow". What turned out to be narrow was the **set of methods**:
+`all_facts`, `remember`, `context_for` — that really is enough to write a second implementation and
+drop it into the service.
 
-Але `Memory` — конкретний клас, що приймає `Path`, а не сховище; його перевірки будують
-`Memory(Path(tmp) / "memory.jsonl")` напряму. Тобто **підмінити реалізацію всередині етапу 5
-без правки неможливо**, і фраза «тим самим інтерфейсом» була точнішою, ніж код її
-підтверджує.
+But `Memory` is a concrete class that takes a `Path`, not a store; its checks build
+`Memory(Path(tmp) / "memory.jsonl")` directly. Which means **substituting the implementation inside
+stage 5 without editing it is impossible**, and the phrase "behind the same interface" was more
+precise than the code that backs it up.
 
-Тому перевірки етапу 5 лишаються при файлі, а контракт, спільний для двох реалізацій,
-стверджує **етап 6**: один набір тверджень, прогнаний проти обох сховищ. Це слабше за
-обіцянку й чесніше за неї.
+So stage 5's checks stay with the file, and the contract shared by the two implementations is
+asserted by **stage 6**: one set of assertions, run against both stores. That is weaker than the
+promise, and more honest than it.
 
 ## Consequences
 
 **Positive**
-- Етап 5 і його 42 перевірки не змінюються жодним рядком.
-- Памʼять переживає і перезапуск, і другий воркер.
-- Фільтр власника стає `WHERE`, тобто перестає читати чужі записи (борг ADR-0004 етапу 5).
+- Stage 5 and its 42 checks do not change by a single line.
+- Memory survives both a restart and a second worker.
+- The owner filter becomes a `WHERE`, which means it stops reading other people's records (the debt
+  from stage 5's ADR-0004).
 
 **Negative**
-- Дві реалізації сховища — дві поведінки. Контракт стверджує етап 6, і саме він червоніє,
-  коли вони розходяться.
-- Обіцянка етапу 5 виконана наполовину, і його урок доведеться уточнити: вузький **набір
-  методів** не те саме, що підмінне сховище.
-- Postgres стає обовʼязковим для профілю `prod` і недоступним частині перевірок офлайн:
-  вони позначаються `НЕ ПЕРЕВІРЕНО`, а не пропускаються мовчки.
+- Two store implementations are two behaviours. The contract is asserted by stage 6, and stage 6 is
+  what goes red when they diverge.
+- Stage 5's promise is half kept, and its lesson will have to be made precise: a narrow **set of
+  methods** is not the same thing as a swappable store.
+- Postgres becomes mandatory for the `prod` profile and unavailable to some of the checks offline:
+  those are marked `NOT EVALUATED` rather than skipped silently.

@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-23"
 feature_size: "S"
 ticket: "n/a"
 ---
 
-# 0003 — Валідувати аргументи власним кодом усередині етапу
+# 0003 — Validate arguments with hand-written code inside the stage
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -15,64 +15,69 @@ ticket: "n/a"
 
 ## Context
 
-Другий режим відмови зі статті-джерела: модель вигадує аргументи, яких інструмент не очікує.
-Між рішенням моделі й виконанням функції має стояти перевірка — це межа довіри. Питання не в
-тому, чи вона потрібна, а в тому, **чиїм кодом** вона написана і **де живе**: у самому етапі чи
-одразу в спільному шарі.
+The second failure mode from the source article: the model invents arguments the tool does not
+expect. A check has to stand between the model's decision and the function call — that is the
+line of trust. The question is not whether it is needed, but **whose code** writes it and **where
+it lives**: inside the stage itself or straight in the shared layer.
 
-Валідація знадобиться також етапам 3 і 4, тож рішення впливає не лише на етап 1.
+Validation will also be needed by stages 3 and 4, so the decision affects more than stage 1.
 
 ## Decision drivers
 
-- Прозорість механіки — квальгол №1: читач має побачити, що перевірка це його відповідальність,
-  а не поведінка бібліотеки.
-- Модуль валідації має вкладатися у ≤60 рядків виконуваного коду (spec §6).
-- Схема інструмента вже описана як звичайний словник — саме той формат, який іде до моделі.
-- Дублювання між етапами 1, 3 і 4 прийнятне: етапи навмисне самодостатні (ADR репозиторію 0002).
+- Transparent mechanics is quality goal №1: the reader has to see that the check is their own
+  responsibility, not a library's behaviour.
+- The validation module has to fit into ≤60 lines of executable code (spec §6).
+- A tool's schema is already described as an ordinary dictionary — exactly the format that goes
+  to the model.
+- Duplication between stages 1, 3 and 4 is acceptable: the stages are deliberately self-contained
+  (repository ADR 0002).
 
 ## Considered options
 
-1. **Власний код усередині етапу** — окремий модуль поруч із циклом; підйом у спільний шар
-   стає вправою на етапі 3, коли з'явиться другий споживач.
-2. **Одразу в спільному шарі `shared/`** — нуль дублювання між етапами 1, 3 і 4.
-3. **Готова бібліотека (`pydantic` або `jsonschema`)** — коротше й надійніше в продакшені.
+1. **Hand-written code inside the stage** — a separate module beside the loop; lifting it into
+   the shared layer becomes an exercise at stage 3, when a second consumer appears.
+2. **Straight into the shared layer `shared/`** — zero duplication between stages 1, 3 and 4.
+3. **An off-the-shelf library (`pydantic` or `jsonschema`)** — shorter and more reliable in
+   production.
 
 ## Decision outcome
 
-**Chosen:** Option 1. Варіант 3 замінив би десять рядків зрозумілого коду одним викликом,
-після якого читач знав би, що «валідація якось відбувається», і не знав би, що саме там
-перевіряється — на етапі, вся суть якого в тому, щоб показати механіку. Варіант 2 дав би на
-першому ж етапі виклик чужої функції замість коду перед очима, тобто ту саму ваду, лише
-всередині нашого ж репозиторію.
+**Chosen:** Option 1. Option 3 would replace ten lines of comprehensible code with a single call,
+after which the reader would know that "validation somehow happens" and would not know what
+exactly is being checked — at a stage whose entire point is to show the mechanics. Option 2 would
+put a call into somebody else's function, instead of code before your eyes, at the very first
+stage — that is, the same flaw, only inside our own repository.
 
-Дублювання тут не борг, а **дидактичний прийом**: етап 3 отримає готову вправу «винеси
-валідацію у спільний шар», яка буде осмисленою саме тому, що другий споживач уже існує.
+Duplication here is not debt but **a teaching device**: stage 3 gets a ready-made exercise, "lift
+validation into the shared layer", which is meaningful precisely because a second consumer already
+exists.
 
-**Явно вирішено:** приведення типів не виконується. Текст там, де оголошено число, — це відмова,
-а не привід здогадуватись. Мовчазне приведення сховало б помилку моделі саме там, де читач має
-її побачити.
+**Explicitly decided:** no type coercion is performed. Text where a number was declared is a
+rejection, not an invitation to guess. Silent coercion would hide the model's mistake in exactly
+the place the reader has to see it.
 
 ## Consequences
 
 **Positive**
-- Читач бачить ~40 рядків, які повністю пояснюють, що таке «перевірити аргументи».
-- Відмова валідації повертається моделі як результат кроку — цикл не падає, і це видно в коді.
-- Етап 3 отримує вправу з реальним приводом, а не штучну.
+- The reader sees ~40 lines that fully explain what "check the arguments" means.
+- A validation rejection goes back to the model as the step's result — the loop does not die, and
+  that is visible in the code.
+- Stage 3 gets an exercise with a real occasion behind it rather than an artificial one.
 
 **Negative**
-- Код валідації дублюватиметься на етапах 3 і 4 до моменту підйому. Свідомо; записано в
-  SAD §11 як прийнятий борг.
-- Власна реалізація покриває менше випадків, ніж `jsonschema`: вкладені об'єкти й масиви
-  на цьому етапі не підтримуються. Урок має назвати цю межу, інакше читач перенесе код у
-  продакшн і здивується.
+- The validation code will be duplicated at stages 3 and 4 until it is lifted. Deliberate;
+  recorded in SAD §11 as accepted debt.
+- A hand-written implementation covers fewer cases than `jsonschema`: nested objects and arrays
+  are not supported at this stage. The lesson has to name that boundary, or the reader will carry
+  the code into production and be surprised.
 
 **Neutral**
-- Перехід на бібліотеку — заміна одного модуля за тим самим інтерфейсом; на етапі 6, де
-  валідація стає межею довіри публічного ендпоінта, це стане правильним ходом.
+- Moving to a library is a swap of one module behind the same interface; at stage 6, where
+  validation becomes the line of trust of a public endpoint, that will be the right move.
 
 ## Links
 
-- Спека: [[../spec.md]] AC-03, §6 (розмір модуля валідації)
+- Spec: [[../spec.md]] AC-03, §6 (size of the validation module)
 - SAD: [[../sad.md]] §4, §5, §8, §11
-- Стаття етапу: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/three_guards_every_agent_loop_needs) — режим відмови 2
-- Пов'язані ADR: [[0001-split-stage-into-four-responsibility-modules]]
+- Stage article: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/three_guards_every_agent_loop_needs) — failure mode 2
+- Related ADRs: [[0001-split-stage-into-four-responsibility-modules]]

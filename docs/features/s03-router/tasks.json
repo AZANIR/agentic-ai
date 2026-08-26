@@ -3,101 +3,101 @@
   "tasks": [
     {
       "id": "T1",
-      "title": "Схема стану як оголошений контракт",
+      "title": "The state schema as a declared contract",
       "layer": "domain",
       "deps": [],
       "acs": ["AC-02", "AC-02b"],
-      "dod": "Читання поля, відсутнього у схемі, падає з назвою поля; лічильники передач і ревізій, path і finish_reason є полями схеми",
+      "dod": "Reading a field absent from the schema fails with the field named; the handoff and revision counters, path and finish_reason are fields of the schema",
       "files_hint": ["stages/s03_router/state.py"]
     },
     {
       "id": "T2",
-      "title": "Три спеціалісти з описами компетенцій",
+      "title": "Three specialists with descriptions of their competences",
       "layer": "domain",
       "deps": ["T1"],
       "acs": ["AC-01", "AC-05"],
-      "dod": "Спеціаліст замовлень викликає цикл етапу 1, спеціаліст знань — пошук етапу 2 з рівнем доступу зі стану, спеціаліст підрахунків рахує; кожен несе опис компетенції",
+      "dod": "The orders specialist calls the stage 1 loop, the knowledge specialist calls the stage 2 search with the access level taken from the state, the totalling specialist counts; each carries a description of its competence",
       "files_hint": ["stages/s03_router/specialists.py"]
     },
     {
       "id": "T3",
-      "title": "Граф: supervisor, маршрут, цикл ревізій",
+      "title": "The graph: the supervisor, the route, the revision loop",
       "layer": "app",
       "deps": ["T1", "T2"],
       "acs": ["AC-01", "AC-03", "AC-04", "AC-08b"],
-      "dod": "Шість запитів дають шість очікуваних маршрутів; ліміт ревізій зупиняє прогін із названою причиною; запит без компетенції не викликає спеціаліста; виняток спеціаліста стає результатом кроку. graph.py ≤80 виконуваних рядків",
+      "dod": "Six requests give six expected routes; the revision limit stops the run with the cause named; a request that belongs to no competence calls no specialist; a specialist's exception becomes the result of a step. graph.py ≤80 executable lines",
       "files_hint": ["stages/s03_router/graph.py"]
     },
     {
       "id": "T4",
-      "title": "Права доступу переживають передачу — три перевірки",
+      "title": "Access rights survive the handoff — three checks",
       "layer": "tests",
       "deps": ["T3"],
       "acs": ["AC-05", "AC-05b", "AC-05c"],
-      "dod": "Витік не відбувся, дозволена відповідь дійшла, текст запиту не підвищує рівень доступу — три окремі перевірки, кожна падає від власної мутації",
+      "dod": "Nothing leaked, the permitted answer did arrive, the text of a request does not raise the access level — three separate checks, each failing on a mutation of its own",
       "files_hint": ["stages/s03_router/check.py"]
     },
     {
       "id": "T5",
-      "title": "Чекліст «чи потрібен supervisor» кодом і прозою",
+      "title": "The \"do you need a supervisor\" checklist in code and in prose",
       "layer": "domain",
       "deps": [],
       "acs": ["AC-07"],
-      "dod": "Кожна ситуація має одну відповідь, кожне правило має ситуацію, склад закріплено перевіркою; DECISION.md генерується з коду",
+      "dod": "Every situation has one answer, every rule has a situation, the composition is pinned by a check; DECISION.md is generated from the code",
       "files_hint": ["stages/s03_router/decision.py", "stages/s03_router/DECISION.md"]
     },
     {
       "id": "T6",
-      "title": "Та сама задача на LangGraph",
+      "title": "The same task on LangGraph",
       "layer": "infra",
       "deps": ["T3"],
       "acs": ["AC-06"],
-      "dod": "Маршрути збігаються з власним графом на тих самих шести запитах; за відсутності LangGraph перевірка позначається непройденою, а не пропущеною мовчки",
+      "dod": "The routes match our own graph on the same six requests; with LangGraph absent the check is marked not passed rather than silently skipped",
       "files_hint": ["stages/s03_router/langgraph_impl.py", "pyproject.toml"]
     },
     {
       "id": "T7",
-      "title": "Демо: маршрути, ліміт, відмова, права",
+      "title": "Demo: the routes, the limit, the refusal, the rights",
       "layer": "ports",
       "deps": ["T3", "T5"],
       "acs": ["AC-01", "AC-03", "AC-04", "AC-05"],
-      "dod": "Демо показує шість маршрутів, спрацювання ліміту, відмову без спеціаліста й різницю покупця з оператором; пише трейс; іде офлайн",
+      "dod": "The demo shows six routes, the limit firing, a refusal with no specialist and the difference between a shopper and a support operator; it writes a trace; it runs offline",
       "files_hint": ["stages/s03_router/run.py"]
     },
     {
       "id": "T8",
-      "title": "Перевірки до повного покриття таблиці",
+      "title": "Checks up to full coverage of the table",
       "layer": "tests",
       "deps": ["T3", "T5", "T6", "T7"],
       "acs": ["AC-01", "AC-02", "AC-02b", "AC-03", "AC-04", "AC-06", "AC-07", "AC-08", "AC-08b"],
-      "dod": "Кожен із 12 рядків таблиці покриття має перевірку; частка режимів відмови ≥1/3; перевірка звірки чисел уроку; мутаційний прогін — кожна мутація ловиться названою перевіркою",
+      "dod": "Each of the 12 rows of the coverage table has a check; the share of failure modes is ≥1/3; a check that reconciles the lesson's numbers; a mutation run — every mutation is caught by a named check",
       "files_hint": ["stages/s03_router/check.py"]
     },
     {
       "id": "T9",
-      "title": "Урок українською й англійська карта",
+      "title": "The lesson in Ukrainian and the English map",
       "layer": "docs",
       "deps": ["T7", "T8"],
       "acs": ["AC-01", "AC-02", "AC-07"],
-      "dod": "README.md ≤2500 слів із розділом про схему стану; README.en.md — карта; числа звіряються перевіркою",
+      "dod": "README.md is ≤2500 words with a section on the state schema; README.en.md is the map; the numbers are reconciled by a check",
       "files_hint": ["stages/s03_router/README.md", "stages/s03_router/README.en.md"]
     },
     {
       "id": "T10",
-      "title": "Вправи, розв'язки, чекліст",
+      "title": "Exercises, solutions, the checklist",
       "layer": "docs",
       "deps": ["T8", "T9"],
       "acs": ["AC-08"],
-      "dod": "Кожна вправа має виміряний результат: які саме перевірки червоніють і скільки; ручний чекліст із реальним провайдером",
+      "dod": "Every exercise has a measured result: exactly which checks go red and how many; a manual checklist with a real provider",
       "files_hint": ["stages/s03_router/exercises.md", "stages/s03_router/CHECKLIST.md", "stages/s03_router/solutions/"]
     },
     {
       "id": "T11",
-      "title": "Глосарій і статуси",
+      "title": "The glossary and the statuses",
       "layer": "docs",
       "deps": ["T9"],
       "acs": ["AC-07"],
-      "dod": "Терміни етапу в GLOSSARY.md; статус етапу 3 у README.md і CURRICULUM.md; прев'ю етапу 3 прибрано з розділу «Далі»",
+      "dod": "The stage's terms in GLOSSARY.md; the stage 3 status in README.md and CURRICULUM.md; the stage 3 preview removed from the \"Next\" section",
       "files_hint": ["GLOSSARY.md", "README.md", "CURRICULUM.md"]
     }
   ]

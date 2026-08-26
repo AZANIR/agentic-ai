@@ -1,6 +1,6 @@
 ---
 status: Draft
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "S"
@@ -8,311 +8,327 @@ feature_size: "S"
 
 # Spec — s05-memory
 
-> **Glossary:** [CONTEXT](../../../CONTEXT.md) (ролі + доменні об'єкти), [GLOSSARY](../../../GLOSSARY.md) (терміни курсу)
-> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §9 (s05) · `CURRICULUM.md` · `PLAYBOOK.md` · етап 2 як джерело ембеддера · етапи 1 і 3 як споживачі · стаття-джерело #5 (Memory in AI Agents)
+> **Glossary:** [CONTEXT](../../../CONTEXT.md) (roles + domain objects), [GLOSSARY](../../../GLOSSARY.md) (course terms)
+> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §9 (s05) · `CURRICULUM.md` · `PLAYBOOK.md` · stage 2 as the source of the embedder · stages 1 and 3 as the consumers · source article #5 (Memory in AI Agents)
 
 ## 1. Context
 
-Агент етапів 1–4 забуває все між прогонами. Це не вада реалізації: модель не має стану, а
-контекст існує рівно стільки, скільки триває виклик.
+The agent of stages 1–4 forgets everything between runs. That is not a defect of the
+implementation: the model has no state, and the context exists for exactly as long as the call
+lasts.
 
-Найпоширеніша реакція — «зберігати всю історію й підсовувати її наступного разу». Вона
-працює на трьох повідомленнях і ламається на тридцяти, причому ламається **не помилкою**:
+The commonest reaction is "store the whole history and feed it back next time". It works on three
+messages and breaks on thirty — and it breaks **without an error**:
 
-> **Що більше нерелевантного в контексті, то гірша відповідь. Контекст не має обмеження на
-> дурниці — лише на токени.**
+> **The more irrelevant material there is in the context, the worse the answer. The context has
+> no limit on nonsense — only on tokens.**
 
-Це називають context rot, і саме тому етап не про «як зберегти», а про **«що не зберігати й
-чого не діставати»**.
+This is called context rot, and it is exactly why the stage is not about "how to store" but about
+**"what not to store and what not to fetch"**.
 
-Дві пам'яті з різними задачами:
+Two memories with different jobs:
 
-    короткочасна   що сказали в цій розмові; вікно + сумаризація при переповненні
-    довготривала   що варто пам'ятати назавжди; extract -> store -> retrieve
+    short-term    what was said in this conversation; a window + summarisation on overflow
+    long-term     what is worth remembering forever; extract -> store -> retrieve
 
-Обраний підхід: **спершу словник, потім семантичний пошук на ембеддері етапу 2**. Словник
-показує механіку без магії; ембеддер показує, чому «знайти релевантний факт» — це та сама
-задача, що й пошук у базі знань, і чому вона так само вміє помилятися.
+The chosen approach: **a dictionary first, then semantic search on the stage 2 embedder.** The
+dictionary shows the mechanics with no magic; the embedder shows why "find the relevant fact" is
+the same problem as searching a knowledge base, and why it is just as capable of getting it wrong.
 
-Етап додає до курсу **три уроки, яких немає в статті-джерелі**: суперечливі факти (людина
-змінила адресу — старий факт не зникає сам), TTL (факт про «зараз у дорозі» протухає, факт
-про ім'я — ні) і **асиметрія доказу**: показати, що факт зберігся, легко; показати, що
-нерелевантний факт **не** дійшов, — власне те, заради чого етап існує.
+The stage adds **three lessons that are not in the source article**: contradicting facts (a person
+changed their address — the old fact does not disappear on its own), TTL (a fact about "in transit
+right now" expires, a fact about a name does not) and **the asymmetry of proof**: showing that a
+fact was stored is easy; showing that an irrelevant fact **did not** arrive is the very thing the
+stage exists for.
 
-Ухвалено на глибині інтерв'ю `easy`: рішення зафіксовані в дизайн-специфікації курсу.
-Прийняті припущення — наприкінці §5, після плану тестів.
+Adopted at interview depth `easy`: the decisions are pinned in the course design specification.
+The assumptions taken are at the end of §5, after the test plan.
 
 ## 2. Goals
 
-- Читач може пояснити, чому «зберігати все» погіршує відповіді, а не просто витрачає токени.
-- Читач бачить, що короткочасна й довготривала пам'ять розв'язують **різні** задачі, і може
-  сказати, яка з них потрібна в конкретному випадку.
-- Читач розуміє, що вибірка з пам'яті — це та сама задача, що пошук на етапі 2, з тими самими
-  межами.
-- Читач будує перевірку на **селективність**, а не на збереження.
+- The reader can explain why "store everything" makes the answers worse rather than merely
+  spending tokens.
+- The reader sees that short-term and long-term memory solve **different** problems, and can say
+  which of them is needed in a particular case.
+- The reader understands that retrieval from memory is the same problem as the search at stage 2,
+  with the same boundaries.
+- The reader builds a check for **selectivity** rather than for storage.
 
 ## 3. Non-goals
 
-- **Не піднімаємо сховище.** Пам'ять живе у файлі; Postgres приходить на етапі 6.
-- **Не робимо пам'ять спільною між користувачами.** Один власник — одна пам'ять; ізоляція
-  між власниками є, але багатокористувацька модель — етап 6.
-- **Не вчимо модель пам'ятати.** Пам'ять — система навколо моделі, і в цьому теза етапу.
-- **Не будуємо графів знань.** Факт — плаский запис; зв'язки між фактами свідомо поза межами.
-- **Не оптимізуємо вибірку.** Реранкери й гібридний пошук мають сенс після вимірювання —
-  етап 8.
+- **We are not bringing up a datastore.** Memory lives in a file; Postgres arrives at stage 6.
+- **We are not making memory shared between users.** One owner, one memory; isolation between
+  owners exists, but the multi-user model is stage 6.
+- **We are not teaching the model to remember.** Memory is a system around the model, and that is
+  the stage's thesis.
+- **We are not building knowledge graphs.** A fact is a flat record; relationships between facts
+  are deliberately out of scope.
+- **We are not optimising retrieval.** Rerankers and hybrid search make sense after a measurement
+  — stage 8.
 
 ## 4. User stories
 
-### US-01: Побачити, як переповнюється вікно
+### US-01: See the window overflow
 
 **As a** Learner
-**I want** побачити розмову, яка не влазить у вікно, і що з нею робить сумаризація
-**So that** я знав, що саме втрачається, коли історію стискають
+**I want** to see a conversation that does not fit the window, and what summarisation does to it
+**So that** I know exactly what gets lost when a history is compressed
 
-### US-02: Отримати факт із попередньої сесії
-
-**As a** Learner
-**I want** сказати щось у першій сесії й побачити, що друга це знає
-**So that** механіка extract → store → retrieve перестала бути трьома словами
-
-### US-03: Переконатися, що зайве не дійшло
+### US-02: Get a fact from a previous session
 
 **As a** Learner
-**I want** побачити, що нерелевантний факт **не** потрапив у контекст
-**So that** я перевіряв селективність, а не факт збереження
+**I want** to say something in the first session and see that the second one knows it
+**So that** the extract → store → retrieve mechanic stops being three words
 
-### US-04: Побачити, що робиться зі суперечливим фактом
-
-**As a** Learner
-**I want** повідомити нову адресу й побачити, що сталося зі старою
-**So that** я не будував пам'ять, у якій живуть дві правди одночасно
-
-### US-05: Побачити, як факт протухає
+### US-03: Confirm that the superfluous did not arrive
 
 **As a** Learner
-**I want** побачити факт із терміном придатності поруч із вічним
-**So that** я не пам'ятав «зараз у дорозі» через півроку
+**I want** to see that an irrelevant fact **did not** end up in the context
+**So that** I check selectivity rather than the fact of storage
 
-### US-06: Не віддати чужу пам'ять
-
-**As a** Learner
-**I want** переконатися, що пам'ять одного власника не потрапляє іншому
-**So that** пам'ять не стала новим місцем витоку — після документів і після інструментів
-
-### US-07: Перейти зі словника на семантичний пошук
+### US-04: See what happens to a contradicting fact
 
 **As a** Learner
-**I want** увімкнути ембеддер етапу 2 й побачити, що змінилось
-**So that** я бачив, що вибірка з пам'яті — та сама задача, що пошук, із тими самими межами
+**I want** to give a new address and see what happened to the old one
+**So that** I do not build a memory in which two truths live at once
 
-### US-08: Дійти до рішення «що взагалі запам'ятовувати»
-
-**As a** Learner
-**I want** чекліст, який на конкретній репліці дає одну відповідь
-**So that** я не зберігав усе підряд і не називав це пам'яттю
-
-### US-09: Перевірити пам'ять детерміновано
+### US-05: See a fact expire
 
 **As a** Learner
-**I want** прогнати перевірки офлайн і без ключа
-**So that** я міг ламати код і бачити, що саме зламалось
+**I want** to see a fact with a shelf life next to an eternal one
+**So that** I do not remember "in transit right now" six months later
+
+### US-06: Give away nobody else's memory
+
+**As a** Learner
+**I want** to confirm that one owner's memory does not reach another
+**So that** memory does not become the new place a leak happens — after documents and after tools
+
+### US-07: Move from a dictionary to semantic search
+
+**As a** Learner
+**I want** to switch on the stage 2 embedder and see what changed
+**So that** I see that retrieval from memory is the same problem as search, with the same
+boundaries
+
+### US-08: Reach a decision on "what to remember at all"
+
+**As a** Learner
+**I want** a checklist that gives one answer for a concrete utterance
+**So that** I do not store everything indiscriminately and call it memory
+
+### US-09: Check memory deterministically
+
+**As a** Learner
+**I want** to run the checks offline and with no key
+**So that** I can break the code and see exactly what broke
 
 ## 5. Acceptance criteria
 
 ### AC-01 (US-01) — happy path
 
-**Given** розмова, довша за вікно короткочасної пам'яті
-**When** Learner запускає демо
-**Then** видно **обидва** стани поруч: що лишилось у вікні дослівно й що стало підсумком;
-кількість втрачених повідомлень названа числом, а не «частину стиснуто»
+**Given** a conversation longer than the short-term memory's window
+**When** the Learner runs the demo
+**Then** **both** states are visible side by side: what stayed in the window verbatim and what
+became the summary; the number of messages lost is named with a number, not as "part of it was
+compressed"
 
 ### AC-01b (US-01) — error
 
-**Given** розмова, яку вже стискали, і яка переповнилась удруге
-**When** сумаризація спрацьовує знову
-**Then** стискаються **нові** повідомлення, а не попередній підсумок. Підсумок підсумку —
-це втрата, яку неможливо помітити: текст лишається зв'язним і перестає бути правдою
+**Given** a conversation that has already been compressed and has overflowed a second time
+**When** summarisation fires again
+**Then** it is the **new** messages that get compressed, not the previous summary. A summary of a
+summary is a loss that cannot be noticed: the text stays coherent and stops being true
 
 ### AC-02 (US-02) — happy path
 
-**Given** факт, повідомлений у першій сесії
-**When** починається друга сесія з тим самим власником і релевантним питанням
-**Then** факт потрапляє в контекст із зазначенням, коли його запам'ятали; сесії не ділять
-жодного об'єкта в пам'яті процесу — друга читає те, що перша **записала**
+**Given** a fact given in the first session
+**When** a second session begins with the same owner and a relevant question
+**Then** the fact ends up in the context along with when it was remembered; the sessions share no
+object in process memory — the second reads what the first **wrote**
 
 ### AC-03 (US-03) — domain invariant
 
-**Given** пам'ять із кількома фактами, серед яких є нерелевантний до питання
-**When** формується контекст другої сесії
-**Then** нерелевантний факт **не потрапляє**, і причина видима: його оцінка нижча за поріг.
-Кількість узятих фактів обмежена, і межа названа
+**Given** a memory with several facts, among them one irrelevant to the question
+**When** the second session's context is assembled
+**Then** the irrelevant fact **does not end up in it**, and the reason is visible: its score is
+below the threshold. The number of facts taken is bounded, and the bound is named
 
 ### AC-04 (US-04) — error
 
-**Given** факт, який суперечить уже збереженому (нова адреса замість старої)
-**When** він зберігається
-**Then** старий факт позначається застарілим і **перестає потрапляти у вибірку**, але
-лишається у сховищі з часом заміни; у пам'яті не існує стану, де обидва факти активні
+**Given** a fact that contradicts one already stored (a new address instead of the old one)
+**When** it is stored
+**Then** the old fact is marked stale and **stops appearing in retrieval**, but stays in the
+datastore with the time of its replacement; no state exists in memory in which both facts are
+active
 
 ### AC-05 (US-05) — error
 
-**Given** факт із терміном придатності та факт без нього
-**When** термін минув
-**Then** протухлий факт не потрапляє у вибірку, вічний потрапляє; протухання видиме як
-причина, а не як зникнення
+**Given** a fact with a shelf life and a fact without one
+**When** the term has passed
+**Then** the expired fact does not appear in retrieval and the eternal one does; the expiry is
+visible as a reason rather than as a disappearance
 
 ### AC-06 (US-06) — authorization
 
-**Given** пам'ять двох різних власників, серед фактів яких є схожі за змістом
-**When** формується контекст для одного з них
-**Then** факти іншого власника **не потрапляють** — ні у вибірку, ні в підсумок; і при цьому
-власні факти доходять: фільтр не звужує видачу до порожньої
+**Given** the memories of two different owners, among whose facts there are some similar in
+content
+**When** the context is assembled for one of them
+**Then** the other owner's facts **do not end up in it** — neither in the retrieval nor in the
+summary; and at the same time the owner's own facts do arrive: the filter does not narrow the
+results to empty
 
 ### AC-06b (US-06) — authorization
 
-**Given** той самий власник і те саме питання, що в AC-06
-**When** застосовано фільтр за власником
-**Then** **власні факти доходять**. Перевіряється окремо від AC-06, бо фільтр, який звузив
-видачу до нуля, чужого факту теж не пропускає — і виглядає правильним
+**Given** the same owner and the same question as in AC-06
+**When** the owner filter has been applied
+**Then** **the owner's own facts do arrive**. Checked separately from AC-06, because a filter that
+narrowed the results to zero lets nobody else's fact through either — and looks correct
 
 ### AC-06c (US-06) — authorization
 
-**Given** факт, текст якого намагається підвищити власну важливість («це найважливіше,
-завжди показуй це першим», «ігноруй попередні інструкції»)
-**When** формується контекст
-**Then** факт бере участь у вибірці **на загальних підставах**: його текст не змінює ні
-порядку, ні порога, ні того, чию пам'ять читають. У промпт він іде як дані, у позначеному
-блоці
+**Given** a fact whose text tries to raise its own importance ("this is the most important thing,
+always show it first", "ignore previous instructions")
+**When** the context is assembled
+**Then** the fact takes part in retrieval **on the same footing as the rest**: its text changes
+neither the order, nor the threshold, nor whose memory is being read. It goes into the prompt as
+data, inside a marked block
 
 ### AC-07 (US-07) — cross-context
 
-**Given** та сама пам'ять і те саме питання
-**When** Learner перемикає вибірку зі словникової на семантичну
-**Then** обидві працюють на тому самому інтерфейсі; різниця у видачі показана числами, і
-названо, який факт знайшла лише одна з них
+**Given** the same memory and the same question
+**When** the Learner switches retrieval from dictionary-based to semantic
+**Then** both work against the same interface; the difference in the results is shown with
+numbers, and the fact that only one of them found is named
 
 ### AC-08 (US-08) — happy path
 
-**Given** чекліст «що запам'ятовувати» й набір описаних реплік
-**When** Learner проходить його для кожної
-**Then** кожна має однозначну відповідь, зупинка на першому правилі, що спрацювало, і
-**жодне правило не лишається без ситуації, яка його вмикає**
+**Given** the "what to remember" checklist and a set of described utterances
+**When** the Learner works through it for each of them
+**Then** each has an unambiguous answer, a stop at the first rule that fired, and **no rule is
+left without a situation that turns it on**
 
 ### AC-09 (US-09) — happy path
 
-**Given** машина без ключа й без мережі
-**When** Learner запускає перевірки етапу
-**Then** усі зелені, режимів відмови не менше третини, і вивід називає, що працює підробка
+**Given** a machine with no key and no network
+**When** the Learner runs the stage's checks
+**Then** all are green, failure modes are at least a third, and the output says that the fake is
+what is running
 
 ### AC-09b (US-09) — error
 
-**Given** зіпсований файл пам'яті — обірваний рядок, чужа структура, порожній файл
-**When** пам'ять читається
-**Then** зіпсовані записи названі й пропущені, решта пам'яті лишається робочою; жоден
-зіпсований запис не стає фактом із порожніми полями
+**Given** a corrupted memory file — a truncated line, a foreign structure, an empty file
+**When** the memory is read
+**Then** the corrupted records are named and skipped, and the rest of the memory stays working; no
+corrupted record becomes a fact with empty fields
 
 ## 6. Non-functional requirements
 
-| # | Вимога | Ціль | Як міряємо |
+| # | Requirement | Target | How we measure |
 |---|---|---|---|
-| NFR-1 | Розмір довготривалої пам'яті | ≤ 90 виконуваних рядків | підрахунок у перевірці |
-| NFR-2 | Розмір короткочасної | ≤ 50 виконуваних рядків | підрахунок у перевірці |
-| NFR-3 | Час уроку | ≤ 2500 слів | перевірка звірки чисел |
-| NFR-4 | Прогін перевірок | ≤ 30 с (заміряно 0.4), офлайн, без ключа | `BUDGET_SECONDS`, стелю тримає `check_all` |
-| NFR-5 | Частка режимів відмови | ≥ 1/3 перевірок етапу | лічильник у перевірці |
-| NFR-6 | Семантична вибірка необов'язкова | перевірки зелені на словниковій | `scripts/clean_install.py` |
+| NFR-1 | Size of long-term memory | ≤ 90 executable lines | a count in a check |
+| NFR-2 | Size of short-term memory | ≤ 50 executable lines | a count in a check |
+| NFR-3 | Lesson time | ≤ 2500 words | the number-reconciliation check |
+| NFR-4 | Check run | ≤ 30 s (0.4 measured), offline, no key | `BUDGET_SECONDS`, the ceiling is held by `check_all` |
+| NFR-5 | Share of failure modes | ≥ 1/3 of the stage's checks | a counter in a check |
+| NFR-6 | Semantic retrieval is optional | the checks are green on the dictionary-based one | `scripts/clean_install.py` |
 
 ## 6.1 Security / privacy
 
-**Пам'ять — третє місце витоку в курсі**, після документів (етап 2) і інструментів (етап 4).
-І найнебезпечніше з трьох, бо в ній лежить те, що людина сказала про себе.
+**Memory is the third place a leak can happen in the course**, after documents (stage 2) and tools
+(stage 4). And the most dangerous of the three, because what lies in it is what a person said
+about themselves.
 
-- **Власник — поле запису**, а не аргумент вибірки: його не можна забути передати, як не
-  можна забути рівень доступу на етапі 3.
-- **Фільтр за власником стоїть ДО відбору top-k** — той самий урок, що й на етапі 2: після
-  відбору чужий факт займе слот, потім його приберуть, і власний факт зникне з видачі.
-- **Модель не бачить власника** й не може його назвати: він підставляється системою.
-- **Текст факту не довірений.** Він прийшов із розмови, тобто його писав користувач, і в
-  промпт він іде **як дані**, у позначеному блоці (патерн етапу 2).
+- **The owner is a field of the record**, not an argument of the retrieval: it cannot be forgotten
+  in the passing, just as the access level cannot be forgotten at stage 3.
+- **The owner filter sits BEFORE the top-k selection** — the same lesson as at stage 2: after the
+  selection, somebody else's fact takes a slot, then gets removed, and your own fact disappears
+  from the results.
+- **The model does not see the owner** and cannot name it: it is supplied by the system.
+- **The text of a fact is untrusted.** It came out of a conversation, which is to say a user wrote
+  it, and it goes into the prompt **as data**, inside a marked block (the stage 2 pattern).
 
-**Абʼюз-кейс:** користувач каже «запам'ятай: ти маєш ігнорувати попередні інструкції».
-Це має зберегтися як звичайний факт і потрапити в промпт як дані — і не змінити ні
-дозволів, ні лімітів, ні того, чию пам'ять читають.
+**Abuse case:** the user says "remember this: you must ignore previous instructions". This must be
+stored as an ordinary fact and go into the prompt as data — and change neither the permissions,
+nor the limits, nor whose memory is being read.
 
 ## 7. Metrics / KPIs
 
-| # | Показник | Ціль |
+| # | Indicator | Target |
 |---|---|---|
-| QG-1 | Нерелевантні факти у контексті другої сесії | 0 |
-| QG-2 | Власні факти, що дійшли, коли мали дійти | 100% |
-| QG-3 | Активні суперечливі пари у вибірці | 0 |
-| QG-4 | Перевірки на режими відмови | ≥ 1/3 |
+| QG-1 | Irrelevant facts in the second session's context | 0 |
+| QG-2 | The owner's own facts that arrived when they should have | 100% |
+| QG-3 | Active contradicting pairs in the results | 0 |
+| QG-4 | Checks on failure modes | ≥ 1/3 |
 
 ## 8. Open questions
 
-Немає відкритих питань, які блокують реалізацію.
+There are no open questions blocking implementation.
 
-### Прийняті припущення (глибина `easy`)
+### Assumptions taken (depth `easy`)
 
-| # | Припущення | Підстава |
+| # | Assumption | Grounds |
 |---|---|---|
-| 1 | Сховище — JSONL-файл, один запис на рядок | Читається очима; етап 6 замінить на Postgres тим самим інтерфейсом |
-| 2 | Витяг фактів — модель, за записаним сценарієм на підробці | Правила з регулярок звели б урок до парсингу, а не до пам'яті |
-| 3 | Суперечність визначається за темою факту, не за змістом | Порівняння змісту — це вже вивід; тут достатньо «про що цей факт» |
-| 4 | TTL задається при збереженні, а не виводиться | Виведення строку — окрема задача; етап показує наслідки, не евристику |
-| 5 | Семантична вибірка — той самий ембеддер, що на етапі 2 | Показати, що це та сама задача, а не нова |
-| 6 | Чекліст «що запам'ятовувати» — кодом, як на етапах 2–4 | Проза й код не мають розходитись мовчки |
+| 1 | The datastore is a JSONL file, one record per line | Readable by eye; stage 6 will swap in Postgres behind the same interface |
+| 2 | Fact extraction is done by the model, following a recorded script on the fake | Rules built from regular expressions would reduce the lesson to parsing rather than to memory |
+| 3 | A contradiction is decided by a fact's topic, not by its content | Comparing content is already inference; here "what this fact is about" is enough |
+| 4 | The TTL is set on storing rather than inferred | Inferring a term is a problem of its own; the stage shows the consequences, not a heuristic |
+| 5 | Semantic retrieval uses the same embedder as stage 2 | To show that this is the same problem, not a new one |
+| 6 | The "what to remember" checklist lives in code, as at stages 2–4 | Prose and code must not drift apart silently |
 
 ## Test plan
 
-Розмір S + маршрут `quick` → план живе тут.
+Size S + route `quick` → the plan lives here.
 
-**Рівні.** Зовнішньої залежності немає: файл, ембеддер і підробка локальні. `integration`
-порожній **за побудовою**; лишаються `unit` і `e2e`.
+**Levels.** There is no external dependency: the file, the embedder and the fake are all local.
+`integration` is empty **by construction**; that leaves `unit` and `e2e`.
 
-### Покриття критеріїв
+### Criteria coverage
 
-| AC | Тест | Рівень | Що доводить |
+| AC | Test | Level | What it proves |
 |---|---|---|---|
-| AC-01 | `window keeps the tail verbatim and summarises the rest` | unit | Обидва стани поруч, кількість стиснутого названа числом |
-| AC-01b | `summarising twice does not summarise the summary` | unit | **FAILURE.** Підсумок не стискається повторно до безглуздя |
-| AC-02 | `a fact from the first session reaches the second` | e2e | Друга сесія читає записане, а не спільний обʼєкт |
-| AC-03 | `an irrelevant fact does not reach the context` | unit | **FAILURE.** Головна перевірка етапу: селективність, не збереження |
-| AC-04 | `a contradicting fact retires the old one` | unit | **FAILURE.** Дві правди одночасно не існують як стан |
-| AC-05 | `an expired fact is skipped and an eternal one is not` | unit | **FAILURE.** Протухання видиме як причина |
-| AC-06 | `another owner's facts never reach the context` | unit | **FAILURE.** Витік пам'яті |
-| AC-06b | `the owner's own facts still arrive` | unit | **FAILURE.** Дзеркальна: фільтр не звузив видачу до порожньої |
-| AC-06c | `a fact cannot raise its own priority by its text` | unit | **FAILURE.** Абʼюз-кейс §6.1 |
-| AC-07 | `dictionary and semantic retrieval share one interface` | unit | Різниця показана числами; названо факт, який знайшла лише одна |
-| AC-08 | `the what-to-remember checklist answers every situation` | unit | Кожна ситуація — одна відповідь; кожне правило — своя ситуація |
-| AC-09 | `checks run offline and cover failure modes` | e2e | Прогін офлайн; частка відмов ≥ 1/3 |
-| AC-09b | `a corrupted memory file does not break retrieval` | unit | **FAILURE.** Зіпсовані записи названі, решта працює |
+| AC-01 | `window keeps the tail verbatim and summarises the rest` | unit | Both states side by side, the amount compressed named with a number |
+| AC-01b | `summarising twice does not summarise the summary` | unit | **FAILURE.** The summary is not re-compressed into nonsense |
+| AC-02 | `a fact from the first session reaches the second` | e2e | The second session reads what was written, not a shared object |
+| AC-03 | `an irrelevant fact does not reach the context` | unit | **FAILURE.** The stage's main check: selectivity, not storage |
+| AC-04 | `a contradicting fact retires the old one` | unit | **FAILURE.** Two truths at once do not exist as a state |
+| AC-05 | `an expired fact is skipped and an eternal one is not` | unit | **FAILURE.** The expiry is visible as a reason |
+| AC-06 | `another owner's facts never reach the context` | unit | **FAILURE.** A memory leak |
+| AC-06b | `the owner's own facts still arrive` | unit | **FAILURE.** The mirror case: the filter did not narrow the results to empty |
+| AC-06c | `a fact cannot raise its own priority by its text` | unit | **FAILURE.** The abuse case from §6.1 |
+| AC-07 | `dictionary and semantic retrieval share one interface` | unit | The difference is shown with numbers; the fact only one of them found is named |
+| AC-08 | `the what-to-remember checklist answers every situation` | unit | Every situation gets one answer; every rule gets a situation of its own |
+| AC-09 | `checks run offline and cover failure modes` | e2e | An offline run; the share of failure modes ≥ 1/3 |
+| AC-09b | `a corrupted memory file does not break retrieval` | unit | **FAILURE.** The corrupted records are named, the rest works |
 
-**NFR-4 писався двічі, і перший раз — неправильно.** Стояло «≤ 5 с», заміряно 0.25 —
-чесне число, яке **нічого не тримало**: стелю перевіряє константа `BUDGET_SECONDS` у
-самому модулі, і вона від початку стояла на 30. Тобто в документі було одне число, у
-коді інше, а червоніло третє.
+**NFR-4 was written twice, and the first time it was wrong.** It said "≤ 5 s", with 0.25 measured
+— an honest number that **held nothing**: the ceiling is checked by the `BUDGET_SECONDS` constant
+in the module itself, and that had stood at 30 from the start. That is, the document had one
+number, the code another, and a third one went red.
 
-Знайшло це незалежне рев'ю, і формулювання взято з етапу 4, де той самий клас вади вже
-закривали. Стеля лишається 30, а не 5: сторож має ловити подорожчання вдесятеро, а не
-на відсоток — тісна межа на повільнішому раннері CI мигтить, і її піднімають не думаючи.
-### Чого цей план свідомо не доводить
+An independent review found this, and the wording is taken from stage 4, where the same class of
+defect had already been closed. The ceiling stays 30 rather than 5: a watchdog should catch a
+tenfold increase, not a percent — a tight bound flickers on a slower CI runner, and gets raised
+without thinking.
 
-**AC-03 доводить, що нерелевантний факт не пройшов ПОРІГ.** Він не доводить, що поріг
-підібраний правильно — це вимірювання, тобто етап 8. Урок називає це прямо: селективність
-тут перевіряється як механізм, а не як якість.
+### What this plan deliberately does not prove
 
-**AC-04 визначає суперечність за темою факту.** Два факти про різне, які насправді
-суперечать один одному, не будуть помічені. Це названо межею, а не приховано: виявлення
-суперечностей за змістом — окрема задача з окремою ціною.
+**AC-03 proves that an irrelevant fact did not clear the THRESHOLD.** It does not prove that the
+threshold was chosen correctly — that is a measurement, which is to say stage 8. The lesson says
+so plainly: selectivity here is checked as a mechanism, not as a quality.
 
-**AC-06b — найважливіший рядок таблиці**, і він тут із досвіду етапів 2 і 3. Без нього
-фільтр, що звузив видачу до нуля, пройшов би всі перевірки: чужого факту справді немає.
+**AC-04 decides a contradiction by a fact's topic.** Two facts about different things that in
+truth contradict each other will not be noticed. This is named as a boundary rather than hidden:
+detecting contradictions by content is a separate problem with a separate price.
 
-### Інтеграційна стратегія
+**AC-06b is the most important row in the table**, and it is here from the experience of stages 2
+and 3. Without it, a filter that narrowed the results to zero would pass every check: there really
+is no fact belonging to anybody else.
 
-`<!-- N/A: файл, ембеддер і підробка локальні; зовнішньої залежності етап не має -->`
+### Integration strategy
 
-### Навантаження
+`<!-- N/A: the file, the embedder and the fake are local; the stage has no external dependency -->`
 
-`<!-- N/A: жоден NFR не несе числа пропускної здатності -->`
+### Load
+
+`<!-- N/A: no NFR carries a throughput number -->`

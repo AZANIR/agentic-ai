@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0001 — Затримки підроблені за замовчуванням, моделі — за прапорцем
+# 0001 — Delays are faked by default, real models come behind a flag
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -15,55 +15,57 @@ ticket: "n/a"
 
 ## Context
 
-Етап міряє час. Найочевидніший спосіб — узяти справжні `faster-whisper` і `piper`,
-прогнати й записати числа.
+The stage measures time. The most obvious way is to take the real `faster-whisper` and `piper`,
+run them and write the numbers down.
 
-Це дає перевірку, яка важить два гігабайти ваг, працює хвилину й дає **різні числа**
-на кожній машині — тобто перевірку, яку неможливо ні прогнати у CI, ні використати як
-доказ.
+That gives a check weighing two gigabytes of weights, running for a minute and giving
+**different numbers** on every machine — that is, a check that can neither be run in CI nor used
+as evidence.
 
 ## Decision drivers
 
-- Правило курсу: усе працює офлайн, без ключа й без вантаження моделей.
-- NFR-6 вимагає нуль мигтінь із двадцяти прогонів. Реальна модель на завантаженій
-  машині цього не дасть ніколи.
-- Теза етапу — про **архітектуру конвеєра**, а не про швидкодію моделей. Число, що
-  залежить від відеокарти, тезу не доводить.
-- Читач має мати змогу почути це насправді — тобто реальний режим потрібен.
+- The course's rule: everything works offline, with no key and no downloading of models.
+- NFR-6 demands zero flickers out of twenty runs. A real model on a loaded machine will never
+  give that.
+- The stage's thesis is about **pipeline architecture**, not about how fast models are. A number
+  that depends on the graphics card does not prove the thesis.
+- The reader has to be able to hear it for real — so live mode is needed.
 
 ## Considered options
 
-1. **Підробка за замовчуванням, реальні моделі за прапорцем.**
-2. **Лише реальні моделі.**
-3. **Лише підробка**, реального режиму немає.
+1. **Fakes by default, real models behind a flag.**
+2. **Real models only.**
+3. **Fakes only**, with no live mode.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 робить етап недосяжним для читача без відеокарти й перевірку — мигтливою.
+Option 2 puts the stage out of reach for a reader without a graphics card, and makes the check
+flicker.
 
-Option 3 чесніша за 2 і забирає єдине, заради чого етап про голос узагалі цікавий:
-почути власним вухом. Числа лишаються абстракцією, доки не почуєш паузу.
+Option 3 is more honest than 2, and it takes away the one thing that makes a stage about voice
+interesting at all: hearing it with your own ear. The numbers stay an abstraction until you hear
+the pause.
 
-**Підробка тут — не заглушка, а модель затримки.** Вона спить задану кількість
-мілісекунд, підібрану за **порядком величини** реальної: розпізнавання секунди звуку
-коштує сотні мілісекунд, генерація першого токена — сотні, синтез фрази — сотні.
-Пропорції збережені, абсолютні числа — ні, і урок каже це першим рядком.
+**The fake here is not a stub but a model of the delay.** It sleeps a set number of
+milliseconds, picked to the **order of magnitude** of the real one: recognising a second of
+audio costs hundreds of milliseconds, generating the first token — hundreds, synthesising a
+phrase — hundreds. The proportions are preserved, the absolute numbers are not, and the lesson
+says so in its first line.
 
-**Найважливіше: підробка не спить насправді.** Вона рухає **підроблений годинник**
-(ADR-0002). Прогін вимірювання займає мілісекунди реального часу й дає ті самі числа
-на будь-якій машині.
+**Most important: the fake does not really sleep.** It moves the **fake clock** (ADR-0002). A
+measurement run takes milliseconds of real time and gives the same numbers on any machine.
 
 ## Consequences
 
 **Positive**
-- Перевірки детерміновані, швидкі й проходять у CI без жодної залежності.
-- Числа однакові в автора й у читача — тобто про них можна говорити.
-- Реальний режим існує й вмикається одним прапорцем.
+- The checks are deterministic, fast, and pass in CI with no dependency at all.
+- The numbers are the same for the author and for the reader — that is, they can be talked about.
+- Live mode exists and turns on with one flag.
 
 **Negative**
-- Числа **не є** обіцянкою швидкодії. Це названо в уроці, у специфікації та в §11
-  ризиків — тричі, бо саме це прочитають неправильно.
-- Реальний режим перевіряється лише там, де є мікрофон і моделі. Скрізь інде —
-  `НЕ ПЕРЕВІРЕНО`.
+- The numbers are **not** a promise of performance. That is named in the lesson, in the spec and
+  in §11 risks — three times, because this is exactly what will be misread.
+- Live mode is only checked where there is a microphone and the models. Everywhere else —
+  `NOT EVALUATED`.

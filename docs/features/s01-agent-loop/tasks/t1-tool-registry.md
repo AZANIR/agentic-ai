@@ -1,6 +1,6 @@
 ---
 id: T1
-title: "Реєстр трьох інструментів зі схемами й познакою незворотності"
+title: "A registry of three tools with schemas and an irreversibility flag"
 layer: "app"
 deps: []
 acs: ["AC-01", "AC-04"]
@@ -10,25 +10,32 @@ estimate: "S"
 status: "todo"
 ---
 
-# T1 — Реєстр трьох інструментів зі схемами й познакою незворотності
+# T1 — A registry of three tools with schemas and an irreversibility flag
 
 ## Why
 
-Реєстр — єдине джерело правди про те, що агенту дозволено. Познака незворотності живе тут, а не списком імен усередині циклу — [ADR-0002](../adr/0002-confirm-irreversible-action-by-second-run.md).
+The registry is the single source of truth about what the agent is allowed to do. The
+irreversibility flag lives here, not as a list of names inside the loop — [ADR-0002](../adr/0002-confirm-irreversible-action-by-second-run.md).
 
 ## What
 
-`tools.py`: три функції — `get_weather` (канон статті), `get_order_status` (міст на NovaShop), `initiate_return` (незворотний). Для кожної — JSON-схема параметрів у тому форматі, який іде до моделі, і прапорець незворотності. Фікстури замовлень NovaShop у `data/`. Реєстр — звичайний словник `ім'я → запис`, без декораторів: декоратор сховав би реєстрацію саме там, де етап показує механіку.
+`tools.py`: three functions — `get_weather` (the article's canon), `get_order_status` (the bridge
+to NovaShop), `initiate_return` (irreversible). For each one a JSON schema of its parameters in
+the format that goes to the model, plus an irreversibility flag. NovaShop order fixtures in
+`data/`. The registry is a plain `name → entry` dictionary, without decorators: a decorator would
+hide the registration in exactly the place where the stage is showing the mechanics.
 
 ## Definition of Done
 
-- [ ] Реєстр повертає три записи; кожен має функцію, схему й прапорець
-- [ ] Рівно один інструмент позначений незворотним
-- [ ] Схеми придатні до передачі в `tools=` без перетворень
-- [ ] lint чистий
+- [ ] The registry returns three entries; each has a function, a schema and a flag
+- [ ] Exactly one tool is marked irreversible
+- [ ] The schemas are usable in `tools=` with no conversion
+- [ ] lint clean
 
 ## Notes
 
-Схеми пишуться англійською — див. відкрите питання §8 спеки про мову описів інструментів. Опис має бути достатнім, щоб модель обрала правильний інструмент без підказок у промпті.
+The schemas are written in English — see the open question in spec §8 about the language of tool
+descriptions. A description has to be enough for the model to pick the right tool without hints
+in the prompt.
 
-Блокується: —
+Blocked by: —

@@ -1,6 +1,6 @@
 ---
 id: T11
-title: "Вправи, еталонні розв'язки й чекліст"
+title: "Exercises, reference solutions and the checklist"
 layer: "docs"
 deps: ["T10"]
 acs: ["AC-03", "AC-04", "AC-05"]
@@ -10,25 +10,25 @@ estimate: "S"
 status: "todo"
 ---
 
-# T11 — Вправи, еталонні розв'язки й чекліст
+# T11 — Exercises, reference solutions and the checklist
 
 ## Why
 
-Читач має покрутити поріг і нарізку власноруч. Критерій завершеності №5.
+The reader has to turn the threshold and the chunking with their own hands. Completion criterion №5.
 
 ## What
 
-`exercises.md`: змінити поріг і побачити, як з'являються й зникають відповіді; змінити розмір фрагмента; перенести фільтр доступу ПІСЛЯ відбору й побачити, що зникає дозволений документ; додати документ і знайти його. `solutions/` — еталони.
+`exercises.md`: change the threshold and see answers appear and disappear; change the fragment size; move the access filter AFTER the selection and see the permitted document disappear; add a document and find it. `solutions/` holds the references.
 
 ## Definition of Done
 
-- [ ] Чотири завдання з явним очікуваним результатом
-- [ ] Вправа «перенеси фільтр після відбору» показує зникнення дозволеного документа
-- [ ] Кожен еталон запускається
-- [ ] Чекліст має всі три рівні
+- [ ] Four exercises with an explicit expected result
+- [ ] The "move the filter after the selection" exercise shows the permitted document disappearing
+- [ ] Every reference runs
+- [ ] The checklist has all three levels
 
 ## Notes
 
-Вправа з перенесенням фільтра — найцінніша: вона відтворює справжній баг.
+The exercise that moves the filter is the most valuable one: it reproduces a real bug.
 
-Блокується: T10
+Blocked by: T10

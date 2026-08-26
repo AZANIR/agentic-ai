@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0007 — Відбір у семпл детермінований, а фактична частка звіряється
+# 0007 — Selection into the sample is deterministic, and the actual fraction is verified
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,50 +15,54 @@ ticket: "n/a"
 
 ## Context
 
-Онлайн-оцінювання: дешеві детерміновані чеки на кожному запиті, суддя — на 5–10 %. Природна
-реалізація відбору — випадкове число проти порога.
+Online evaluation: cheap deterministic checks on every request, the judge on 5–10 %. The natural
+way to implement the selection is a random number against a threshold.
 
-Випадковий відбір має дві вади саме тут. Перша: перевірку на нього неможливо написати без
-мигтіння — частка з десяти запитів гуляє від нуля до трьох. Друга, гірша: заявлена частка й
-фактична розходяться тихо. Хтось міняє поріг, забуває про подільник, і рік нікому не видно,
-що суддя бачить один запит із тисячі.
+Random selection has two flaws exactly here. The first: no check can be written for it without
+flapping — the fraction over ten requests wanders from zero to three. The second, worse one: the
+declared fraction and the actual one drift apart silently. Somebody changes the threshold, forgets
+the divisor, and for a year nobody sees that the judge is looking at one request in a thousand.
 
 ## Decision drivers
 
-- NFR-6: перевірка не мигтить. Випадковий відбір або мигтить, або перевіряється настільки
-  широким допуском, що нічого не стверджує.
-- AC-07c: фактична частка звіряється із заявленою. Частка, яку ніхто не перевірив, — це
-  намір, а не налаштування.
-- Урок етапу 7: допуск, широкий настільки, щоб не мигтіти, вже не розрізняє те, що міряють.
+- NFR-6: the check does not flap. Random selection either flaps, or is checked with a tolerance so
+  wide that it asserts nothing.
+- AC-07c: the actual fraction is checked against the declared one. A fraction nobody verified is
+  an intention, not a setting.
+- The stage 7 lesson: a tolerance wide enough not to flap no longer distinguishes what is being
+  measured.
 
 ## Considered options
 
-**А. Випадкове число проти порога.** Найзвичніше й неперевірюване детерміновано.
+**A. A random number against a threshold.** The most familiar, and impossible to check
+deterministically.
 
-**Б. Кожен N-й запит.** Детерміновано й перевірювано, але систематично: якщо трафік має
-періодичність, семпл ловить одну й ту саму фазу.
+**B. Every Nth request.** Deterministic and checkable, but systematic: if the traffic has a
+periodicity, the sample catches the same phase every time.
 
-**В. Хеш ідентифікатора запиту проти порога.** Детерміновано за ідентифікатором, рівномірно
-за розподілом, і той самий запит завжди дає те саме рішення.
+**C. A hash of the request identifier against a threshold.** Deterministic by identifier, uniform
+by distribution, and the same request always gives the same decision.
 
 ## Decision
 
-**В.** Рішення «судити чи ні» — функція **ідентифікатора запиту** й порога. Той самий
-ідентифікатор завжди дає те саме рішення, а розподіл ідентифікаторів дає рівномірність.
+**C.** The "judge or not" decision is a function of the **request identifier** and the threshold.
+The same identifier always gives the same decision, and the distribution of identifiers gives the
+uniformity.
 
-Харнес рахує **фактичну** частку за прогін і звітує обидва числа — заявлене й отримане. Межа
-розходження названа явно й залежить від кількості запитів: на сотні запитів вимагати точності
-до відсотка — це вимагати того, чого немає в даних.
+The harness computes the **actual** fraction for a run and reports both numbers — the declared one
+and the one obtained. The limit on the divergence is named explicitly and depends on the number of
+requests: on a hundred requests, demanding accuracy to the percent is demanding what is not in the
+data.
 
 ## Consequences
 
-**Добре.** Перевірка детермінована: той самий потік ідентифікаторів дає ту саму частку.
-Розходження заявленого й фактичного видно **числом**, а не здогадом.
+**Good.** The check is deterministic: the same stream of identifiers gives the same fraction. A
+divergence between declared and actual is visible **as a number**, not as a guess.
 
-**Ціна.** Потрібен ідентифікатор запиту. Сервіс етапу 6 його вже має (`trace_ref`), тож ціна
-нульова тут і ненульова для того, хто такого ідентифікатора не має.
+**The price.** A request identifier is needed. The stage 6 service already has one (`trace_ref`),
+so the price is zero here and non-zero for anyone who has no such identifier.
 
-**Межа.** Детермінований відбір означає, що **один і той самий** запит ніколи не потрапить у
-семпл, якщо не потрапив уперше. Для оцінювання якості це радше добре — повтори не роздувають
-статистику, — але для налагодження конкретного запиту потрібен окремий шлях, і етап його не
-робить.
+**The limit.** Deterministic selection means that **the very same** request will never fall into
+the sample if it did not fall in the first time. For evaluating quality that is rather a good
+thing — repeats do not inflate the statistics — but debugging one particular request needs a
+separate path, and the stage does not build one.

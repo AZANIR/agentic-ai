@@ -1,6 +1,6 @@
 ---
 id: T8
-title: "Вправи, еталонні розв'язки й чекліст етапу"
+title: "Exercises, reference solutions and the stage checklist"
 layer: "docs"
 deps: ["T7"]
 acs: ["AC-02", "AC-03", "AC-04"]
@@ -10,25 +10,30 @@ estimate: "S"
 status: "todo"
 ---
 
-# T8 — Вправи, еталонні розв'язки й чекліст етапу
+# T8 — Exercises, reference solutions and the stage checklist
 
 ## Why
 
-Читач має зламати три захисти власноруч — інакше вони лишаться прочитаними, а не зрозумілими. Критерій завершеності етапу №5 у [CURRICULUM.md](../../../../CURRICULUM.md).
+The reader has to break the three guards with their own hands — otherwise the guards stay read
+rather than understood. Stage completion criterion №5 in
+[CURRICULUM.md](../../../../CURRICULUM.md).
 
 ## What
 
-`exercises.md`: чотири завдання з очікуваним результатом і без спойлерів — прибрати ліміт і побачити наслідок; додати четвертий інструмент; зламати валідацію кривим типом; зняти познаку незворотності. `solutions/` — еталони. `CHECKLIST.md` — «я зрозумів / я запустив / я пояснив».
+`exercises.md`: four exercises with an expected result and no spoilers — remove the limit and see
+the consequence; add a fourth tool; break validation with a wrong type; clear the irreversibility
+flag. `solutions/` holds the references. `CHECKLIST.md` is "I understood / I ran it / I explained
+it".
 
 ## Definition of Done
 
-- [ ] Чотири завдання, кожне з явним очікуваним результатом
-- [ ] Кожен еталон у `solutions/` запускається
-- [ ] Формулювання завдань не містять розв'язку
-- [ ] Чекліст має всі три рівні
+- [ ] Four exercises, each with an explicit expected result
+- [ ] Every reference in `solutions/` runs
+- [ ] The wording of the exercises does not contain the solution
+- [ ] The checklist has all three levels
 
 ## Notes
 
-Вправа «додай четвертий інструмент» готує етап 3, де інструментами стануть агенти.
+The exercise "add a fourth tool" prepares stage 3, where the tools become agents.
 
-Блокується: T7
+Blocked by: T7

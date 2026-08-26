@@ -64,6 +64,19 @@ rules first, then the code-level marker, then the root documents, then the stage
 the SDD artefacts under `docs/features/`, then docstrings and comments. Until it finishes,
 `CONVENTIONS.md` is the statement of intent and this ADR is the record.
 
+**The lessons are English; not every line inside them is, and that is deliberate.** The order
+above puts the stage lessons ahead of docstrings and comments, and it held — every lesson's
+argument reads in English. What stays Ukrainian inside them is not untranslated prose but quoted
+program output. When a lesson prints `траєкторія 13 8 0 62%` it is showing what the reader will
+see on their own terminal, and `stages/s03_router/decision.py` defines `ONE_AGENT = "ОДИН АГЕНТ"`
+as a constant. Translating a transcript ahead of the code it quotes would make the lesson wrong in
+the one way this repository cannot tolerate: the reader runs the command and gets something else.
+
+That makes the last pass a single atomic piece of work rather than two — 7162 Ukrainian lines
+across 116 Python files, together with the roughly 150 transcript lines in 28 markdown files that
+quote them, and the knowledge-base fixtures under `stages/s02_rag/data/kb/` that checks assert
+against by content. Splitting it in either direction opens a window in which the lessons lie.
+
 ## Alternatives considered
 
 **Keep the Ukrainian lessons and let the existing `README.en.md` summaries carry English

@@ -1,56 +1,59 @@
-# 0008 · Трасувальник — необовʼязковий параметр конвеєра
+# 0008 · The tracer is an optional pipeline parameter
 
-- Статус: Accepted
-- Дата: 2026-08-25
-- Контекст: етап 7 (голос), AC-11; `CONVENTIONS.md` — трейс присутній з етапу 1
+- Status: Accepted
+- Date: 2026-08-25
+- Context: stage 7 (voice), AC-11; `CONVENTIONS.md` — a trace is present from stage 1
 
-## Контекст
+## Context
 
-AC-11 вимагає звірити надрукований розклад із кроками у трейсі: два незалежні механізми, що
-мають відповісти однаково. Конвенція курсу вимагає того самого — `shared.trace` присутній з
-першого етапу, і етап 8 будуватиме оцінювання поверх готових траєкторій.
+AC-11 requires reconciling the printed breakdown against the steps in the trace: two independent
+mechanisms that have to give the same answer. The course's convention demands the same —
+`shared.trace` is present from the first stage, and stage 8 will build evaluation on top of
+ready-made trajectories.
 
-Перша редакція етапу трейсу не мала **взагалі**. `grep -rl shared.trace stages/s07_voice`
-давав нуль файлів при 4/2/4/2/2/3 на попередніх етапах. Перевірка, що носила імʼя AC-11,
-стверджувала лише, що `ws.py` містить рядок `from stages.s07_voice.pipeline import` — тобто
-звіряла імпорт, а не числа.
+The first edition of the stage had **no trace at all**. `grep -rl shared.trace stages/s07_voice`
+gave zero files, against 4/2/4/2/2/3 on the earlier stages. The check that carried the name AC-11
+asserted only that `ws.py` contains the line `from stages.s07_voice.pipeline import` — that is,
+it reconciled an import, not numbers.
 
-Конвеєр при цьому має лишатись чистою функцією: перевірки ганяють його сотні разів і не
-мають писати на диск.
+And the pipeline has to stay a pure function: the checks run it hundreds of times and must not
+write to disk.
 
-## Рішення
+## Decision
 
-`batch()` і `streaming()` беруть `tracer` **необовʼязковим** параметром. За замовчуванням
-підставляється `_Untraced` — обʼєкт із порожнім `step()`.
+`batch()` and `streaming()` take `tracer` as an **optional** parameter. The default substituted
+is `_Untraced` — an object with an empty `step()`.
 
-Нуль-обʼєкт, а не `if tracer is not None:` перед кожним викликом: сім розгалужень у конвеєрі
-з півсотні рядків читаються гірше, ніж один клас на три рядки, і кожне з них — місце, де
-хтось забуде перевірку.
+A null object, not `if tracer is not None:` before every call: seven branches in a pipeline of
+fifty-odd lines read worse than one three-line class, and every one of them is a place where
+somebody will forget the check.
 
-Демо відкриває `trace_run(...)` і передає трасувальник у сцени; перевірка AC-11 пише в
-тимчасовий файл і звіряє числа обох механізмів.
+The demo opens `trace_run(...)` and passes the tracer into the scenes; the AC-11 check writes to
+a temporary file and reconciles the numbers from both mechanisms.
 
-## Наслідки
+## Consequences
 
-**Добре.** Перевірки лишаються офлайновими й не лишають слідів на диску. Демо пише справжній
-трейс у `traces/`, який читатиме етап 8. Звірка стає можливою: час до першого звуку в трейсі
-має дорівнювати числу з розкладу, а сума кроків моделі у трейсі — кроку моделі в розкладі.
+**Good.** The checks stay offline and leave no traces on disk. The demo writes a real trace into
+`traces/`, which stage 8 will read. Reconciliation becomes possible: time to first audio in the
+trace has to equal the number from the breakdown, and the sum of the model's steps in the trace —
+the model's step in the breakdown.
 
-**Ціна.** Дефолт «нікуди не пишемо» означає, що забутий трасувальник не помітний одразу —
-код працює, трейс порожній. Захист: перевірка звірки червоніє, якщо кроків у трейсі немає.
+**The price.** A default of "we write nowhere" means a forgotten tracer is not noticed at once —
+the code works, the trace is empty. The guard: the reconciliation check goes red if there are no
+steps in the trace.
 
-**Межа.** У трейс ідуть **числа й причини**, не зміст: тексту відповіді там немає, і це
-окреме твердження перевірки (AC-10b). Сеанс лишає по собі числа.
+**The limit.** What goes into the trace is **numbers and reasons**, not content: the text of the
+answer is not there, and that is a separate assertion in the check (AC-10b). A session leaves
+numbers behind it.
 
-## Альтернативи
+## Alternatives considered
 
-**Писати в трейс завжди.** Кожен прогін перевірок торкається диска; сотні прогонів у
-мутаційному харнесі — сотні файлів. Плюс перевірки перестають бути незалежними одна від
-одної.
+**Always write to the trace.** Every check run touches the disk; hundreds of runs in the mutation
+harness — hundreds of files. Plus the checks stop being independent of one another.
 
-**Глобальний трасувальник на рівні модуля.** Рівно та вада, від якої етап 6 має цілий урок і
-яку цей етап уже одного разу відтворив у `streaming.last_timing`. Два одночасні прогони
-затирали б трейс один одному.
+**A global module-level tracer.** Exactly the defect stage 6 has a whole lesson about, and one
+this stage has already reproduced once in `streaming.last_timing`. Two simultaneous runs would
+overwrite each other's trace.
 
-**Не трасувати взагалі, лишивши AC-11 на розклад.** Тоді «два незалежні механізми» — це один
-механізм, названий двічі, і звіряти нема з чим. Плюс етап 8 не отримує вхідних даних.
+**Do not trace at all, leaving AC-11 to the breakdown.** Then "two independent mechanisms" is one
+mechanism named twice, and there is nothing to reconcile against. Plus stage 8 gets no input data.

@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "S"
@@ -8,7 +8,7 @@ ticket: "n/a"
 ---
 
 
-# 0001 — JSONL-файл, а не база й не пам'ять процесу
+# 0001 — A JSONL file, not a database and not process memory
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -16,44 +16,45 @@ ticket: "n/a"
 
 ## Context
 
-Довготривала пам'ять має пережити сесію. Питання — де саме вона живе на етапі, який
-обіцяє офлайн і жодного налаштування.
+Long-term memory has to outlive the session. The question is where exactly it lives at a stage
+that promises offline and no configuration.
 
 ## Considered options
 
-1. **JSONL-файл**, один запис на рядок.
-2. **Пам'ять процесу** — словник, що живе між «сесіями» в одному прогоні.
-3. **SQLite** — справжня БД без сервера.
+1. **A JSONL file**, one record per line.
+2. **Process memory** — a dictionary that lives between "sessions" within one run.
+3. **SQLite** — a real database with no server.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 відпадає першою, і причина не в довговічності. **Дві сесії в одному процесі, що
-ділять словник, нічого не доводять**: факт «доступний» тому, що це той самий об'єкт у
-пам'яті, а не тому, що його записали й прочитали. AC-02 вимагає протилежного — щоб друга
-сесія читала **записане**.
+Option 2 is the first one out, and the reason is not durability. **Two sessions in one process
+sharing a dictionary prove nothing**: the fact is "available" because it is the same object in
+memory, not because it was written and read back. AC-02 demands the opposite — that the second
+session read **what was written**.
 
-Option 3 дала б справжню персистентність і забрала б головне: **пам'ять перестала б
-читатися очима**. Найкорисніше, що читач може зробити на цьому етапі, — відкрити файл після
-демо й подивитись, що там опинилось. Рядок JSON — це видно; таблиця SQLite — це `sqlite3`
-і ще один інструмент.
+Option 3 would give real persistence and take away the main thing: **memory would stop being
+readable by eye**. The most useful thing the reader can do at this stage is open the file after
+the demo and look at what ended up in it. A line of JSON is visible; a SQLite table means
+`sqlite3` and one more tool.
 
-JSONL дає обидві властивості: запис справді перетинає межу процесу, і його видно без
-жодного інструмента.
+JSONL gives both properties: the record really does cross the process boundary, and it is visible
+with no tooling at all.
 
-**Ціна названа:** файл не витримає конкурентного запису, і жодних транзакцій тут немає.
-Це прийнятно рівно доти, доки пам'ять локальна й однокористувацька — тобто до етапу 6,
-де з'явиться сервіс і разом із ним Postgres. Інтерфейс лишиться той самий.
+**The price is named:** the file will not survive concurrent writes, and there are no transactions
+here. That is acceptable for exactly as long as the memory is local and single-user — that is,
+until stage 6, where a service appears and Postgres with it. The interface will stay the same.
 
 ## Consequences
 
 **Positive**
-- Друга сесія справді читає записане, а не спільний об'єкт.
-- Пам'ять читається очима — найдешевший спосіб зрозуміти, що система запам'ятала.
-- Заміна на Postgres на етапі 6 не змінює нічого, крім двох функцій.
+- The second session really does read what was written, rather than a shared object.
+- Memory is readable by eye — the cheapest way to understand what the system remembered.
+- Swapping in Postgres at stage 6 changes nothing but two functions.
 
 **Negative**
-- Ані транзакцій, ані конкурентного запису. Названо як межа, не приховано.
-- Файл росте вічно: `replaced` і протухлі записи лишаються. Це навмисно — історія заміни
-  сама по собі цінна, — але прибирання колись знадобиться, і воно тут не реалізоване.
+- No transactions and no concurrent writes. Named as a boundary, not hidden.
+- The file grows forever: `replaced` and expired records stay. That is deliberate — the history
+  of a replacement is valuable in itself — but a cleanup will be needed one day, and it is not
+  implemented here.

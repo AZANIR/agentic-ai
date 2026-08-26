@@ -1,64 +1,66 @@
-# Дизайн: навчально-продакшн репозиторій «Agentic AI: From Zero to Production»
+# Design: the teaching-and-production repository "Agentic AI: From Zero to Production"
 
-- **Дата:** 2026-08-22
-- **Статус:** на затвердження
-- **Джерело:** 10 статей серії у [`docs/`](../docs/)
-- **Попередній план:** `.cursor/plans/10-stage_agent_lab_4a43fc0d.plan.md` — частково скасований, див. §2
-
----
-
-## 1. Що це і для кого
-
-Репозиторій, у якому людина, що вміє написати функцію на Python і запустити скрипт,
-за 10 етапів проходить шлях від «я користувався ChatGPT» до «я задеплоїв агента на
-сервер і виміряв, наскільки він працює».
-
-Два режими існування одного й того самого коду:
-
-- **навчальний** — усе локально, безкоштовно, детерміновано, без API-ключа;
-- **продакшн** — той самий код на VM за HTTPS, з реальним LLM, БД, метриками й трасуванням.
-
-**Обіцянка читачеві.** Після кожного етапу він має щось робоче, що запустив сам, і може
-словами пояснити, *чому* воно так влаштоване. Після етапів 6 і 10 — має публічний
-HTTPS-ендпоінт, у який можна постукати з телефону.
-
-**Аудиторія.** Python на рівні «функція, `import`, `pip install`». Не знає: embedding,
-tool-call, state graph, MCP, barge-in, LLM-as-judge.
+- **Date:** 2026-08-22
+- **Status:** for approval
+- **Source:** the ten articles of the series in [`docs/`](../docs/)
 
 ---
 
-## 2. Зміни відносно попереднього плану (`.cursor/plans/...`)
+## 1. What this is and who it is for
 
-Попередній план залишається основою. Вимога «має деплоїтись і тестуватись у реальних
-умовах» скасовує три його рішення:
+A repository in which a person who can write a Python function and run a script travels, over
+10 stages, from "I have used ChatGPT" to "I deployed an agent on a server and measured how well
+it works".
 
-| # | Було в `.cursor`-плані | Стало | Причина |
+Two modes of existence for one and the same code:
+
+- **teaching** — everything local, free, deterministic, with no API key;
+- **production** — the same code on a VM behind HTTPS, with a real LLM, a database, metrics and
+  tracing.
+
+**The promise to the reader.** After every stage they have something working that they started
+themselves, and they can explain in words *why* it is built that way. After stages 6 and 10 they
+have a public HTTPS endpoint they can hit from a phone.
+
+**Audience.** Python at the level of "a function, `import`, `pip install`". Does not know:
+embedding, tool-call, state graph, MCP, barge-in, LLM-as-judge.
+
+---
+
+## 2. Changes against the earlier scope
+
+The earlier scope of this course kept deployment out. The requirement "it has to be deployed and
+tested under real conditions" overturns three of its decisions; two more changed for reasons of
+their own:
+
+| # | Earlier decision | What it became | Why |
 |---|---|---|---|
-| 1 | «Поза scope: GCP VM + systemd, Prometheus/ELK» | У scope: реальний деплой на VM, Caddy+HTTPS, Prometheus+Grafana, Langfuse | Прямий запит на продакшн |
-| 2 | Етап 06: «Без GCP/systemd у коді — лише розділ *як би в проді*» | Етап 06 — справжній сервіс, який читач деплоїть і б'є ззовні | Те саме |
-| 3 | Етап 07: «не production voice stack» | Мок-конвеєр лишається як **вимірювальний стенд**, поруч — реальний локальний STT/TTS, щоб читач справді поговорив | Те саме |
-| 4 | «OpenAI API через `.env`» | Pluggable OpenAI-сумісний шим: Groq / OpenRouter / Ollama / OpenAI | Читач не має упиратись у платіжну картку на етапі 1 |
-| 5 | `python -m stages.01...` | `python -m stages.s01_agent_loop.run` | Ім'я Python-пакета не може починатись із цифри — попередня команда не запустилась би |
+| 1 | "Out of scope: a GCP VM with systemd, Prometheus/ELK" | In scope: a real deployment on a VM, Caddy + HTTPS, Prometheus + Grafana, Langfuse | A direct request for production |
+| 2 | Stage 06: "no GCP or systemd in the code — only a section on *how it would be in production*" | Stage 06 is a real service that the reader deploys and hits from outside | The same |
+| 3 | Stage 07: "not a production voice stack" | The mock pipeline stays as a **measuring bench**, and beside it a real local STT/TTS, so the reader really does have a conversation | The same |
+| 4 | "The OpenAI API through `.env`" | A pluggable OpenAI-compatible shim: Groq / OpenRouter / Ollama / OpenAI | The reader must not hit a payment card at stage 1 |
+| 5 | `python -m stages.01...` | `python -m stages.s01_agent_loop.run` | A Python package name cannot start with a digit — the earlier command would not have run |
 
-Зі старого плану **беремо без змін**: структуру `stages/NN/` з `exercises.md`,
-`solutions/`, `CHECKLIST.md`; правило «не копіювати текст статей, а переказувати ідеї»;
-обов'язковий `max_steps` у кожному циклі; секрети лише в `.env`; глосарій;
-`pyproject.toml` з extras на етап.
+Carried over **unchanged**: the `stages/NN/` structure with `exercises.md`, `solutions/` and
+`CHECKLIST.md`; the rule "do not copy the text of the articles, retell the ideas"; a mandatory
+`max_steps` in every loop; secrets only in `.env`; the glossary; `pyproject.toml` with per-stage
+extras.
 
 ---
 
-## 3. Головна структурна ідея — три акти
+## 3. The main structural idea — three acts
 
-Серія має приховану драматургію. План її відтворює, інакше вийдуть 10 незв'язаних туторіалів.
+The series has a hidden dramaturgy. The plan reproduces it; otherwise the result is 10 unconnected
+tutorials.
 
 ```
-Акт I   · Етапи 1–5  · БУДУЄМО      кожен етап додає нову здатність агенту
-Акт II  · Етап  6    · ЗШИВАЄМО     блоки 1–5 стають одним задеплоєним сервісом
-Акт III · Етапи 7–9  · ПЕРЕВІРЯЄМО  латентність, вимірювання, вибір інструмента
-Фінал   · Етап  10   · ПЕРЕПИСУЄМО  чисто, з обґрунтуванням кожного рішення, і деплоїмо
+Act I   · Stages 1–5  · WE BUILD      each stage adds a new capability to the agent
+Act II  · Stage  6    · WE JOIN       blocks 1–5 become one deployed service
+Act III · Stages 7–9  · WE CHECK      latency, measurement, choice of tool
+Finale  · Stage  10   · WE REWRITE    cleanly, justifying every decision, and we deploy
 ```
 
-Етапи 7–9 не додають функціоналу. Вони існують, щоб читач перестав собі брехати.
+Stages 7–9 add no functionality. They exist so that the reader stops lying to themselves.
 
 ```mermaid
 flowchart LR
@@ -75,366 +77,369 @@ flowchart LR
   S09 --> S10
 ```
 
-## 4. Як кожен етап стосується своєї статті
+## 4. How each stage relates to its article
 
-Кожен `README.md` етапу має дві частини:
+Every stage `README.md` has two parts:
 
-1. **Канон** — код, який читач упізнає зі статті (погода, math/research-агенти). Якір довіри.
-2. **Міст** — той самий патерн, перенесений на наскрізний домен. Тут читач вчиться
-   *переносити*, а не копіювати.
+1. **The canon** — code the reader recognises from the article (weather, math/research agents). The
+   anchor of trust.
+2. **The bridge** — the same pattern carried over to the cross-cutting domain. Here the reader
+   learns to *carry over* rather than to copy.
 
-Текст статей не копіюється. Переказуємо ідеї своїми словами, з посиланням на оригінал
-у `docs/` та URL у його frontmatter.
+The text of the articles is not copied. We retell the ideas in our own words, with a link to the
+original in `docs/` and the URL in its frontmatter.
 
-**Наскрізний домен — `NovaShop`,** інтернет-магазин: замовлення, повернення, політики,
-каталог. Обрано тому, що стаття 10 сама його обирає — тож етап 10 не сюрприз, а збірка
-знайомих деталей.
+**The cross-cutting domain is `NovaShop`,** an online shop: orders, returns, policies, catalogue.
+Chosen because article 10 chooses it itself — so stage 10 is not a surprise but an assembly of
+familiar pieces.
 
 ---
 
-## 5. П'ять архітектурних рішень
+## 5. Five architectural decisions
 
-### 5.1 Один код, два профілі — не дві кодові бази
+### 5.1 One codebase, two profiles — not two codebases
 
-`APP_PROFILE=local|prod` перемикає **адаптери**, не гілки коду. Це головне рішення
-всього репозиторію: «навчальна версія» і «продакшн-версія» як окремі дерева розійшлися б
-за два тижні, і читач вчився б на коді, який ніколи не деплоїли.
+`APP_PROFILE=local|prod` switches **adapters**, not branches of code. This is the main decision of
+the whole repository: a "teaching version" and a "production version" as separate trees would have
+diverged within two weeks, and the reader would be learning from code nobody ever deployed.
 
-| Підсистема | `local` | `prod` |
+| Subsystem | `local` | `prod` |
 |---|---|---|
-| LLM | `FakeLLM` у `check`; Ollama або Groq у `run` | Groq / OpenRouter / OpenAI / Anthropic |
-| Embeddings | hash-детермінований / `fastembed` | `fastembed` на сервері / OpenAI |
+| LLM | `FakeLLM` in `check`; Ollama or Groq in `run` | Groq / OpenRouter / OpenAI / Anthropic |
+| Embeddings | hash-deterministic / `fastembed` | `fastembed` on the server / OpenAI |
 | Vector store | in-memory NumPy | Postgres + `pgvector` |
-| Memory store | dict у процесі | Postgres + Redis |
-| STT / TTS | мок із керованою затримкою | `faster-whisper` + `piper` локально на VM |
-| Trace | JSONL у `traces/` | Langfuse (self-hosted) |
-| Metrics | лог | `/metrics` → Prometheus → Grafana |
-| Auth / rate limit | вимкнено | API-key + Redis token bucket |
+| Memory store | a dict in the process | Postgres + Redis |
+| STT / TTS | a mock with controlled delay | `faster-whisper` + `piper` locally on the VM |
+| Trace | JSONL in `traces/` | Langfuse (self-hosted) |
+| Metrics | a log | `/metrics` → Prometheus → Grafana |
+| Auth / rate limit | off | API key + a Redis token bucket |
 
-### 5.2 `shared/trace.py` існує з етапу 1, а не з етапу 8
+### 5.2 `shared/trace.py` exists from stage 1, not from stage 8
 
-Стаття 6 прямо кається: *«I'd instrument tracing before the system got complex, not
-after»*. Виконуємо буквально. Кожен етап пише кроки в трейс. Наслідок: етап 8
-(evaluation) не потребує переписування нічого — дані вже накопичені з першого дня.
-Читач на власному репозиторії відчуває, чому ця порада коштує грошей.
+Article 6 repents outright: *"I'd instrument tracing before the system got complex, not after"*. We
+do that literally. Every stage writes its steps into the trace. The consequence: stage 8
+(evaluation) needs nothing rewritten — the data has been accumulating since day one. On their own
+repository the reader feels why that piece of advice costs money.
 
-### 5.3 `shared/fake_llm.py` — і кожен `check.py` працює на ньому
+### 5.3 `shared/fake_llm.py` — and every `check.py` runs on it
 
-`python scripts/check_all.py` проходить зелено **без жодного API-ключа**, офлайн, за
-секунди. Реальний прогін — окремо, через `run.py`.
+`python scripts/check_all.py` passes green **with no API key at all**, offline, in seconds. A real
+run is separate, through `run.py`.
 
-Фейковий LLM — не мок заради тесту, а дидактичний інструмент: він дає змогу написати
-перевірку на **режим відмови**, а не лише на щасливий шлях. Фейк, що *завжди* просить
-черговий tool-call, доводить, що ліміт кроків працює. Справжнім LLM таку перевірку не
-напишеш — він недетермінований.
+The fake LLM is not a mock for a test's sake but a teaching instrument: only with it can you write
+a check on a **failure mode** rather than only on the happy path. A fake that *always* asks for
+another tool-call proves that the step limit works. With a real LLM you cannot write that check —
+it is not deterministic.
 
-Те саме з детермінованим hash-ембеддером на етапі 2: retrieval стає тестованим, і читач
-бачить, що RAG — це сортування за скалярним добутком, а не магія.
+The same goes for the deterministic hash embedder at stage 2: retrieval becomes testable, and the
+reader sees that RAG is sorting by a dot product rather than magic.
 
-### 5.4 Етапи самодостатні; capstone імпортує, а не копіює
+### 5.4 The stages are self-contained; the capstone imports rather than copies
 
-Етапи 1–9 навмисне дублюють трохи коду між собою — читач має могти почати з етапу 5, не
-проходячи 1–4. Етап 10 натомість **імпортує** зрілі модулі: це і є урок про те, чим
-навчальний код відрізняється від продакшн-коду.
+Stages 1–9 deliberately duplicate a little code between them — the reader has to be able to start
+at stage 5 without doing 1–4. Stage 10 instead **imports** the mature modules: that is the lesson
+about how teaching code differs from production code.
 
-### 5.5 Нудна інфраструктура навмисне
+### 5.5 Boring infrastructure on purpose
 
-Одна VM, `docker compose`, Caddy для TLS. Ніякого Kubernetes. Це не компроміс — це
-прямий висновок статті 6 («boring on purpose»), і читач має побачити, що продакшн
-починається саме тут, а не з кластера.
+One VM, `docker compose`, Caddy for TLS. No Kubernetes. This is not a compromise — it is the direct
+conclusion of article 6 ("boring on purpose"), and the reader has to see that production begins
+right here rather than with a cluster.
 
 ---
 
-## 6. Структура репозиторію
+## 6. Repository structure
 
 ```text
 Agentic-AI/
-├── README.md                  UA — вхід, карта курсу, порядок етапів
-├── README.md               EN — дзеркало
-├── CURRICULUM.md              UA — програма, залежності, оцінка часу, статус
-├── GLOSSARY.md                UA+EN — терміни з посиланням на етап, де вводяться
-├── SETUP.md                   UA — venv, .env, вибір провайдера, «як перевірити»
-├── SECURITY.md                UA — модель загроз публічного ендпоінта
-├── pyproject.toml             один пакет, extras на етап
+├── README.md                  entry point, course map, order of the stages
+├── CURRICULUM.md              the programme, dependencies, time estimates, status
+├── GLOSSARY.md                terms, each linked to the stage that introduces it
+├── SETUP.md                   venv, .env, choosing a provider, "how to check"
+├── SECURITY.md                the threat model of a public endpoint
+├── pyproject.toml             one package, per-stage extras
 ├── .env.example
-├── docs/                      оригінальні 10 статей — read-only
-├── planning/                  ця спека + план імплементації
+├── docs/                      the original ten articles — read-only
+├── planning/                  this specification + the implementation plan
 ├── shared/
-│   ├── config.py              профілі, читання .env
-│   ├── llm.py                 OpenAI-сумісний шим (base_url з .env)
-│   ├── fake_llm.py            детермінований фейк для check.py
+│   ├── config.py              profiles, reading .env
+│   ├── llm.py                 the OpenAI-compatible shim (base_url from .env)
+│   ├── fake_llm.py            the deterministic fake for check.py
 │   ├── embeddings.py          hash / fastembed / openai
-│   ├── trace.py               трасувальник кроків (JSONL | Langfuse)
+│   ├── trace.py               the step tracer (JSONL | Langfuse)
 │   └── stores/                memory · vector (in-memory | postgres)
 ├── stages/
 │   ├── s01_agent_loop/
-│   │   ├── README.md          UA — урок: канон + міст
-│   │   ├── README.md       EN — 1 екран: що це, як запустити, чого навчить
-│   │   ├── exercises.md       UA — завдання без спойлерів
-│   │   ├── solutions/         еталонні розв'язки
-│   │   ├── CHECKLIST.md       «я зрозумів / я запустив / я пояснив»
+│   │   ├── README.md          the lesson: canon + bridge
+│   │   ├── exercises.md       tasks with no spoilers
+│   │   ├── solutions/         reference solutions
+│   │   ├── CHECKLIST.md       "I understood / I ran / I explained"
 │   │   ├── __init__.py
-│   │   ├── agent.py tools.py  код етапу — прямо в пакеті, не в src/
-│   │   ├── run.py             демо: python -m stages.s01_agent_loop.run
-│   │   ├── check.py           self-check на fake_llm, офлайн, без ключа
-│   │   ├── data/              фікстури
-│   │   └── solutions/         еталонні розв'язки вправ
+│   │   ├── agent.py tools.py  the stage code — right in the package, not in src/
+│   │   ├── run.py             the demo: python -m stages.s01_agent_loop.run
+│   │   ├── check.py           a self-check on fake_llm, offline, with no key
+│   │   ├── data/              fixtures
+│   │   └── solutions/         reference solutions to the exercises
 │   ├── s02_rag/  s03_router/  s04_mcp/  s05_memory/
 │   ├── s06_platform/  s07_voice/  s08_eval/  s09_frameworks/
 │   └── s10_capstone/
 ├── deploy/
 │   ├── Dockerfile
 │   ├── docker-compose.yml           dev: app + postgres + redis
-│   ├── docker-compose.prod.yml      + caddy; профілі observability / langfuse
+│   ├── docker-compose.prod.yml      + caddy; the observability / langfuse profiles
 │   ├── Caddyfile
-│   ├── systemd/                     альтернатива без Docker (як у статті 6)
-│   ├── prometheus/ grafana/         конфіги й дашборд
+│   ├── systemd/                     the alternative without Docker (as in article 6)
+│   ├── prometheus/ grafana/         configs and the dashboard
 │   ├── .env.prod.example
-│   ├── RUNBOOK.md                   від чистої Ubuntu VM до живого HTTPS
-│   ├── smoke.sh                     перевірка проти реального URL
-│   └── loadtest/                    locust-сценарій
+│   ├── RUNBOOK.md                   from a clean Ubuntu VM to live HTTPS
+│   ├── smoke.sh                     a check against the real URL
+│   └── loadtest/                    the locust scenario
 ├── scripts/
-│   ├── check_all.py                 усі check.py послідовно
-│   └── migrate.py                   застосовує пронумеровані .sql
-└── .github/workflows/ci.yml         check_all на fake-провайдерах + збірка образу
+│   ├── check_all.py                 every check.py in sequence
+│   └── migrate.py                   applies the numbered .sql files
+└── .github/workflows/ci.yml         check_all on the fake providers + an image build
 ```
 
-**Чому `s01_`, а не `01-`:** ім'я Python-пакета не може починатися з цифри, а дефіс у
-ньому заборонений. `python -m stages.s01_agent_loop.run` працює; `stages.01-...` — ні.
+**Why `s01_`, not `01-`:** a Python package name cannot start with a digit, and a hyphen is
+forbidden inside it. `python -m stages.s01_agent_loop.run` works; `stages.01-...` does not.
 
 ---
 
-## 7. Технологічний стек
+## 7. Technology stack
 
-| Шар | Вибір | Чому саме він |
+| Layer | Choice | Why this one |
 |---|---|---|
-| Мова | Python 3.11+ | статті на Python |
-| Пакет | `pyproject.toml`, extras `[s03]`, `[s09]`, `[voice]`, `[prod]` | одна встановлювана бібліотека → етап 10 імпортує етапи 1–9 |
-| LLM SDK | `openai` | один клієнт покриває OpenAI, Groq, OpenRouter, Ollama, LM Studio через `base_url` |
-| Embeddings | `fastembed` | ONNX, без torch, працює на CPU, ~50 МБ проти ~2 ГБ |
-| Web | FastAPI + uvicorn | стаття 6 |
-| Планувальник | APScheduler | потрібен, щоб **відтворити пастку** з кількома воркерами |
-| БД | Postgres 16 + `pgvector` | одна БД замість «Postgres + окремий векторний сервіс» |
-| Кеш / ліміти | Redis 7 | rate limit і бюджет мають працювати між воркерами |
-| Міграції | пронумеровані `.sql` + 20-рядковий раннер | Alembic — коли схема почне часто змінюватись; поки що зайвий шар |
-| TLS | Caddy | автоматичний Let's Encrypt, конфіг на 5 рядків |
-| Трасування | власний JSONL → Langfuse | стаття 6 |
-| Метрики | `prometheus-client` → Prometheus → Grafana | стаття 6 |
-| Голос локально | `faster-whisper` (STT) + `piper` (TTS) | CPU-придатні, безкоштовні |
-| Голосовий транспорт | WebSocket + мікрофон у браузері | телефонія коштує; браузер дає справжню розмову безкоштовно |
-| Фреймворки (етап 9) | `langgraph`, `crewai`, `google-adk` (за флагом) | стаття 9 |
-| Навантаження | `locust` | ставиться через pip, без окремого бінарника |
-| Перевірки | `assert` у `check.py` + `scripts/check_all.py` | без тест-фреймворка; pytest — коли з'явиться потреба |
+| Language | Python 3.11+ | the articles are in Python |
+| Package | `pyproject.toml`, extras `[s03]`, `[s09]`, `[voice]`, `[prod]` | one installable library → stage 10 imports stages 1–9 |
+| LLM SDK | `openai` | one client covers OpenAI, Groq, OpenRouter, Ollama and LM Studio through `base_url` |
+| Embeddings | `fastembed` | ONNX, no torch, runs on CPU, ~50 MB against ~2 GB |
+| Web | FastAPI + uvicorn | article 6 |
+| Scheduler | APScheduler | needed in order to **reproduce the trap** with several workers |
+| Database | Postgres 16 + `pgvector` | one database instead of "Postgres plus a separate vector service" |
+| Cache / limits | Redis 7 | the rate limit and the budget have to work across workers |
+| Migrations | numbered `.sql` files + a 20-line runner | Alembic — when the schema starts changing often; for now it is an extra layer |
+| TLS | Caddy | automatic Let's Encrypt, a five-line config |
+| Tracing | our own JSONL → Langfuse | article 6 |
+| Metrics | `prometheus-client` → Prometheus → Grafana | article 6 |
+| Voice locally | `faster-whisper` (STT) + `piper` (TTS) | CPU-capable, free |
+| Voice transport | WebSocket + the browser microphone | telephony costs money; a browser gives a real conversation for free |
+| Frameworks (stage 9) | `langgraph`, `crewai`, `google-adk` (behind a flag) | article 9 |
+| Load | `locust` | installs through pip, no separate binary |
+| Checks | `assert` in `check.py` + `scripts/check_all.py` | no test framework; pytest — when the need appears |
 
 ---
 
-## 8. Продакшн-трек
+## 8. The production track
 
-### 8.1 Деплой
+### 8.1 Deployment
 
-Читач деплоїть **двічі**: на етапі 6 — вперше й невпевнено, на етапі 10 — усвідомлено.
+The reader deploys **twice**: at stage 6 for the first time and unsure of themselves, at stage 10
+knowingly.
 
-Цільова конфігурація: одна Ubuntu 22.04/24.04 VM, ≥4 ГБ RAM (~€4–8/міс), будь-який
-провайдер. `RUNBOOK.md` — провайдер-агностичний, з короткими нотатками для Hetzner і GCP.
+Target configuration: one Ubuntu 22.04/24.04 VM, ≥4 GB RAM (~€4–8/month), any provider.
+`RUNBOOK.md` is provider-agnostic, with short notes for Hetzner and GCP.
 
-`docker compose` має три профілі, щоб читач вмикав лише те, що тягне його VM:
+`docker compose` has three profiles, so the reader switches on only what their VM can carry:
 
-| Профіль | Сервіси | RAM |
+| Profile | Services | RAM |
 |---|---|---|
-| `core` | app, postgres, redis, caddy | ~2 ГБ |
-| `observability` | + prometheus, grafana | ~3 ГБ |
-| `full` | + langfuse | ~6 ГБ |
+| `core` | app, postgres, redis, caddy | ~2 GB |
+| `observability` | + prometheus, grafana | ~3 GB |
+| `full` | + langfuse | ~6 GB |
 
-Systemd-варіант без Docker описаний і покладений у `deploy/systemd/` — саме так робить
-стаття 6, і читач має побачити обидва шляхи.
+The systemd variant without Docker is described and placed in `deploy/systemd/` — that is exactly
+what article 6 does, and the reader has to see both paths.
 
-### 8.2 Безпека — не опційна
+### 8.2 Security is not optional
 
-Публічний ендпоінт, що витрачає токени, — це рахунок і зловживання. У базовій поставці:
+A public endpoint that spends tokens is a bill and an abuse vector. In the base delivery:
 
-- **Автентифікація:** `X-API-Key`, ключі з `.env`, порівняння через `secrets.compare_digest`.
-- **Rate limit:** token bucket у Redis, на ключ і на IP.
-- **Бюджетний запобіжник:** ліміт вартості на сесію та на добу, лічильник у Redis;
-  перевищення → відмова, не мовчазний рахунок.
-- **Ліміти вводу:** максимальна довжина повідомлення, максимальна тривалість аудіо.
-- **CORS** лише на налаштовані origin.
-- **`docs_url=None`** у профілі `prod` — жодного відкритого Swagger.
-- **HITL-гейт** для незворотних інструментів (`initiate_return`) — прямо з режиму
-  відмови №3 статті 1.
-- **Секрети** лише в `.env` поза git; `chmod 600`; `.env.prod.example` як шаблон.
+- **Authentication:** `X-API-Key`, keys from `.env`, compared through `secrets.compare_digest`.
+- **Rate limit:** a token bucket in Redis, per key and per IP.
+- **Budget breaker:** a cost limit per session and per day, with the counter in Redis; exceeding it
+  means a refusal, not a silent bill.
+- **Input limits:** a maximum message length, a maximum audio duration.
+- **CORS** only for the configured origins.
+- **`docs_url=None`** in the `prod` profile — no open Swagger anywhere.
+- **A human-in-the-loop gate** for irreversible tools (`initiate_return`) — straight from failure
+  mode #3 of article 1.
+- **Secrets** only in `.env` outside git; `chmod 600`; `.env.prod.example` as the template.
 
-`SECURITY.md` описує модель загроз простою мовою — це теж частина навчання.
+`SECURITY.md` describes the threat model in plain language — that too is part of the teaching.
 
-### 8.3 Обсервабельність
+### 8.3 Observability
 
-Дві різні речі, як наполягає стаття 6:
+Two different things, as article 6 insists:
 
-- **Prometheus + Grafana** — *чи здорова система*: RPS, латентність, помилки, RAM.
-- **Langfuse** — *чому агент вирішив саме так*: трейс кроків, обраний інструмент, токени, вартість.
+- **Prometheus + Grafana** — *is the system healthy*: RPS, latency, errors, RAM.
+- **Langfuse** — *why the agent decided that way*: the trace of steps, the chosen tool, tokens, cost.
 
-Читач бачить обидва дашборди й формулює різницю власними словами — це критерій
-проходження етапу 6.
+The reader sees both dashboards and states the difference in their own words — that is the criterion
+for passing stage 6.
 
 ---
 
-## 9. Десять етапів
+## 9. The ten stages
 
-Позначення: **Б** — що будуємо, **У** — чого вчить, **П** — критична перевірка в `check.py`.
+Notation: **B** — what we build, **T** — what it teaches, **C** — the critical check in `check.py`.
 
 ### s01 — Agent loop
-- **Б:** ReAct-цикл з нуля, без фреймворку. Валідація аргументів за JSON-схемою, ліміт
-  кроків, HITL-гейт для незворотних дій. Канон: `get_weather`. Міст: `get_order_status`.
-- **У:** чому LLM сам не виконує функції; анатомія `tool_call`; три режими відмови зі статті.
-- **П:** фейк, що зациклюється, → доводить, що ліміт кроків спрацьовує; фейк із кривими
-  аргументами → доводить, що валідація ловить.
+- **B:** a ReAct loop from scratch, no framework. Argument validation against a JSON schema, a step
+  limit, a human-in-the-loop gate for irreversible actions. Canon: `get_weather`. Bridge:
+  `get_order_status`.
+- **T:** why an LLM does not execute functions itself; the anatomy of a `tool_call`; the three
+  failure modes from the article.
+- **C:** a fake that loops forever → proves the step limit fires; a fake with malformed arguments →
+  proves the validation catches them.
 
 ### s02 — RAG
-- **Б:** embed → cosine → top-k → stuff → generate; чанкінг; цитування джерела.
-  `DECISION.md` — дерево «RAG чи fine-tune» зі статті як робочий чекліст.
-- **У:** embedding як «математичний відбиток змісту»; чому чанкінг міняє відповіді;
-  чому provenance важить.
-- **П:** детермінований ембеддер → на «скільки днів на повернення» топ-1 = політика
-  повернень; відповідь містить посилання на джерело.
+- **B:** embed → cosine → top-k → stuff → generate; chunking; citing the source. `DECISION.md` — the
+  "RAG or fine-tune" tree from the article as a working checklist.
+- **T:** an embedding as "a mathematical fingerprint of meaning"; why chunking changes the answers;
+  why provenance matters.
+- **C:** a deterministic embedder → for "how many days do I have to return this" the top-1 is the
+  returns policy; the answer carries a link to its source.
 
 ### s03 — Router
-- **Б:** спочатку **власний міні-граф на ~60 рядків**, потім той самий результат на
-  LangGraph. State-схема проєктується свідомо, лічильник round-trips у стані.
-- **У:** supervisor = агент, чиї інструменти — інші агенти; чому state-схема — найдорожче
-  для зміни рішення; коли supervisor надлишковий.
-- **П:** 6 запитів → правильні спеціалісти; revision-loop зупиняється на ліміті.
+- **B:** first **our own mini-graph in about 60 lines**, then the same result on LangGraph. The
+  state schema is designed deliberately, with a round-trip counter in the state.
+- **T:** a supervisor is an agent whose tools are other agents; why the state schema is the most
+  expensive decision to change; when a supervisor is redundant.
+- **C:** 6 requests → the right specialists; the revision loop stops at its limit.
 
 ### s04 — MCP
-- **Б:** MCP-сервер + stdio-клієнт; агент етапу 3 переходить із локальних функцій на
-  MCP. Явний стан через ID у payload (stateless-специфікація).
-- **У:** host/client/server; tools/resources/prompts; чому `list_tools()` робить інтеграцію
-  дискаверабельною; чому «менше добре спроєктованих інструментів» краще за «мапу всіх ендпоінтів».
-- **П:** сервер у підпроцесі: `list_tools` → `call_tool`; парсер ігнорує narration-блоки
-  і робить `json.loads` на `mcp_tool_result` — точна пастка зі статті 6.
+- **B:** an MCP server plus a stdio client; the stage 3 agent moves from local functions to MCP.
+  Explicit state through IDs in the payload (the stateless specification).
+- **T:** host/client/server; tools/resources/prompts; why `list_tools()` makes an integration
+  discoverable; why "fewer well-designed tools" beats "a map of every endpoint".
+- **C:** the server in a subprocess: `list_tools` → `call_tool`; the parser ignores narration blocks
+  and runs `json.loads` on `mcp_tool_result` — the exact trap from article 6.
 
 ### s05 — Memory
-- **Б:** short-term (вікно + сумаризація при переповненні) + long-term
-  (extract → store → retrieve), спершу dict, потім семантичний пошук на ембеддерах етапу 2.
-- **У:** «зберегти все» = context rot; дедуплікація і конфлікти фактів; TTL.
-- **П:** дві «сесії»: факт із першої доступний у другій **і** нерелевантний факт НЕ
-  потрапив у контекст — це перевіряє селективність, а не просто збереження.
+- **B:** short-term (a window plus summarisation on overflow) and long-term (extract → store →
+  retrieve), first on a dict and then with semantic search on the stage 2 embedder.
+- **T:** "store everything" = context rot; deduplication and conflicting facts; TTL.
+- **C:** two "sessions": a fact from the first is available in the second **and** an irrelevant fact
+  did NOT reach the context — that checks selectivity rather than mere storage.
 
-### s06 — Integration & Deploy ← перший реальний деплой
-- **Б:** FastAPI зшиває 1–5: classifier → agent → MCP-tools → memory → trace. Auth,
-  rate limit, бюджет, `/healthz`, `/metrics`. `docker compose` + Caddy + HTTPS на VM.
-  Пастка APScheduler демонструється на **двох реальних воркерах**, потім планувальник
-  виноситься в окремий процес.
-- **У:** класифікатор vs supervisor — справжній компроміс, не догма; чому Prometheus не
-  відповідає на питання «чому агент так вирішив»; чому `--workers 2` зламав джобу.
-- **П:** `TestClient`: 3 запити → 3 різні гілки; трейс містить очікувані вузли.
-  Після деплою — `deploy/smoke.sh` проти реального URL.
+### s06 — Integration & Deploy ← the first real deployment
+- **B:** FastAPI joins 1–5: classifier → agent → MCP tools → memory → trace. Auth, rate limit,
+  budget, `/healthz`, `/metrics`. `docker compose` + Caddy + HTTPS on a VM. The APScheduler trap is
+  demonstrated on **two real workers**, then the scheduler is moved into a separate process.
+- **T:** classifier vs supervisor — a real trade-off, not dogma; why Prometheus does not answer the
+  question "why did the agent decide that"; why `--workers 2` broke the job.
+- **C:** `TestClient`: 3 requests → 3 different branches; the trace holds the expected nodes. After
+  deployment — `deploy/smoke.sh` against the real URL.
 
 ### s07 — Voice
-- **Б:** той самий конвеєр двічі: батчевий → міряємо; стрімінговий → міряємо. Barge-in із
-  VAD-порогом і мінімальною тривалістю. Async prefetch для повільного інструмента.
-  Реальний режим: мікрофон у браузері → WebSocket → `faster-whisper` → LLM → `piper`.
-- **У:** чому 600 мс; time-to-first-audio; чому p95 важливіший за середнє; ціна
-  синхронного tool-call у голосі.
-- **П:** time-to-first-audio у стрімінгу щонайменше **вдвічі** нижчий за батч
-  (очікувано ~1500 мс проти ~400 мс на дефолтних мок-затримках); 100 мс шуму не
-  перериває, 300 мс мовлення — перериває.
+- **B:** the same pipeline twice: batch → we measure; streaming → we measure. Barge-in with a VAD
+  threshold and a minimum duration. Async prefetch for a slow tool. Real mode: the browser
+  microphone → WebSocket → `faster-whisper` → LLM → `piper`.
+- **T:** where the 600 ms comes from; time-to-first-audio; why p95 matters more than the mean; the
+  price of a synchronous tool-call inside voice.
+- **C:** time-to-first-audio in streaming is at least **twice** lower than in batch (expected
+  ~1500 ms against ~400 ms on the default mock delays); 100 ms of noise does not interrupt, 300 ms
+  of speech does.
 
 ### s08 — Evaluation
-- **Б:** харнес на 3 рівнях **поверх трейсів з етапу 1**. ~20 кейсів, включно з крайніми.
-  Детермінований чек + LLM-as-judge. Length- і position-bias демонструються **наживо на
-  власних даних**. Online-семплінг 10% реального трафіку з задеплоєного сервісу етапу 6.
-- **У:** шлях важливіший за пункт призначення; коли суддя-LLM виправданий, а коли це
-  дорога заміна `==`.
-- **П:** своп порядку відповідей реально змінює вердикт судді — читач бачить біас на
-  своїх даних, а не читає про нього.
+- **B:** a harness on 3 levels **over the traces from stage 1**. ~20 cases, edge cases included. A
+  deterministic check plus LLM-as-judge. Length and position bias are demonstrated **live on our own
+  data**. Online sampling of 10% of the real traffic from the deployed stage 6 service.
+- **T:** the path matters more than the destination; when a model judge is justified and when it is
+  an expensive replacement for `==`.
+- **C:** swapping the order of the answers really does change the judge's verdict — the reader sees
+  the bias on their own data rather than reading about it.
 
 ### s09 — Frameworks
-- **Б:** один таск (research → writer) тричі: LangGraph / CrewAI / ADK (за флагом).
-  Міряємо токени й рядки коду → `COMPARISON.md` із **власними** числами.
-- **У:** явна vs неявна координація; фреймворк — це риштування, а не архітектура.
-- **П:** смоук кожної реалізації; ADK пропускається без залежності, а не падає.
+- **B:** one task (research → writer) three times: LangGraph / CrewAI / ADK (behind a flag). We
+  measure tokens and lines of code → `COMPARISON.md` with **our own** numbers.
+- **T:** explicit vs implicit coordination; a framework is scaffolding, not architecture.
+- **C:** a smoke test of every implementation; ADK is skipped without its dependency rather than
+  failing.
 
-### s10 — Capstone ← другий деплой, усвідомлений
-- **Б:** чистий support-агент, що **імпортує** зрілі модулі. Повний продакшн-обвіс:
-  auth, ліміти, бюджет, метрики, трасування, бекап БД, CI. Голос — опційний адаптер.
-  Навантажувальний тест `locust` проти живого URL, дашборд Grafana.
-  `ARCHITECTURE.md` обґрунтовує **кожне** рішення з посиланням на етап-джерело.
-- **У:** судження, а не факти — це фінальна теза статті 10.
-- **П:** e2e на фейку, 5 сценаріїв: правильна гілка + правильний фінальний стан.
-  Після деплою — smoke + навантажувальний прогін із зафіксованими p50/p95.
-
----
-
-## 10. Двомовність
-
-**Українська — основна.** Англійська — дзеркало для навігації.
-
-| Артефакт | UA | EN |
-|---|---|---|
-| Кореневий README | `README.md` — повний | `README.md` — повний |
-| Урок етапу | `README.md` — повний | `README.md` — 1 екран: що це, як запустити, чого навчить |
-| `CURRICULUM`, `GLOSSARY`, `SETUP`, `SECURITY` | повні | — (глосарій двомовний за побудовою) |
-| `RUNBOOK`, `ARCHITECTURE`, `COMPARISON` | повні | — |
-| Код, імена файлів, docstrings, комміти | — | англійською |
-
-Дублювати кожне слово двома мовами не будемо: другий переклад завжди відстає, і читач
-починає не довіряти обом.
+### s10 — Capstone ← the second deployment, a knowing one
+- **B:** a clean support agent that **imports** the mature modules. The full production wrap: auth,
+  limits, budget, metrics, tracing, a database backup, CI. Voice is an optional adapter. A `locust`
+  load test against the live URL, a Grafana dashboard. `ARCHITECTURE.md` justifies **every** decision
+  with a citation of its source stage.
+- **T:** judgement rather than facts — that is the final claim of article 10.
+- **C:** e2e on the fake, 5 scenarios: the right branch + the right final state. After deployment —
+  smoke plus a load run with the p50/p95 pinned.
 
 ---
 
-## 11. Definition of Done для етапу
+## 10. Language
 
-Етап вважається завершеним, коли виконано **всі** пункти:
+**Everything committed to this repository is written in English** — lessons, READMEs, the glossary,
+specifications, ADRs, docstrings, explanatory comments, reader-facing messages including check
+failures, and commit messages. A repository read by people who do not share one language is read in
+English or not at all.
 
-1. `README.md` (UA): «що ти зможеш після цього етапу» → канон → міст → «що зламати».
-2. `README.md` (EN) — один екран.
-3. `python -m stages.sNN_slug.run` запускається на профілі `local` без API-ключа.
-4. `python -m stages.sNN_slug.check` зелений офлайн, і серед перевірок є **хоча б одна на
-   режим відмови**, а не лише на щасливий шлях.
-5. `exercises.md` — 3–4 завдання з очікуваним результатом; `solutions/` — еталони.
-6. `CHECKLIST.md` — «я зрозумів / я запустив / я пояснив».
-7. Нові терміни додані в `GLOSSARY.md` з посиланням на цей етап.
-8. Статус етапу оновлений у `CURRICULUM.md`.
-9. Для етапів 6 і 10 додатково: `deploy/smoke.sh` проходить проти реального URL.
+Ukrainian is not forbidden; it is simply not what gets committed. Drafts and working notes stay in
+whatever language suits their author — nothing outside version control is bound by this rule.
+
+This replaces the earlier bilingual arrangement, in which the prose was Ukrainian and English
+mirrors carried navigation. That is why the `.en` mirror files are deleted rather than maintained in
+parallel: a second translation always lags, and the reader ends up trusting neither. The decision
+and its reasoning:
+[ADR-0008](../docs/adr/0008-english-is-the-only-language-in-the-repository.md).
 
 ---
 
-## 12. Ризики і пом'якшення
+## 11. Definition of Done for a stage
 
-| Ризик | Пом'якшення |
+A stage counts as finished when **every** item holds:
+
+1. `README.md`: "what you will be able to do after this stage" → the canon → the bridge → "what to
+   break".
+2. `README.md` opens with an orientation block that fits one screen.
+3. `python -m stages.sNN_slug.run` runs on the `local` profile with no API key.
+4. `python -m stages.sNN_slug.check` is green offline, and among the checks there is **at least one
+   on a failure mode**, not only on the happy path.
+5. `exercises.md` — 3–4 tasks with an expected result; `solutions/` — the references.
+6. `CHECKLIST.md` — "I understood / I ran / I explained".
+7. New terms added to `GLOSSARY.md` with a link to this stage.
+8. The stage status updated in `CURRICULUM.md`.
+9. For stages 6 and 10 additionally: `deploy/smoke.sh` passes against the real URL.
+
+---
+
+## 12. Risks and mitigations
+
+| Risk | Mitigation |
 |---|---|
-| VM не тягне Postgres+Redis+Langfuse+Prometheus+Grafana+app | Три профілі compose (`core` / `observability` / `full`); `RUNBOOK` називає RAM для кожного |
-| Локальний Whisper на CPU повільний | Це не баг уроку, а його зміст: читач бачить, чому стрімінг критичний. У `README` — чесне попередження й очікувані числа |
-| Free tier Groq має ліміти запитів | `check_all.py` не ходить у мережу взагалі, тож CI не залежить від вендора |
-| CrewAI / LangGraph ламають API між версіями | Версії запінені в `pyproject.toml`; смоук у `check.py` ловить розрив рано |
-| Google ADK потребує креденшелів | За фіче-флагом; `check.py` пропускає, а не падає |
-| Статті писані під MCP-специфікацію `2026-07-28` | Перед етапом 4 звіряємо чинну специфікацію; у `README` — позначка «станом на дату» |
-| Публічний ендпоінт зловживається і генерує рахунок | Бюджетний запобіжник + rate limit у базовій поставці, до першого деплою (§8.2) |
-| Обсяг: 10 етапів × (урок + код + вправи + рішення + чек) | Етапи незалежні; впроваджуємо строго по одному, кожен закривається за §11 перш ніж почати наступний |
+| The VM cannot carry Postgres+Redis+Langfuse+Prometheus+Grafana+app | Three compose profiles (`core` / `observability` / `full`); `RUNBOOK` names the RAM for each |
+| A local Whisper on CPU is slow | That is not a bug of the lesson but its content: the reader sees why streaming is critical. In the `README` — an honest warning and the expected numbers |
+| The Groq free tier has request limits | `check_all.py` does not go to the network at all, so CI does not depend on a vendor |
+| CrewAI / LangGraph break their API between versions | Versions are pinned in `pyproject.toml`; the smoke test in `check.py` catches a break early |
+| Google ADK needs credentials | Behind a feature flag; `check.py` skips rather than fails |
+| The articles were written against MCP specification `2026-07-28` | Before stage 4 we reconcile with the current specification; in the `README` — an "as of this date" marker |
+| The public endpoint is abused and generates a bill | A budget breaker plus a rate limit in the base delivery, before the first deployment (§8.2) |
+| Volume: 10 stages × (lesson + code + exercises + solutions + check) | The stages are independent; we implement strictly one at a time, and each is closed per §11 before the next begins |
 
 ---
 
-## 13. Поза обсягом (свідомо)
+## 13. Out of scope (deliberately)
 
-- Тренування або файн-тюнінг моделей. Етап 2 вчить **вибирати** між RAG і fine-tuning,
-  а не файн-тюнити.
-- Kubernetes, автоскейлінг, мультирегіон. Стаття 6 прямо аргументує проти на цьому масштабі.
-- Телефонія (Twilio) — лишається як задокументована точка розширення в етапі 7.
-- Платні керовані БД і керована обсервабельність — усе self-hosted на одній VM.
-- Реальні сторонні API (Swiggy тощо) — замінені на `NovaShop` зі стабільними фікстурами.
-- Повний A2A-протокол — оглядово в етапі 9, без реалізації.
+- Training or fine-tuning models. Stage 2 teaches how to **choose** between RAG and fine-tuning,
+  not how to fine-tune.
+- Kubernetes, autoscaling, multi-region. Article 6 argues against them outright at this scale.
+- Telephony (Twilio) — it stays as a documented extension point in stage 7.
+- Paid managed databases and managed observability — everything is self-hosted on one VM.
+- Real third-party APIs (Swiggy and the like) — replaced by `NovaShop` with stable fixtures.
+- The full A2A protocol — surveyed in stage 9, not implemented.
 
 ---
 
-## 14. Матеріал джерела — закрито
+## 14. Source material — closed
 
-**Вирішено й виконано.** Копій чужих статей у репозиторії немає — їх прибрано повністю.
-У публічний репозиторій іде лише наш власний код; наші власні статті живуть у репозиторії
-блога, а сюди ведуть лише посилання.
+**Decided and done.** There are no copies of other people's articles in the repository — they have
+been removed entirely. Only our own code goes into the public repository; our own articles live in
+the blog repository, and only links lead from here to them.
 
-До кожного етапу написана **своя** стаття — власний код, власні числа, власні висновки, — і
-всі десять перелічені в [`docs/readme.md`](../docs/readme.md). Посилання в репозиторії ведуть
-на них, а не на будь-що стороннє.
+For every stage a **separate** article of our own was written — our own code, our own numbers, our
+own conclusions — and all ten are listed in [`docs/readme.md`](../docs/readme.md). The links in the
+repository lead to those, not to anything external.
 
-Числа статей звіряються з кодом скриптом `scripts/article_check.py` — на тому теґу, який
-стаття називає. Питання прав на цьому знято повністю: дзеркалити нема чого.
-
+The articles' numbers are reconciled against the code by `scripts/article_check.py` — at the tag the
+article names. The question of rights is now closed completely: there is nothing left to mirror.

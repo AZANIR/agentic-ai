@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0001 — Класифікувати намір один раз замість повного supervisor
+# 0001 — Classify intent once instead of a full supervisor
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -15,59 +15,58 @@ ticket: "n/a"
 
 ## Context
 
-Етап 3 дав робочий supervisor: маршрут, передача спеціалістові, оцінка відповіді, цикл
-ревізій із лічильником. Сервіс етапу 6 має обрати гілку для кожного запиту, і спокуса
-взяти готове очевидна.
+Stage 3 produced a working supervisor: the route, the handoff to a specialist, the assessment of
+the answer, a revision loop with a counter. The stage 6 service has to pick a branch for every
+request, and the temptation to take what is already built is obvious.
 
-Питання не в тому, чи supervisor кращий. Питання в тому, **скільки викликів моделі
-коштує вибір гілки** — і чи виправдана ця ціна для трьох гілок.
+The question is not whether the supervisor is better. The question is **how many model calls the
+branch choice costs** — and whether that price is justified for three branches.
 
 ## Decision drivers
 
-- Supervisor витрачає щонайменше два виклики на запит: маршрут і оцінка. Кожен цикл
-  ревізії додає ще два.
-- Гілок три, і вони добре розрізняються за формулюванням запиту.
-- Етап 6 має **бюджетний запобіжник**: етап, що витрачає вдвічі більше за потребу,
-  суперечив би власному уроку.
-- Компроміс має бути **названий числом**, а не проголошений.
+- The supervisor spends at least two calls per request: the route and the assessment. Every
+  revision loop adds two more.
+- There are three branches, and they are easy to tell apart from the wording of the request.
+- Stage 6 has a **budget guard**: a stage that spends twice what it needs would contradict its
+  own lesson.
+- The trade-off has to be **named with a number**, not proclaimed.
 
 ## Considered options
 
-1. **Класифікатор наміру** — один виклик, одна відповідь із переліку гілок.
-2. **Повний supervisor етапу 3** — маршрут, передача, оцінка, ревізії.
-3. **Правила на ключових словах** — нуль викликів моделі.
+1. **An intent classifier** — one call, one answer out of the list of branches.
+2. **Stage 3's full supervisor** — route, handoff, assessment, revisions.
+3. **Keyword rules** — zero model calls.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 дає те, чого сервіс не використовує: цикл ревізій має сенс, коли є кому
-переоцінювати відповідь, а сервіс віддає її користувачеві. Платити за оцінку, результат
-якої нікуди не йде, — це не архітектура, а інерція.
+Option 2 gives what the service does not use: a revision loop makes sense when there is somebody
+to re-assess the answer, and the service hands it to the user. Paying for an assessment whose
+result goes nowhere is not architecture, it is inertia.
 
-Option 3 виглядає привабливо й ламається на першому ж перефразуванні: «як довго йде
-повернення» і «скільки чекати на гроші назад» — той самий намір без жодного спільного
-ключового слова.
+Option 3 looks attractive and breaks on the first rephrasing: "how long does a return take" and
+"how long do I wait for the money back" — the same intent with not a single keyword in common.
 
-**Запасного шляху при вичерпаному бюджеті свідомо немає.** Спокуса очевидна: класифікувати
-за ключовими словами й відповісти хоч якось. Вона відхилена, бо перетворює запобіжник на
-пораду: AC-05 вимагає, щоб виклик моделі **не відбувся**, і сервіс, який у цьому стані
-відповідає, зробив би відмову м'якою рівно там, де вона має бути жорсткою. Вичерпаний
-бюджет — це відмова, а не деградація.
+**There is deliberately no fallback path when the budget is exhausted.** The temptation is
+obvious: classify by keywords and answer somehow. It is rejected, because it turns the guard into
+advice: AC-05 requires that the model call **does not happen**, and a service that answers in that
+state would make the refusal soft exactly where it has to be hard. An exhausted budget is a
+refusal, not a degradation.
 
-**Межа названа числом, а не думкою.** Класифікатор помиляється на запитах, що стосуються
-двох гілок одночасно («поверніть гроші за замовлення 4471 — скільки днів це триває»).
-Supervisor такий запит розкладе; класифікатор обере одну гілку. Урок етапу називає цю
-частку заміряною на наборі запитів, а не оцінює її словами.
+**The limit is named with a number, not with an opinion.** The classifier gets it wrong on
+requests that touch two branches at once ("refund order 4471 — and how many days does that take").
+A supervisor would decompose such a request; the classifier will pick one branch. The stage lesson
+names that share as measured on a set of requests, rather than estimating it in words.
 
 ## Consequences
 
 **Positive**
-- Один виклик моделі на вибір гілки замість двох і більше.
-- Гілка відома **до** роботи агента, тож у трейс вона потрапляє першим кроком.
-- Класифікація коштує рівно один виклик, тож бюджетний облік має один доданок на гілку.
+- One model call for the branch choice instead of two or more.
+- The branch is known **before** the agent runs, so it lands in the trace as the first step.
+- Classification costs exactly one call, so the budget accounting has one addend per branch.
 
 **Negative**
-- Складені запити обробляються однією гілкою. Названо в уроці числом.
-- Немає самооцінки відповіді. Це свідомо: оцінювання — етап 8, і воно робиться на
-  трейсах офлайн, а не в гарячому шляху за гроші користувача.
+- Compound requests are handled by a single branch. Named in the lesson with a number.
+- There is no self-assessment of the answer. That is deliberate: evaluation is stage 8, and it is
+  done on traces offline, not on the hot path at the user's expense.

@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-23"
 feature_size: "S"
 ticket: "n/a"
 ---
 
-# 0002 — Фільтрувати за рівнем доступу до відбору top-k, усередині пошуку
+# 0002 — Filter by access level before the top-k selection, inside the search
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -15,68 +15,73 @@ ticket: "n/a"
 
 ## Context
 
-База знань містить документи різного рівня доступу: політики для покупців і внутрішні
-інструкції. Пошук за близькістю про рівні доступу нічого не знає — він поверне те, що
-ближче за змістом, включно з внутрішнім документом.
+The knowledge base holds documents at different access levels: policies for shoppers and internal
+instructions. Search by closeness knows nothing about access levels — it will return whatever is
+closer in meaning, the internal document included.
 
-Це найтиповіший виробничий витік у RAG-системах, і показати його дешевше на десяти
-документах, ніж пояснювати на етапі 6 під публічним ендпоінтом.
+This is the most typical production leak in RAG systems, and showing it on ten documents is
+cheaper than explaining it at stage 6 behind a public endpoint.
 
 ## Decision drivers
 
-- Абʼюз-кейс «внутрішній документ у відповіді покупцю» (spec §6.1) має бути закритий
-  механізмом, а не дисципліною.
-- Патерн успадковують етапи 6 і 10, де за пошуком стоїть публічний ендпоінт.
-- Читач має побачити, що **порядок** фільтрації змінює наслідок.
+- The abuse case "an internal document in a shopper's answer" (spec §6.1) has to be closed by a
+  mechanism, not by discipline.
+- The pattern is inherited by stages 6 and 10, where a public endpoint stands in front of the
+  search.
+- The reader has to see that **the order** of filtering changes the consequence.
 
 ## Considered options
 
-1. **Фільтр усередині пошуку, до відбору top-k** — рівень доступу є параметром пошуку.
-2. **Фільтр усередині пошуку, після відбору top-k** — відібрали п'ять найкращих, потім
-   прибрали заборонені.
-3. **Фільтр на рівні викликача** — пошук повертає все, кожен споживач фільтрує сам.
+1. **The filter inside the search, before the top-k selection** — the access level is a parameter
+   of the search.
+2. **The filter inside the search, after the top-k selection** — pick the best five, then remove
+   the forbidden ones.
+3. **The filter at the caller** — the search returns everything, each consumer filters for itself.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Варіант 3 відпадає першим: захист, про який мусить пам'ятати кожен викликач, — це домовленість,
-а не межа довіри. Той самий висновок ми вже зробили на етапі 1 щодо `additionalProperties`,
-і там він коштував нам знахідки рев'ю.
+Option 3 falls first: a guard that every caller has to remember is an agreement, not a line of
+trust. We drew the same conclusion at stage 1 about `additionalProperties`, and there it cost us
+a review finding.
 
-Варіант 2 виглядає еквівалентним і не є ним. Різниця тонка й важлива:
+Option 2 looks equivalent and is not. The difference is subtle and important:
 
-| | фільтр після відбору | фільтр до відбору |
+| | filter after the selection | filter before the selection |
 |---|---|---|
-| внутрішній документ у відповіді | ні | ні |
-| **дозволений документ у видачі** | **міг зникнути** — його витіснив внутрішній | лишається |
+| an internal document in the answer | no | no |
+| **a permitted document in the results** | **could have vanished** — an internal one displaced it | stays |
 
-Обидва варіанти проходять перевірку «внутрішнє не витекло». Але при фільтрі **після** відбору
-внутрішній документ займає місце в п'ятірці, його прибирають — і Shopper отримує **гіршу
-відповідь**, не маючи жодного способу це помітити. Витоку немає, якість тихо просіла.
+Both variants pass the check "the internal thing did not leak". But with the filter applied
+**after** the selection, an internal document takes a slot in the top five, is then removed — and
+the Shopper gets **a worse answer** with no way at all of noticing. There is no leak, quality
+quietly dropped.
 
-Тому перевірка стверджує **обидві** властивості: внутрішнє не витекло **і** дозволене не зникло.
-Одна без другої пропускає варіант 2.
+That is why the check asserts **both** properties: the internal thing did not leak **and** the
+permitted thing did not disappear. Either one without the other lets option 2 through.
 
 ## Consequences
 
 **Positive**
-- Викликач не може забути фільтр — його немає в зоні відповідальності викликача.
-- Якість видачі не залежить від того, скільки внутрішніх документів опинилось поруч за змістом.
-- Механізм переноситься на етап 6 без переробки: змінюється джерело рівня доступу, не місце фільтра.
+- The caller cannot forget the filter — it is not in the caller's area of responsibility.
+- The quality of the results does not depend on how many internal documents happened to be close
+  in meaning.
+- The mechanism carries over to stage 6 with no rework: what changes is the source of the access
+  level, not the place of the filter.
 
 **Negative**
-- Пошук отримує ще один параметр, і його не можна викликати «просто так» — доводиться
-  щоразу вказувати, від чийого імені шукаємо. Це навмисне тертя.
-- Модуль пошуку росте: у ньому вже косинус, top-k, поріг і фільтр. Ліміт §10 — 80 рядків;
-  при перевищенні фільтр виноситься окремим модулем (SAD §11).
+- The search gains one more parameter and cannot be called "just like that" — you have to state
+  each time whose behalf you are searching on. That friction is deliberate.
+- The search module grows: it already holds the cosine, the top-k, the threshold and the filter.
+  The §10 limit is 80 lines; if it is exceeded, the filter moves out into its own module (SAD §11).
 
 **Neutral**
-- Ієрархія рівнів (внутрішній ⊃ партнерський ⊃ публічний) на цьому етапі не потрібна:
-  двох рівнів достатньо, щоб показати механізм.
+- A hierarchy of levels (internal ⊃ partner ⊃ public) is not needed at this stage: two levels are
+  enough to show the mechanism.
 
 ## Links
 
-- Спека: [[../spec.md]] AC-05, §6.1
+- Spec: [[../spec.md]] AC-05, §6.1
 - SAD: [[../sad.md]] §4, §6 (flow 1), §8
-- Пов'язані ADR: [[0003-system-attaches-the-source]]
+- Related ADRs: [[0003-system-attaches-the-source]]

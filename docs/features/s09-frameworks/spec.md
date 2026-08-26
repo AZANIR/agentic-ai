@@ -1,6 +1,6 @@
 ---
 status: Draft
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
@@ -8,506 +8,532 @@ feature_size: "M"
 
 # Spec — s09-frameworks
 
-> **Glossary:** [CONTEXT](../../../CONTEXT.md) (ролі + доменні об'єкти), [GLOSSARY](../../../GLOSSARY.md) (терміни курсу)
-> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §9 (s09) · `CURRICULUM.md` · `PLAYBOOK.md` · `stages/s03_router/` (власний міні-граф і LangGraph уже написані) · `stages/s08_eval/` (оцінювач, який читатиме трейси цього етапу) · `shared/llm.py` як єдина межа провайдера · стаття-джерело #9 (Frameworks)
+> **Glossary:** [CONTEXT](../../../CONTEXT.md) (roles + domain objects), [GLOSSARY](../../../GLOSSARY.md) (the course's terms)
+> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §9 (s09) · `CURRICULUM.md` · `PLAYBOOK.md` · `stages/s03_router/` (a mini-graph of our own and a LangGraph one are already written) · `stages/s08_eval/` (the evaluator that will read this stage's traces) · `shared/llm.py` as the single provider boundary · source article #9 (Frameworks)
 
 ## 1. Context
 
-Вісім етапів побудували систему **власними руками**: цикл агента, пошук, роутер, інструменти,
-пам'ять, сервіс, голос, оцінювання. Жодного разу не постало питання, з якого починає більшість:
+Eight stages built a system **by hand**: the agent loop, retrieval, the router, tools, memory,
+the service, voice, evaluation. Not once did the question most people start with come up:
 
-> **«Який фреймворк узяти?»**
+> **"Which framework should I take?"**
 
-Це не випадковість, а конструкція курсу. Питання ставиться **дев'ятим**, а не першим, тому що
-відповісти на нього можна лише маючи те, з чим порівнювати.
+That is not an accident, it is the design of the course. The question is asked **ninth** rather
+than first, because it can only be answered once you have something to compare against.
 
-Головна теза етапу — з тієї самої статті:
+The stage's main thesis comes from that same article:
 
-> **Фреймворк — це риштування, а не архітектура.**
+> **A framework is scaffolding, not architecture.**
 
-Риштування прискорює будівництво й нічого не каже про те, що ти будуєш. Обраний до того, як
-відома форма будівлі, він **стає** формою — і саме це відбувається, коли фреймворк обирають
-першим рішенням.
+Scaffolding speeds up construction and says nothing about what you are building. Chosen before
+the shape of the building is known, it **becomes** the shape — and that is exactly what happens
+when the framework is the first decision.
 
-Друга теза, і вона операційна:
+The second thesis, and this one is operational:
 
-> **Явна координація коштує рядків. Неявна коштує розуміння.**
+> **Explicit coordination costs lines. Implicit coordination costs understanding.**
 
-У LangGraph ти сам малюєш ребра: більше коду, і кожен перехід видно. У CrewAI агенти
-делегують одне одному за описами ролей: менше коду, і питання «чому виконався цей крок»
-перестає мати дешеву відповідь. Обидва компроміси законні; вибір між ними — це вибір
-**обмеження**, а не смаку.
+In LangGraph you draw the edges yourself: more code, and every transition is visible. In CrewAI
+the agents delegate to one another based on role descriptions: less code, and the question "why
+did this step run" stops having a cheap answer. Both trade-offs are legitimate; choosing between
+them is choosing **a constraint**, not a taste.
 
-**Доказ етапу — власні числа, а не переказ.** Стаття робить твердження про співвідношення
-коду й контролю. Етап дає читачеві заміряти те саме на своїй машині — і твої числа або
-підтвердять твердження, або ні. І те, і те є результатом; етап, який може лише підтвердити,
-нічого не міряє.
+**The stage's proof is numbers of your own, not a retelling.** The article makes a claim about
+the ratio of code to control. The stage lets the reader measure the same thing on their own
+machine — and your numbers will either confirm the claim or they will not. Either outcome is a
+result; a stage that can only confirm is measuring nothing.
 
-**Чому порівняння легко зробити нечесним.** Три реалізації «однієї задачі» порівнянні лише
-тоді, коли задача зафіксована однаково: той самий вхід, та сама модель, той самий набір
-інструментів, та сама умова зупинки. Інакше вимірюється **вправність автора** в кожному
-фреймворку, а не фреймворки. Це головний методологічний ризик етапу, і він закривається
-контрактом задачі, спільним для всіх реалізацій (§5, AC-02).
+**Why the comparison is easy to make dishonest.** Three implementations of "the same task" are
+comparable only when the task is fixed identically: the same input, the same model, the same set
+of tools, the same stopping condition. Otherwise what is measured is **the author's fluency** in
+each framework, not the frameworks. That is the stage's chief methodological risk, and it is
+closed by a task contract shared by every implementation (§5, AC-02).
 
-**Четверта колонка — без фреймворка.** Теза «риштування, а не архітектура» перевіряється лише
-проти базової лінії, у якій риштувань немає взагалі. Без неї порівняння відповідає на питання
-«який фреймворк кращий», а не на питання етапу — «чи потрібен фреймворк тут».
+**The fourth column — no framework.** The thesis "scaffolding, not architecture" can only be
+tested against a baseline with no scaffolding at all. Without it the comparison answers the
+question "which framework is better" rather than the stage's question — "is a framework needed
+here".
 
-Базова лінія пишеться **тут і заново**, і саме її розмір є першим висновком етапу. Спокуса
-взяти граф етапу 3 велика й хибна: там supervisor-роутер із маршрутизацією та циклом ревізій,
-а тут — два послідовні кроки. Підігнати одне під інше означало б порівнювати задачу з іншою
-задачею, тобто зробити рівно ту помилку, від якої застерігає AC-02.
+The baseline is written **here and from scratch**, and its size is the stage's first conclusion.
+The temptation to take the stage 3 graph is strong and wrong: there it is a supervisor router
+with routing and a revision loop, and here it is two sequential steps. Fitting one to the other
+would mean comparing a task with a different task — that is, making exactly the mistake AC-02
+warns against.
 
-Ухвалено на глибині інтерв'ю `easy`: рішення зафіксовані в дизайн-специфікації курсу.
-Прийняті припущення — наприкінці §8.
+Decided at interview depth `easy`: the decisions are fixed in the course's design specification.
+The assumptions taken are at the end of §8.
 
-### Словник цієї специфікації
+### The vocabulary of this specification
 
-Чотири слова вживаються точно й не взаємозамінно:
+Four words are used precisely and are not interchangeable:
 
-- **Реалізація** (implementation) — один спосіб виконати контракт задачі. Їх чотири: базова
-  лінія без фреймворка й три фреймворкові.
-- **Контракт задачі** — те, що спільне для всіх реалізацій: вхід, набір інструментів, модель,
-  умова зупинки, форма результату. Він **виконуваний**, а не описовий.
-- **Мій рядок** — виконуваний рядок, який написав і мушу супроводжувати автор реалізації.
-  Рядки фреймворка не є моїми (§5, AC-03b).
-- **Координація** — те, що вирішує, який крок виконається наступним. Явна — коли це видно в
-  моєму коді; неявна — коли це вирішує фреймворк за описами.
+- **Implementation** — one way of carrying out the task contract. There are four: the baseline
+  with no framework and three framework ones.
+- **Task contract** — what is shared by every implementation: the input, the set of tools, the
+  model, the stopping condition, the shape of the result. It is **executable**, not descriptive.
+- **My line** — an executable line the implementation's author wrote and has to maintain. The
+  framework's lines are not mine (§5, AC-03b).
+- **Coordination** — whatever decides which step runs next. Explicit when that is visible in my
+  code; implicit when the framework decides it from descriptions.
 
 ## 2. Goals
 
-- Читач однією командою отримує **порівняльну таблицю з власними числами**, а не переказ
-  чужого порівняння.
-- Читач бачить ту саму задачу, виконану чотирма способами, і може вказати пальцем, **де саме**
-  живе координація в кожному.
-- Читач може сказати, скільки рядків він **справді** написав у кожному варіанті — і скільки
-  рядків працює за нього невидимо.
-- Читач бачить, скільки токенів кожен фреймворк витрачає **від себе**, поверх того, що
-  просив автор.
-- Читач може сформулювати правило вибору як **обмеження → інструмент**, а не як «переможець».
-- Contributor має смоук, що ловить розрив API фреймворка **рано**, а не на прогоні читача.
-- Етап проходиться без жодного ключа; ADK без креденшелів **пропускається**, а не падає.
+- With one command the reader gets a **comparison table with numbers of their own**, not a
+  retelling of somebody else's comparison.
+- The reader sees the same task carried out four ways and can point a finger at **exactly where**
+  coordination lives in each.
+- The reader can say how many lines they **really** wrote in each variant — and how many lines
+  work invisibly on their behalf.
+- The reader sees how many tokens each framework spends **of its own**, on top of what the author
+  asked for.
+- The reader can state the rule of choice as **constraint → tool** rather than as "the winner".
+- The Contributor has a smoke test that catches a framework's API break **early**, not on the
+  reader's run.
+- The stage passes with no key at all; ADK without credentials is **skipped**, not failed.
 
 ## 3. Non-goals
 
-- **Не оголошуємо переможця.** Зведена оцінка вимагала б ваг, а ваги — це прихована думка про
-  те, чиє обмеження важливіше. Та сама заборона, що на етапі 8.
-- **Не міряємо швидкодію фреймворків.** Затримка тут визначається моделлю, а не риштуваннями;
-  міряти її на підробці означало б міряти власну підробку.
-- **Не вчимо жодного фреймворка.** Реалізації навмисно **мінімальні**: рівно стільки, щоб
-  виконати контракт. Етап про вибір, а не про володіння.
-- **Не порівнюємо екосистеми.** Кількість інтеграцій, зірок і статей у блогах — не властивість
-  коду, і заміряти її цим етапом неможливо.
-- **Не переписуємо етапи 1–8.** Етап 3 лишається джерелом **патерну** — там уже видно, як
-  виглядає явна координація власними руками, — але його код сюди не переноситься: якщо для
-  порівняння етап довелося б змінити, змінюється порівняння, а не етап.
-- **Не робимо продакшн-реалізацій.** Жодна з чотирьох не має ретраїв, кешу чи запобіжників:
-  доданий обвіс зробив би числа непорівнянними, а саме вони — доказ етапу.
+- **We do not declare a winner.** An aggregate score would need weights, and weights are a hidden
+  opinion about whose constraint matters more. The same ban as at stage 8.
+- **We do not measure framework performance.** Latency here is decided by the model, not by the
+  scaffolding; measuring it on a fake would mean measuring our own fake.
+- **We do not teach any framework.** The implementations are deliberately **minimal**: exactly
+  enough to carry out the contract. The stage is about choosing, not about mastery.
+- **We do not compare ecosystems.** The number of integrations, stars and blog posts is not a
+  property of the code, and this stage cannot measure it.
+- **We do not rewrite stages 1–8.** Stage 3 remains the source of **the pattern** — it already
+  shows what explicit coordination by hand looks like — but its code is not carried over here: if
+  a stage had to be changed for the comparison's sake, it is the comparison that changes, not the
+  stage.
+- **We do not build production implementations.** None of the four has retries, a cache or
+  circuit breakers: added trimmings would make the numbers incomparable, and the numbers are the
+  stage's proof.
 
 ## 4. User stories
 
-### US-01: порівняння однією командою
-**Як** Learner
-**Я хочу** прогнати всі реалізації однією командою й отримати таблицю
-**Щоб** мати **власні** числа замість чужого твердження
+### US-01: a comparison from one command
+**As** a Learner
+**I want** to run every implementation with one command and get a table
+**So that** I have **my own** numbers instead of somebody else's claim
 
-### US-02: чесне порівняння
-**Як** Learner
-**Я хочу**, щоб усі реалізації виконували **буквально** ту саму задачу
-**Щоб** різниця в числах означала різницю фреймворків, а не моєї вправності
+### US-02: an honest comparison
+**As** a Learner
+**I want** every implementation to carry out **literally** the same task
+**So that** a difference in the numbers means a difference between frameworks, not in my fluency
 
-### US-03: рядки, які я справді пишу
-**Як** Learner
-**Я хочу** бачити, скільки рядків написав я, окремо від того, що працює невидимо
-**Щоб** «менше коду» перестало бути аргументом без другої половини
+### US-03: the lines I actually write
+**As** a Learner
+**I want** to see how many lines I wrote, separately from what works invisibly
+**So that** "less code" stops being an argument missing its other half
 
-### US-04: токени, які фреймворк додає від себе
-**Як** Operator
-**Я хочу** бачити, скільки токенів кожна реалізація витрачає понад мій запит
-**Щоб** знати ціну зручності до того, як прийде рахунок
+### US-04: the tokens a framework adds of its own
+**As** an Operator
+**I want** to see how many tokens each implementation spends above my request
+**So that** I know the price of convenience before the bill arrives
 
-### US-05: базова лінія без фреймворка
-**Як** Learner
-**Я хочу** бачити в тій самій таблиці варіант **без** фреймворка
-**Щоб** відповісти на питання «чи потрібен він тут», а не лише «який із них»
+### US-05: a baseline with no framework
+**As** a Learner
+**I want** to see a variant with **no** framework in the same table
+**So that** I can answer "is one needed here", not only "which one"
 
-### US-06: явна проти неявної координації
-**Як** Learner
-**Я хочу** на одному вході спитати кожну реалізацію, **чому** виконався цей крок
-**Щоб** відчути різницю між явною й неявною координацією ціною, а не описом
+### US-06: explicit versus implicit coordination
+**As** a Learner
+**I want** to ask each implementation, on one input, **why** this step ran
+**So that** I feel the difference between explicit and implicit coordination as a price rather
+than as a description
 
-### US-07: ADK за прапорцем
-**Як** Contributor
-**Я хочу**, щоб етап проходився без креденшелів Google
-**Щоб** відсутність чужого ключа давала «не перевірено», а не червоний прогін
+### US-07: ADK behind a flag
+**As** a Contributor
+**I want** the stage to pass without Google credentials
+**So that** the absence of somebody else's key yields "not evaluated" rather than a red run
 
-### US-08: розрив API видно рано
-**Як** Contributor
-**Я хочу** смоук кожної реалізації в наборі перевірок
-**Щоб** зміна мажорної версії фреймворка ламала прогін у мене, а не в читача
+### US-08: an API break is visible early
+**As** a Contributor
+**I want** a smoke test of every implementation in the check suite
+**So that** a framework's major version change breaks the run on my machine, not the reader's
 
-### US-09: вибір за обмеженням
-**Як** Learner
-**Я хочу** рекомендацію у формі «обмеження → інструмент»
-**Щоб** уміти обирати в задачі, якої в цій таблиці немає
+### US-09: choosing by constraint
+**As** a Learner
+**I want** a recommendation in the form "constraint → tool"
+**So that** I can choose for a task that is not in this table
 
-### US-10: зламати й побачити, що почервоніє
-**Як** Contributor
-**Я хочу** ламати реалізації й бачити, яка саме перевірка реагує
-**Щоб** знати, що смоук має зуби, а не лише зелений вердикт
+### US-10: break it and see what goes red
+**As** a Contributor
+**I want** to break the implementations and see which check reacts
+**So that** I know the smoke test has teeth and not merely a green verdict
 
 ## 5. Acceptance criteria
 
 ### AC-01 (US-01) — happy path
 
-**Given** чотири реалізації контракту задачі
-**When** Learner запускає порівняння однією командою
-**Then** він отримує таблицю, у якій для **кожної** реалізації названо: мої рядки, невидимі
-рядки, токени запиту, токени понад запит, вид координації й спосіб відповісти «чому цей
-крок». Таблиця записується у файл, який читає людина й порівнює з попереднім
+**Given** four implementations of the task contract
+**When** the Learner starts the comparison with one command
+**Then** they get a table naming, for **every** implementation: my lines, invisible lines, request
+tokens, tokens above the request, the kind of coordination and the way to answer "why this step".
+The table is written to a file a human reads and compares with the previous one
 
 ### AC-01b (US-01) — domain invariant
 
-**Given** записану порівняльну таблицю
-**When** перевірка **розбирає файл** і рахує заново
-**Then** її числа збігаються з тим, що дає прогін. Порівнюються **два незалежні джерела** —
-розібраний файл і лічильники прогону, — інакше рівність буде тотожністю й пропустить
-реалізацію, яка до таблиці не доїхала.
+**Given** the written comparison table
+**When** a check **parses the file** and counts again
+**Then** its numbers agree with what the run produces. **Two independent sources** are compared —
+the parsed file and the run's counters — because otherwise the equality is an identity and misses
+the implementation that never made it into the table.
 
-**Жодного зведеного бала** немає в таблиці й бути не може: ваги обмежень — це думка, а не вимір
+**There is no aggregate score** in the table and there cannot be: weights on constraints are an
+opinion, not a measurement
 
 ### AC-02 (US-02) — domain invariant
 
-**Given** контракт задачі: вхід, набір інструментів, модель, умова зупинки, форма результату
-**When** будь-яка з чотирьох реалізацій виконується
-**Then** усі п'ять елементів контракту в неї **однакові**, і це доводиться **виконанням**
-спільної перевірки контракту, а не оглядом коду.
+**Given** the task contract: the input, the set of tools, the model, the stopping condition, the
+shape of the result
+**When** any of the four implementations runs
+**Then** all five elements of the contract are **identical** for it, and that is proved by
+**executing** a shared contract check rather than by reading the code.
 
-Реалізація, що дає інший результат на тому самому вході, не є іншою реалізацією тієї самої
-задачі — вона є іншою задачею, і порівнювати їх означає міряти вправність автора
+An implementation that gives a different result on the same input is not another implementation
+of the same task — it is a different task, and comparing them means measuring the author's fluency
 
 ### AC-02b (US-02) — error
 
-**Given** реалізацію, що відхилилась від контракту — покликала інший інструмент, зупинилась
-за іншою умовою або повернула іншу форму
-**When** харнес будує порівняння
-**Then** ця реалізація **не потрапляє в таблицю** як рядок із числами; замість цього названо,
-який саме елемент контракту порушено.
+**Given** an implementation that deviated from the contract — it called a different tool, stopped
+on a different condition, or returned a different shape
+**When** the harness builds the comparison
+**Then** that implementation **does not enter the table** as a row with numbers; instead, the
+element of the contract it violated is named.
 
-Мовчазне включення такого рядка гірше за його відсутність: воно дає число, яке виглядає
-порівнянним і не є ним
+Including such a row silently is worse than leaving it out: it produces a number that looks
+comparable and is not
 
 ### AC-03 (US-03) — domain invariant
 
-**Given** чотири реалізації
-**When** харнес рахує «мої рядки»
-**Then** він рахує їх **однаково для всіх** — виконувані рядки без імпортів і рядків
-документації, — і **окремо** називає невидимі рядки: скільки коду фреймворка виконується під
-час прогону.
+**Given** the four implementations
+**When** the harness counts "my lines"
+**Then** it counts them **the same way for all of them** — executable lines, excluding imports
+and docstrings — and names invisible lines **separately**: how much framework code executes
+during the run.
 
-Одне число без другого перетворює «менше коду» на аргумент без другої половини: код нікуди не
-подівся, він переїхав туди, де його не видно й не можна виправити
+One number without the other turns "less code" into an argument missing its other half: the code
+did not go away, it moved somewhere you cannot see it and cannot fix it
 
 ### AC-03b (US-03) — error
 
-**Given** реалізацію, що імпортує фреймворк
-**When** харнес рахує мої рядки
-**Then** рядки самого фреймворка в це число **не входять**, і перевірка це стверджує.
-Лічильник, який рахує чужий пакет моїм, дає базовій лінії безпідставну перевагу
+**Given** an implementation that imports a framework
+**When** the harness counts my lines
+**Then** the framework's own lines are **not included** in that number, and a check asserts it. A
+counter that counts somebody else's package as mine gives the baseline an unearned advantage
 
 ### AC-04 (US-04) — happy path
 
-**Given** прогін будь-якої реалізації
-**When** харнес рахує токени
-**Then** він рахує їх **на межі провайдера** — там, де запит іде до моделі, — а не в коді
-реалізації, і показує **два** числа: скільки просив автор і скільки пішло насправді.
+**Given** a run of any implementation
+**When** the harness counts tokens
+**Then** it counts them **at the provider boundary** — where the request goes to the model — and
+not inside the implementation's code, and it shows **two** numbers: what the author asked for and
+what actually went out.
 
-Різниця між ними і є ціною риштувань: системні підказки фреймворка, описи ролей, повторні
-подачі історії
+The difference between them is the price of the scaffolding: the framework's system prompts, its
+role descriptions, its repeated resubmissions of the history
 
 ### AC-04b (US-04) — domain invariant
 
-**Given** лічильник надбавки
-**When** харнес подає йому запит із текстом, якого контракт не прописував — і окремо запит
-базової лінії, що відправляє рівно контрактні тексти
-**Then** у першому випадку надбавка **строго додатна**, у другому — **дорівнює нулю**.
+**Given** the overhead counter
+**When** the harness feeds it a request carrying text the contract never specified — and,
+separately, a baseline request that sends exactly the contract's texts
+**Then** in the first case the overhead is **strictly positive**, in the second it **equals zero**.
 
-Прилад доводиться на **обох краях**, а не сподіванням, що котрийсь фреймворк поведеться
-погано. Яка саме реалізація скільки додає — це **вимір**, який потрапляє в таблицю, а не
-властивість, якої харнес вимагає наперед.
+The instrument is proved at **both ends**, not by hoping some framework will misbehave. Which
+implementation adds how much is a **measurement** that goes into the table, not a property the
+harness demands in advance.
 
-Різниця тут очікувано **не однакова за природою**: оркестратор, що лише вирішує порядок
-вузлів, не чіпає запиту й додає нуль токенів, платячи рядками; фреймворк, що складає промпти
-з описів ролей, платить токенами й економить рядки. Обидва результати законні, і саме вони
-роблять висновок «обмеження → інструмент» замість «переможець»
+The difference here is expected to be **unlike in kind**: an orchestrator that only decides the
+order of nodes does not touch the request and adds zero tokens, paying in lines; a framework that
+assembles prompts from role descriptions pays in tokens and saves lines. Both outcomes are
+legitimate, and they are exactly what makes the conclusion "constraint → tool" rather than "the
+winner"
 
 ### AC-04c (US-04) — cross-context
 
-**Given** прогін офлайн, із підробленою моделлю
-**When** порівняння повторюється двадцять разів
-**Then** усі числа таблиці **однакові**. Мигтливі числа неможливо порівняти з учорашніми, а
-саме порівняння з учорашніми — єдина причина їх записувати
+**Given** an offline run with the fake model
+**When** the comparison is repeated twenty times
+**Then** every number in the table is **the same**. Flickering numbers cannot be compared with
+yesterday's, and comparing with yesterday's is the only reason to write them down
 
 ### AC-05 (US-05) — domain invariant
 
-**Given** порівняльну таблицю
-**When** Learner її читає
-**Then** у ній є рядок **без жодного фреймворка**, отриманий тим самим контрактом задачі.
+**Given** the comparison table
+**When** the Learner reads it
+**Then** it contains a row with **no framework at all**, obtained through the same task contract.
 
-Без цього рядка таблиця відповідає на питання «який фреймворк», а етап ставить інше: «чи
-потрібен він тут». Базова лінія — не контрольна група для годиться, а єдиний спосіб побачити
-ціну риштувань
+Without that row the table answers the question "which framework", while the stage asks a
+different one: "is one needed here". The baseline is not a control group for form's sake, it is
+the only way to see the price of the scaffolding
 
 ### AC-06 (US-06) — happy path
 
-**Given** один і той самий вхід
-**When** Learner питає кожну реалізацію, **чому** виконався певний крок
-**Then** кожна дає відповідь, і харнес називає, **звідки** вона взялася: з мого коду, з трейсу
-чи з логів фреймворка
+**Given** one and the same input
+**When** the Learner asks each implementation **why** a particular step ran
+**Then** each of them gives an answer, and the harness names **where** it came from: from my code,
+from the trace, or from the framework's logs
 
 ### AC-06b (US-06) — error
 
-**Given** реалізацію з **неявною** координацією
-**When** крок виконався не той, якого чекав автор
-**Then** харнес показує це на конкретному вході й називає ціну відповіді: скільки місць треба
-прочитати, щоб дізнатися причину.
+**Given** an implementation with **implicit** coordination
+**When** the step that ran was not the one the author expected
+**Then** the harness shows this on a concrete input and names the price of the answer: how many
+places have to be read to learn the reason.
 
-Це і є вимір різниці між явною та неявною координацією. Твердження «неявна дешевша» без цього
-числа — половина правди, і саме та половина, за яку платять пізніше
+This is the measurement of the difference between explicit and implicit coordination. The claim
+"implicit is cheaper" without that number is half the truth, and it is exactly the half you pay
+for later
 
 ### AC-07 (US-07) — authorization
 
-**Given** машину без креденшелів Google
-**When** Learner запускає перевірки етапу
-**Then** реалізація ADK дає стан **не перевірено**, прогін лишається зеленим, а в таблиці
-стоїть той самий стан, а не порожнє місце й не нуль
+**Given** a machine with no Google credentials
+**When** the Learner runs the stage's checks
+**Then** the ADK implementation yields the **not evaluated** state, the run stays green, and the
+table carries that same state rather than an empty cell or a zero
 
 ### AC-07b (US-07) — error
 
-**Given** явно ввімкнений прапорець ADK і **відсутні** креденшели
-**When** Learner запускає порівняння
-**Then** харнес каже це **прямо й одразу**, називаючи, чого бракує, а не мовчки показує
-таблицю з трьох рядків.
+**Given** the ADK flag turned on explicitly and the credentials **missing**
+**When** the Learner starts the comparison
+**Then** the harness says so **outright and immediately**, naming what is missing, rather than
+silently showing a table of three rows.
 
-Прапорець, який просили ввімкнути й який мовчки не спрацював, гірший за його відсутність
+A flag somebody was asked to turn on, which then silently did nothing, is worse than no flag at
+all
 
 ### AC-08 (US-08) — error
 
-**Given** встановлений фреймворк, чиє публічне API змінилось
-**When** Contributor запускає набір перевірок
-**Then** червоніє **смоук саме тієї реалізації**, і його повідомлення називає, який виклик
-більше не існує. Пакет не встановлено — стан **не перевірено**, а не червоний
+**Given** an installed framework whose public API has changed
+**When** the Contributor runs the check suite
+**Then** **the smoke test of that very implementation** goes red, and its message names the call
+that no longer exists. If the package is not installed, the state is **not evaluated**, not red
 
 ### AC-09 (US-09) — domain invariant
 
-**Given** порівняльну таблицю
-**When** Learner шукає в ній рекомендацію
-**Then** він не знаходить **жодного зведеного бала** й жодного слова «найкращий». Замість них —
-перелік у формі «якщо твоє обмеження таке — бери це», де кожен рядок посилається на **колонку
-таблиці**, з якої висновок зроблено
+**Given** the comparison table
+**When** the Learner looks in it for a recommendation
+**Then** they find **no aggregate score** and no word "best". In their place is a list in the form
+"if your constraint is this — take that", where every line cites the **column of the table** the
+conclusion was drawn from
 
 ### AC-09b (US-09) — cross-context
 
-**Given** задачу, якої в таблиці немає
-**When** Learner застосовує правило вибору
-**Then** правило дає відповідь, спираючись на **виміряні** колонки, а не на назви фреймворків.
-Рекомендація, яку неможливо застосувати поза цією таблицею, є переказом, а не правилом
+**Given** a task that is not in the table
+**When** the Learner applies the rule of choice
+**Then** the rule gives an answer by leaning on the **measured** columns rather than on the names
+of frameworks. A recommendation that cannot be applied outside this table is a retelling, not a
+rule
 
 ### AC-10 (US-10) — error
 
-**Given** харнес із навмисно зламаною реалізацією
-**When** Contributor запускає перевірки
-**Then** червоніє перевірка, яка стверджує **саме про цю реалізацію**, і її повідомлення
-називає, що саме зламалось
+**Given** a harness with a deliberately broken implementation
+**When** the Contributor runs the checks
+**Then** the check that asserts **about that very implementation** goes red, and its message names
+what exactly broke
 
 ### AC-11 (US-02) — authorization
 
-**Given** машину без жодного API-ключа
-**When** Learner запускає порівняння
-**Then** **жодна** з чотирьох реалізацій не звертається до мережі: усі беруть клієнта крізь
-спільну межу провайдера, і перевірка стверджує це виконанням, а не оглядом імпортів.
+**Given** a machine with no API key at all
+**When** the Learner starts the comparison
+**Then** **none** of the four implementations reaches the network: all of them take their client
+through the shared provider boundary, and a check asserts this by execution rather than by
+reading the imports.
 
-Фреймворк, що ходить у мережу власним клієнтом повз цю межу, робить етап непрохідним офлайн —
-і робить це мовчки
+A framework that goes to the network with a client of its own, around that boundary, makes the
+stage impassable offline — and does it silently
 
 ### AC-12 (US-04) — cross-context
 
-**Given** трейси, які пише кожна з чотирьох реалізацій
-**When** оцінювач етапу 8 витягує з них траєкторії
-**Then** він отримує **більше однієї** траєкторії на прогін, бо етап позначає прогін ключем із
-першого рядка.
+**Given** the traces each of the four implementations writes
+**When** the stage 8 evaluator extracts trajectories from them
+**Then** it gets **more than one** trajectory per run, because the stage marks the run with a key
+from its first line.
 
-Етап 8 назвав числом, чого бракує трейсам етапів 1–7: три різні поля на сім етапів і чотири
-етапи без ключа взагалі. Це перший етап, написаний **після** того виміру, — і він або
-використовує його, або вимір не був потрібен
+Stage 8 named as a number what the traces of stages 1–7 lack: three different fields across seven
+stages, and four stages with no key at all. This is the first stage written **after** that
+measurement — and it either uses it, or the measurement was not needed
 
 ## Test plan
 
-Кожен критерій §5 має щонайменше один названий тест. Рівень узагальнений; конкретні функції
-живуть у `stages/s09_frameworks/check.py`.
+Every criterion in §5 has at least one named test. The level is generalised; the concrete
+functions live in `stages/s09_frameworks/check.py`.
 
-| AC | Тест | Рівень | Що доводить |
+| AC | Test | Level | What it proves |
 |---|---|---|---|
-| AC-01 | `one command yields a row per implementation` | integration | Чотири рядки, шість колонок, файл записано |
-| AC-01b | `the written table parses back to the same numbers` | unit | **FAILURE.** Два незалежні джерела; жодного зведеного бала |
-| AC-02 | `all implementations honour the same task contract` | contract | Контракт виконується, а не оглядається |
-| AC-02b | `an implementation that breaks the contract gets no numbers` | contract | **FAILURE.** Названо порушений елемент, рядок без чисел |
-| AC-03 | `my lines and invisible lines are two separate numbers` | unit | Одне число без другого — половина аргументу |
-| AC-03b | `framework lines never count as mine` | unit | **FAILURE.** Базова лінія не отримує безпідставної переваги |
-| AC-04 | `tokens are counted at the provider boundary, both numbers` | integration | Просив автор / пішло насправді |
-| AC-04b | `the overhead counter is proven at both ends` | unit | Строго додатна на чужому тексті, нуль на контрактному |
-| AC-04c | `twenty offline runs give the same table` | unit | **FAILURE.** Мигтливі числа неможливо порівняти з учорашніми |
-| AC-05 | `exactly one row carries no framework` | unit | Питання «чи потрібен», а не «який» |
-| AC-06 | `each implementation answers why a step ran, and names the source` | integration | З мого коду, з трейсу чи з логів фреймворка |
-| AC-06b | `implicit coordination names the price of that answer` | integration | **FAILURE.** Число замість твердження «дешевше» |
-| AC-07 | `a missing package yields not-evaluated, never a failure` | integration | Третій стан має власний рядок таблиці |
-| AC-07b | `the flag on without credentials fails loudly` | integration | **FAILURE.** Мовчазний прапорець гірший за його відсутність |
-| AC-08 | `a changed framework API reddens that implementation's smoke` | contract | **FAILURE.** Названо виклик, якого більше немає |
-| AC-09 | `the table carries no aggregate score and no winner` | unit | Ваги обмежень — думка, а не вимір |
-| AC-09b | `every rule of choice cites a column of the table` | unit | Правило застосовне поза цією таблицею |
-| AC-10 | `a broken implementation reddens the check that asserts about it` | unit | **FAILURE.** Мутація влучає точно |
-| AC-11 | `no implementation reaches the network without a key` | integration | **FAILURE.** Доводиться виконанням, не оглядом імпортів |
-| AC-12 | `the stage 8 evaluator extracts more than one trajectory` | cross-context | Ключ прогону з першого рядка — виміряна вимога вжита |
+| AC-01 | `one command yields a row per implementation` | integration | Four rows, six columns, the file is written |
+| AC-01b | `the written table parses back to the same numbers` | unit | **FAILURE.** Two independent sources; no aggregate score |
+| AC-02 | `all implementations honour the same task contract` | contract | The contract is executed, not read |
+| AC-02b | `an implementation that breaks the contract gets no numbers` | contract | **FAILURE.** The violated element is named, the row carries no numbers |
+| AC-03 | `my lines and invisible lines are two separate numbers` | unit | One number without the other is half an argument |
+| AC-03b | `framework lines never count as mine` | unit | **FAILURE.** The baseline gets no unearned advantage |
+| AC-04 | `tokens are counted at the provider boundary, both numbers` | integration | What the author asked for / what actually went out |
+| AC-04b | `the overhead counter is proven at both ends` | unit | Strictly positive on somebody else's text, zero on the contract's own |
+| AC-04c | `twenty offline runs give the same table` | unit | **FAILURE.** Flickering numbers cannot be compared with yesterday's |
+| AC-05 | `exactly one row carries no framework` | unit | The question is "is one needed", not "which one" |
+| AC-06 | `each implementation answers why a step ran, and names the source` | integration | From my code, from the trace, or from the framework's logs |
+| AC-06b | `implicit coordination names the price of that answer` | integration | **FAILURE.** A number instead of the claim "cheaper" |
+| AC-07 | `a missing package yields not-evaluated, never a failure` | integration | The third state has a row of its own in the table |
+| AC-07b | `the flag on without credentials fails loudly` | integration | **FAILURE.** A silent flag is worse than no flag |
+| AC-08 | `a changed framework API reddens that implementation's smoke` | contract | **FAILURE.** The call that no longer exists is named |
+| AC-09 | `the table carries no aggregate score and no winner` | unit | Weights on constraints are an opinion, not a measurement |
+| AC-09b | `every rule of choice cites a column of the table` | unit | The rule is applicable outside this table |
+| AC-10 | `a broken implementation reddens the check that asserts about it` | unit | **FAILURE.** The mutation lands precisely |
+| AC-11 | `no implementation reaches the network without a key` | integration | **FAILURE.** Proved by execution, not by reading the imports |
+| AC-12 | `the stage 8 evaluator extracts more than one trajectory` | cross-context | A run key from the first line — a measured requirement put to use |
 
-**Стратегія інтеграційних тестів.** Справжня залежність тут — **пакет фреймворка**, і вона
-ефемерна за іншою ознакою, ніж контейнер: її може не бути. Кожен інтеграційний тест починається
-з питання «чи встановлено», і відповідь «ні» дає `НЕ ПЕРЕВІРЕНО`, а не пропуск і не зелене.
-Підробленого фреймворка немає ніде: реалізація на макеті LangGraph доводила б властивість
-макета. Трейси пишуться в тимчасовий каталог і прибираються **на тест**.
+**Integration test strategy.** The real dependency here is **the framework package**, and it is
+ephemeral in a different way from a container: it may simply not be there. Every integration test
+starts with the question "is it installed", and the answer "no" gives `NOT EVALUATED` rather than
+a skip or a green. There is no fake framework anywhere: an implementation on a LangGraph mock
+would prove a property of the mock. Traces are written into a temporary directory and cleaned up
+**per test**.
 
-**Дані.** Вхід задачі — один і той самий рядок для всіх чотирьох, зафіксований у контракті.
-Відповіді моделі — сценарій `FakeLLM`, спільний для всіх реалізацій: різні сценарії зробили б
-токени неспівмірними ще до того, як фреймворк щось додав.
+**Data.** The task's input is one and the same string for all four, fixed in the contract. The
+model's answers come from a `FakeLLM` scenario shared by every implementation: different
+scenarios would make the token counts incommensurable before the framework added anything at all.
 
-**Розміщення в CI.** Увесь набір швидкий і офлайновий — він іде на кожному PR разом із рештою
-`scripts/check_all.py`. Робота з extras додатково має встановлені фреймворки, тож там жодне
-`НЕ ПЕРЕВІРЕНО` не лишається невиправданим.
+**Placement in CI.** The whole suite is fast and offline — it runs on every PR along with the rest
+of `scripts/check_all.py`. The job with extras additionally has the frameworks installed, so no
+`NOT EVALUATED` there stays unjustified.
 
-<!-- N/A: жоден NFR §6 не несе числа пропускної здатності чи затримки під навантаженням; NFR-2 і NFR-2b — стелі тривалості прогону, які міряє звичайна перевірка -->
+<!-- N/A: no NFR in §6 carries a throughput or under-load latency number; NFR-2 and NFR-2b are run-duration ceilings measured by an ordinary check -->
 
-### Чого цей план свідомо не доводить
+### What this plan deliberately does not prove
 
-- **Що один фреймворк кращий за інший.** План міряє шість колонок і не зважує їх. Висновок має
-  форму «обмеження → інструмент» (ADR-0005), і жоден тест не стверджує про перевагу.
-- **Що ці числа переносяться на іншу задачу.** Невидимі рядки й токени виміряні на **цьому**
-  вході. Інша задача виконає інші рядки — це властивість виміру, названа прямо (ADR-0003).
-- **Що числа підробленої моделі дорівнюють числам реальної.** Доводяться **співвідношення**, а
-  не абсолютні значення; з реальним ключем змінюються обидва числа, а не одне.
-- **Що реалізації CrewAI та ADK працюють.** Обидві написані й **жодного разу не прогнані**:
-  CrewAI із потрібним API не встановлюється на цьому інтерпретаторі, ADK вимкнено прапорцем.
-  Їхні рядки лишаються `НЕ ПЕРЕВІРЕНО`, і це найслабше місце етапу — назване, а не сховане.
-- **Що надбавка CrewAI у токенах ненульова.** Це очікування етапу, а не вимір, і вся проза
-  вживає про нього умовний спосіб. Перевіряється на Python ≤ 3.13.
-- **Що подія AC-06b спостережувана тут.** «Крок виконався не той, якого чекав автор» вимагає
-  прогнаної реалізації з **неявною** координацією, а такої на цьому інтерпретаторі немає.
-  Виміряною лишається ціна відповіді — «місць прози», що читається з джерела; сама подія
-  відтворюється на Python ≤ 3.13.
-- **Що фреймворки не зламаються на наступній версії.** Смоук ловить розрив **після** оновлення,
-  а не передбачає його. Пін мінорною межею звужує вікно, але не закриває.
-- **Що моя реалізація на фреймворку — найкраща з можливих.** Контракт робить реалізації
-  однаково **задачними**, а не однаково майстерними. Незграбний LangGraph дасть чесне число за
-  незграбний LangGraph (ADR-0001).
+- **That one framework is better than another.** The plan measures six columns and does not weigh
+  them. The conclusion takes the form "constraint → tool" (ADR-0005), and no test asserts an
+  advantage.
+- **That these numbers carry over to another task.** Invisible lines and tokens were measured on
+  **this** input. Another task will execute other lines — that is a property of the measurement,
+  named outright (ADR-0003).
+- **That the fake model's numbers equal a real one's.** What is proved are **ratios**, not
+  absolute values; with a real key both numbers change, not one of them.
+- **That the CrewAI and ADK implementations work.** Both are written and **have never once been
+  run**: CrewAI with the required API does not install on this interpreter, and ADK is turned off
+  by the flag. Their rows stay `NOT EVALUATED`, and this is the stage's weakest point — named
+  rather than hidden.
+- **That CrewAI's token overhead is non-zero.** That is the stage's expectation, not a
+  measurement, and all the prose about it uses the conditional. It is checked on Python ≤ 3.13.
+- **That the AC-06b event is observable here.** "The step that ran was not the one the author
+  expected" requires an implementation with **implicit** coordination that has actually been run,
+  and there is none on this interpreter. What stays measured is the price of the answer — the "prose places", read
+  from the source; the event itself is reproduced on Python ≤ 3.13.
+- **That the frameworks will not break on the next version.** The smoke test catches a break
+  **after** the upgrade, it does not predict it. Pinning by a minor bound narrows the window but
+  does not close it.
+- **That my implementation on a framework is the best one possible.** The contract makes the
+  implementations equally **on-task**, not equally skilful. A clumsy LangGraph will give an honest
+  number for a clumsy LangGraph (ADR-0001).
 
 ## 6. Non-functional requirements
 
-| # | Вимога | Ціль | Як міряється |
+| # | Requirement | Target | How it is measured |
 |---|---|---|---|
-| NFR-1 | Розмір модулів **реалізації** (`contract.py`, `baseline.py`, `counters.py`, `compare.py` та по одному модулю на фреймворк; `run.py` і `check.py` не рахуються) | кожен ≤ 110 виконуваних рядків | AST-підрахунок у перевірці |
-| NFR-2 | Прогін **`python -m stages.s09_frameworks.check`** офлайн | ≤ 30 с без ключа й без мережі | стеля `BUDGET_SECONDS`, яку читає `check_all` |
-| NFR-2b | Прогін **`python -m stages.s09_frameworks.run`** офлайн | ≤ 10 с; міряється перевіркою, що запускає демо | заміряний час у перевірці e2e |
-| NFR-3 | Обсяг уроку | ≤ 2500 слів | підрахунок у перевірці |
-| NFR-4 | Частка перевірок на режими відмови | ≥ 1/3, округлення вгору | підрахунок префікса в перевірці |
-| NFR-5 | Прогін без опційних пакетів і без ключа | зелено або `НЕ ПЕРЕВІРЕНО`; жодної червоної | `scripts/clean_install.py` |
-| NFR-6 | Детермінізм таблиці **офлайн** | двадцять прогонів дають однакові числа (не побайтову тотожність файлу: час до порівняння не входить) | перевірка мигтіння |
-| NFR-7 | Повнота порівняння | ≥ 4 реалізації, з них рівно одна **без** фреймворка | підрахунок у перевірці |
-| NFR-8 | Версії фреймворків **запінені верхньою межею**, як `s04` і `s06` | наступна мажорна версія не приїжджає мовчки; розрив API ловить смоук цього етапу | звірка верхньої межі в `pyproject.toml` перевіркою |
+| NFR-1 | The size of the **implementation** modules (`contract.py`, `baseline.py`, `counters.py`, `compare.py` and one module per framework; `run.py` and `check.py` do not count) | each ≤ 110 executable lines | AST count in a check |
+| NFR-2 | Running **`python -m stages.s09_frameworks.check`** offline | ≤ 30 s with no key and no network | the `BUDGET_SECONDS` ceiling, read by `check_all` |
+| NFR-2b | Running **`python -m stages.s09_frameworks.run`** offline | ≤ 10 s; measured by a check that starts the demo | the time measured in the e2e check |
+| NFR-3 | Lesson length | ≤ 2500 words | a count in a check |
+| NFR-4 | The fraction of checks covering failure modes | ≥ 1/3, rounding up | a prefix count in a check |
+| NFR-5 | A run with no optional packages and no key | green or `NOT EVALUATED`; not a single red | `scripts/clean_install.py` |
+| NFR-6 | Determinism of the table **offline** | twenty runs give the same numbers (not byte-identical files: time is excluded from the comparison) | the flakiness check |
+| NFR-7 | Completeness of the comparison | ≥ 4 implementations, exactly one of them **without** a framework | a count in a check |
+| NFR-8 | Framework versions are **pinned by an upper bound**, as in `s04` and `s06` | the next major version does not arrive silently; an API break is caught by this stage's smoke test | a check verifying the upper bound in `pyproject.toml` |
 
 ## 6.1 Security and privacy
 
-- **Жодного ключа не потрібно** для проходження етапу. Без нього всі чотири реалізації
-  працюють на підробленій моделі, а числа лишаються порівнянними між собою.
-- **Креденшели Google не потрапляють ані в таблицю, ані в трейс, ані у вивід демо.** Відсутні
-  креденшели дають стан «не перевірено» з назвою того, чого бракує, — без вмісту оточення.
-- **Лічильник токенів не зберігає тексту запиту.** Він рахує на межі провайдера й записує
-  числа; підказки фреймворка, які він бачить, у матеріали порівняння не потрапляють.
-- **Жодна реалізація не створює власного клієнта провайдера** — усі беруть його крізь спільну
-  межу (AC-11). Фреймворк, що обходить її, робить неможливими і офлайн-прогін, і облік токенів.
-- **Мережа не потрібна ані для прогону, ані для перевірок.** Пакети фреймворків — опційні;
-  їхня відсутність дає «не перевірено».
+- **No key is needed** to pass the stage. Without one, all four implementations run on the fake
+  model, and the numbers stay comparable with each other.
+- **Google credentials reach neither the table, nor the trace, nor the demo output.** Missing
+  credentials yield the "not evaluated" state naming what is missing — with none of the
+  environment's contents.
+- **The token counter stores no request text.** It counts at the provider boundary and writes
+  numbers down; the framework prompts it sees never reach the comparison material.
+- **No implementation creates a provider client of its own** — all of them take it through the
+  shared boundary (AC-11). A framework that goes around it makes both the offline run and the
+  token accounting impossible.
+- **The network is needed neither for the run nor for the checks.** Framework packages are
+  optional; their absence yields "not evaluated".
 
-### Зловживання
+### Abuse
 
-| Сценарій | Що ламається | Що робить етап |
+| Scenario | What breaks | What the stage does |
 |---|---|---|
-| Порівняння оголошує переможця | вибір підмінюється модою | жодного зведеного бала; правило у формі «обмеження → інструмент» (AC-09) |
-| Реалізації виконують різні задачі | таблиця міряє вправність автора | контракт задачі, спільний і **виконуваний** (AC-02) |
-| «Менше коду» без другої половини | код переїхав туди, де його не видно | мої рядки й невидимі рядки — дві колонки (AC-03) |
-| Токени рахуються в коді реалізації | надбавка фреймворка невидима | лічильник на межі провайдера (AC-04) |
-| ADK мовчки випадає з таблиці | три рядки виглядають як усі | увімкнений прапорець без креденшелів — гучна відмова (AC-07b) |
-| Фреймворк ходить у мережу власним клієнтом | етап непрохідний офлайн, облік токенів неповний | перевірка виконанням, не оглядом імпортів (AC-11) |
+| The comparison declares a winner | choice is replaced by fashion | no aggregate score; a rule in the form "constraint → tool" (AC-09) |
+| The implementations carry out different tasks | the table measures the author's fluency | a task contract, shared and **executable** (AC-02) |
+| "Less code" without its other half | the code moved somewhere you cannot see it | my lines and invisible lines are two columns (AC-03) |
+| Tokens are counted inside the implementation's code | the framework's overhead is invisible | a counter at the provider boundary (AC-04) |
+| ADK silently drops out of the table | three rows look like all of them | the flag on without credentials is a loud refusal (AC-07b) |
+| A framework goes to the network with a client of its own | the stage is impassable offline, the token accounting is incomplete | a check by execution, not by reading the imports (AC-11) |
 
 ## 7. KPIs
 
-- Читач може назвати, де саме живе координація в кожній із чотирьох реалізацій.
-- Читач після прогону називає **своє** число: скільки токенів фреймворк додав від себе.
-- Читач може сказати, скільки рядків він написав і скільки працює за нього невидимо.
-- Читач формулює правило вибору як «обмеження → інструмент» і застосовує його до задачі,
-  якої в таблиці немає.
-- Читач може сказати, чому базова лінія без фреймворка стоїть у тій самій таблиці.
-- Contributor може назвати, який виклик фреймворка зламається першим при зміні версії.
+- The reader can name exactly where coordination lives in each of the four implementations.
+- After a run the reader names a number of **their own**: how many tokens the framework added of
+  its own.
+- The reader can say how many lines they wrote and how many work invisibly on their behalf.
+- The reader states the rule of choice as "constraint → tool" and applies it to a task that is not
+  in the table.
+- The reader can say why a baseline with no framework stands in the same table.
+- The Contributor can name which framework call will break first on a version change.
 
 ## 8. Open questions
 
-- [ ] Чи додавати п'яту реалізацію (наприклад, чистий виклик провайдера без будь-якої
-      координації)? Default now: ні — чотирьох досить, щоб показати обидва кінці шкали;
-      п'ята додала б колонку без нового висновку.
-      — owner: Contributor, due: перед тегом `stage-09`
-- [ ] Чи міряти час прогону поруч із токенами? Default now: ні — на підробленій моделі час
-      міряє підробку, а не фреймворк (§3). Повертатись до питання лише з реальним ключем.
-      — owner: Contributor, due: етап 10
-- [ ] Чи виносити лічильник токенів у `shared/`, щоб етап 10 брав його готовим?
-      Default now: лишається в етапі 9; винесення — рішення етапу 10 за фактом потреби.
-      — owner: Contributor, due: етап 10
-- [ ] Чи фіксувати «невидимі рядки» числом, чи порядком величини? Default now: числом, із
-      прямо названим способом підрахунку й прямо названою його межею — воно залежить від
-      того, скільки коду фреймворка **виконалось**, а не скільки його встановлено.
-      — owner: Contributor, due: перед тегом `stage-09`
+- [ ] Should a fifth implementation be added (a bare provider call with no coordination at all,
+      for instance)? Default now: no — four are enough to show both ends of the scale; a fifth
+      would add a column without a new conclusion.
+      — owner: Contributor, due: before the `stage-09` tag
+- [ ] Should run time be measured alongside tokens? Default now: no — on a fake model, time
+      measures the fake rather than the framework (§3). Return to the question only with a real
+      key. — owner: Contributor, due: stage 10
+- [ ] Should the token counter move into `shared/` so that stage 10 gets it ready-made?
+      Default now: it stays in stage 9; moving it is a stage 10 decision, once the need is real.
+      — owner: Contributor, due: stage 10
+- [ ] Should "invisible lines" be fixed as a number or as an order of magnitude? Default now: as a
+      number, with the counting method named outright and its limit named outright — it depends on
+      how much framework code **executed**, not on how much of it is installed.
+      — owner: Contributor, due: before the `stage-09` tag
 
-### Відкладене після рев'ю (2026-08-25)
+### Deferred after the review (2026-08-25)
 
-Дві незалежні рев'ю в чистому контексті дали шістнадцять MAJOR і дев'ятнадцять MINOR. Усі
-MAJOR закриті; нижче — те, що свідомо відкладено, з власником і терміном.
+Two independent reviews in a clean context produced sixteen MAJOR and nineteen MINOR findings.
+Every MAJOR is closed; below is what was deliberately deferred, with an owner and a deadline.
 
-- [ ] **`sys.settrace` не бачить інших потоків.** Реалізація, що робить роботу в окремому
-      потоці, дала б нуль невидимих рядків мовчки. Найближчий кандидат — ADK, чий
-      синхронний раннер є обгорткою над асинхронним.
-      Default now: межа названа в docstring `executed_lines`, а перевірка `row.invisible > 0`
-      ловить нуль на будь-якій прогнаній реалізації. — owner: Contributor, due: етап 10
-- [ ] **Прогрів подвоює прогони, а перевірка детермінізму множить це на двадцять.**
-      Сьогодні це 2 с при стелі 30; на Python ≤ 3.13 додасться сорок `crew.kickoff()`.
-      Default now: лишається — прогрів одноразовий на модуль зробив би перевірку
-      залежною від порядку. — owner: Contributor, due: етап 10
-- [ ] **Стеля демо `≤ 10 с` — константа, а не похідна від виміряного.**
-      Default now: лишається як бюджет проти розростання, не як ціль швидкодії (та сама
-      роль, що в `BUDGET_SECONDS`). — owner: Contributor, due: етап 10
-- [ ] **Реалізації CrewAI та ADK не прогнані.** Перша не має придатної версії для цього
-      інтерпретатора, друга вимкнена прапорцем.
-      Default now: `НЕ ПЕРЕВІРЕНО` з названою причиною; уся проза про них — в умовному
-      способі. — owner: Contributor, due: етап 10
+- [ ] **`sys.settrace` does not see other threads.** An implementation that does its work in a
+      separate thread would silently give zero invisible lines. The nearest candidate is ADK,
+      whose synchronous runner is a wrapper around an asynchronous one.
+      Default now: the limit is named in the `executed_lines` docstring, and the check
+      `row.invisible > 0` catches a zero on any implementation that actually ran.
+      — owner: Contributor, due: stage 10
+- [ ] **The warm-up doubles the runs, and the determinism check multiplies that by twenty.**
+      Today that is 2 s against a ceiling of 30; on Python ≤ 3.13 forty `crew.kickoff()` calls
+      will be added.
+      Default now: it stays — a warm-up done once per module would make the check
+      order-dependent. — owner: Contributor, due: stage 10
+- [ ] **The demo's `≤ 10 s` ceiling is a constant, not derived from anything measured.**
+      Default now: it stays as a budget against sprawl rather than as a performance target (the
+      same role `BUDGET_SECONDS` plays). — owner: Contributor, due: stage 10
+- [ ] **The CrewAI and ADK implementations have never been run.** The first has no usable version
+      for this interpreter, the second is turned off by the flag.
+      Default now: `NOT EVALUATED` with a named cause; all the prose about them is in the
+      conditional. — owner: Contributor, due: stage 10
 
-### Прийняті припущення (глибина `easy`)
+### Assumptions taken (depth `easy`)
 
-Ухвалені без окремого питання, бо зафіксовані в дизайн-специфікації курсу:
+Taken without a separate question, because they are fixed in the course's design specification:
 
-1. **Задача — research → writer**, як у статті-джерелі: один крок збирає матеріал, другий
-   пише з нього відповідь. Двох кроків досить, щоб координація стала видимою.
-2. **Три фреймворки саме такі** — LangGraph, CrewAI, Google ADK — за дизайн-спекою курсу.
-3. **ADK за прапорцем.** Він потребує чужих креденшелів, тож дефолт — вимкнено, а стан
-   «не перевірено» є повноправним рядком таблиці.
-4. **Реалізації мінімальні.** Рівно стільки коду, щоб виконати контракт: доданий обвіс
-   зробив би числа непорівнянними.
-5. **Базова лінія пишеться заново й навмисно мінімальна.** Граф етапу 3 не переноситься:
-   там supervisor-роутер, а тут два послідовні кроки, і підгін одного під інше порушив би
-   контракт задачі. Її розмір — перше число таблиці, а не деталь реалізації.
-6. **Модель — підробка за замовчуванням.** Реальний ключ лише змінює числа; висновки етапу
-   стосуються співвідношень, а не абсолютних значень.
+1. **The task is research → writer**, as in the source article: one step gathers the material, the
+   second writes the answer from it. Two steps are enough to make coordination visible.
+2. **The three frameworks are exactly these** — LangGraph, CrewAI, Google ADK — per the course's
+   design spec.
+3. **ADK behind a flag.** It needs somebody else's credentials, so the default is off, and the
+   "not evaluated" state is a full row of the table.
+4. **The implementations are minimal.** Exactly enough code to carry out the contract: added
+   trimmings would make the numbers incomparable.
+5. **The baseline is written from scratch and is deliberately minimal.** The stage 3 graph is not
+   carried over: there it is a supervisor router, here two sequential steps, and fitting one to
+   the other would violate the task contract. Its size is the table's first number, not an
+   implementation detail.
+6. **The model is a fake by default.** A real key only changes the numbers; the stage's
+   conclusions are about ratios, not about absolute values.

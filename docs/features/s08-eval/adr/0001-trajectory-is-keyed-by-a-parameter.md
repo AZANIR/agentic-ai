@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0001 — Траєкторія витягується ключем-параметром, а не фіксованим полем
+# 0001 — Trajectory is keyed by a parameter, not by a fixed field
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,54 +15,57 @@ ticket: "n/a"
 
 ## Context
 
-Оцінювач читає трейси, які вже пишуться. Прочитати їх недосить — треба **згрупувати кроки в
-траєкторії**, і саме тут два наявні етапи розходяться.
+The evaluator reads traces that are already being written. Reading them is not enough — the steps
+have to be **grouped into trajectories**, and that is exactly where the two existing stages
+diverge.
 
-Етап 1 відкриває `trace_run` на кожен сценарій: одна траєкторія — один `trace_id`, обмежена
-кроками `run_start` і `run_end`.
+Stage 1 opens a `trace_run` per scenario: one trajectory is one `trace_id`, bounded by the
+`run_start` and `run_end` steps.
 
-Етап 6 відкриває `trace_run` **один раз на процес**, а кожен запит позначає власним
-`trace_ref`. Групування по `trace_id` дало б там одну гігантську «траєкторію» на весь час
-життя сервісу.
+Stage 6 opens a `trace_run` **once per process** and marks every request with its own
+`trace_ref`. Grouping by `trace_id` there would produce one gigantic "trajectory" spanning the
+entire lifetime of the service.
 
-Заміряно на справжніх файлах: етап 1 — 4 траєкторії по 5–7 кроків; етап 6 — одна траєкторія
-по `trace_id` і стільки по `trace_ref`, скільки було запитів.
+Measured on real files: stage 1 — 4 trajectories of 5–7 steps; stage 6 — one trajectory by
+`trace_id`, and as many by `trace_ref` as there were requests.
 
-Обидва підходи правильні для своїх етапів. Жоден не є помилкою, яку треба виправити.
+Both approaches are right for their own stage. Neither is a mistake to be fixed.
 
 ## Decision drivers
 
-- AC-11: той самий код оцінює обидва джерела. Оцінювач, що вміє лише свій формат, оцінює
-  лише себе.
-- C-2: етапи 1–7 не змінюються заради оцінювання. Зведення їх до одного способу групування
-  порушило б це першим же комітом.
-- Наступні етапи (9, 10) додадуть третій спосіб, і його теж не можна оголошувати неправильним.
+- AC-11: the same code evaluates both sources. An evaluator that can only read its own format
+  only evaluates itself.
+- C-2: stages 1–7 do not change for the sake of evaluation. Reducing them to one way of grouping
+  would break that with the very first commit.
+- The next stages (9, 10) will add a third way, and it cannot be declared wrong either.
 
 ## Considered options
 
-**А. Фіксувати `trace_id`.** Найпростіше — і оголошує етап 6 зламаним. Один запит перестає
-бути одиницею оцінювання саме там, де він нею є.
+**A. Pin `trace_id`.** The simplest — and it declares stage 6 broken. A single request stops
+being the unit of evaluation exactly where it is one.
 
-**Б. Учити кожен рівень читати обидва формати.** Розмазує знання про формат по всіх рівнях:
-третій формат доведеться дописувати в трьох місцях, і одне з них забудуть.
+**B. Teach every level to read both formats.** Smears knowledge of the format across all the
+levels: a third format would have to be written into three places, and one of them will be
+forgotten.
 
-**В. Ключ — параметр витягувача.** Один модуль знає про формати; рівні бачать `Trajectory` і
-не знають, звідки вона.
+**C. The key is a parameter of the extractor.** One module knows about formats; the levels see a
+`Trajectory` and do not know where it came from.
 
 ## Decision
 
-**В.** `trajectory.py` витягує траєкторії функцією-ключем. Дві готові: по `trace_id` і по
-`trace_ref` з відкатом на `trace_id`. Рівні оцінювання приймають `Trajectory` і про джерело
-не знають нічого.
+**C.** `trajectory.py` extracts trajectories through a key function. Two come ready: by
+`trace_id`, and by `trace_ref` falling back to `trace_id`. The evaluation levels take a
+`Trajectory` and know nothing about its source.
 
 ## Consequences
 
-**Добре.** Новий формат — це новий ключ, а не правка рівнів. Перевірка AC-11 ганяє той самий
-код по трейсах етапу 1 і етапу 6 та стверджує, що обидва дали непорожні траєкторії.
+**Good.** A new format is a new key, not an edit to the levels. The AC-11 check runs the same
+code over stage 1's and stage 6's traces and asserts that both produced non-empty trajectories.
 
-**Ціна.** Ключ треба обрати при виклику, і неправильний вибір дає правдоподібне сміття —
-одну довгу траєкторію замість багатьох. Тому витягувач звітує **кількість** траєкторій і
-їхню довжину, а перевірка стверджує, що на трейсі етапу 6 їх більше за одну.
+**The price.** The key has to be chosen at the call site, and the wrong choice yields plausible
+garbage — one long trajectory instead of many. So the extractor reports the **number** of
+trajectories and their length, and the check asserts that on stage 6's trace there is more than
+one.
 
-**Межа.** Витягувач не вгадує ключ сам. Автоматичний вибір виглядав би зручним і мовчки
-помилявся б на форматі, якого ще немає.
+**The limit.** The extractor does not guess the key by itself. Automatic selection would look
+convenient and would silently get it wrong on a format that does not exist yet.

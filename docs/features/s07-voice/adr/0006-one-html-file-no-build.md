@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0006 — Сторінка живого режиму — один файл без збірки
+# 0006 — The live-mode page is one HTML file with no build
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -15,49 +15,51 @@ ticket: "n/a"
 
 ## Context
 
-Живий режим потребує сторінки: мікрофон, кнопка, індикатор, відтворення звуку й ті
-самі числа, що у прогоні.
+Live mode needs a page: a microphone, a button, an indicator, audio playback and the same numbers
+as in the run.
 
-Найменший «сучасний» варіант — фронтенд-фреймворк зі збіркою. Це `node_modules`,
-команда збірки, конфігурація й ще один інструмент, який доведеться підтримувати сім
-етапів поспіль.
+The smallest "modern" option is a frontend framework with a build. That means `node_modules`, a
+build command, configuration and one more tool that will have to be maintained for seven stages
+running.
 
 ## Decision drivers
 
-- Етап про **затримку**, а не про складання інтерфейсів.
-- Читач має відкрити файл і побачити весь код сторінки одразу.
-- Курс не має жодного фронтенду досі, і заводити стек заради однієї сторінки —
-  найдорожчий спосіб отримати кнопку.
-- Карта архітектури чесно каже `frontend: ""` — цей етап її заповнює, і заповнює
-  тим, що справді є.
+- The stage is about **latency**, not about assembling interfaces.
+- The reader should open the file and see the whole of the page's code at once.
+- The course has had no frontend at all so far, and starting up a stack for the sake of one page
+  is the most expensive way to get a button.
+- The architecture map honestly says `frontend: ""` — this stage fills it in, and fills it in
+  with what is really there.
 
 ## Considered options
 
-1. **Один HTML-файл** із вбудованим скриптом; жодної збірки.
-2. **Фронтенд-фреймворк** зі збіркою.
-3. **Без сторінки взагалі** — лише командний клієнт.
+1. **One HTML file** with an inline script; no build at all.
+2. **A frontend framework** with a build.
+3. **No page at all** — only a command-line client.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 додає інструмент, який ніхто в цьому курсі не вчить і який доведеться
-оновлювати. Ціна — постійна, вигода — нульова для однієї сторінки з двома кнопками.
+Option 2 adds a tool nobody in this course teaches and which will have to be updated. The price
+is permanent, the benefit zero for one page with two buttons.
 
-Option 3 позбавляє етап мікрофона, тобто найголовнішого: почути паузу власним вухом.
+Option 3 deprives the stage of a microphone, that is, of the main thing: hearing the pause with
+your own ear.
 
-**Мікрофон вмикається лише після явної дії** (AC-10) — і це не ввічливість, а вимога:
-сторінка, що бере мікрофон при завантаженні, порушує згоду незалежно від того, що
-робить зі звуком далі.
+**The microphone turns on only after an explicit action** (AC-10) — and that is not politeness
+but a requirement: a page that takes the microphone on load violates consent regardless of what
+it does with the audio afterwards.
 
 ## Consequences
 
 **Positive**
-- Нуль залежностей і нуль команд збірки; сторінка відкривається як є.
-- Увесь код видно в одному файлі — можна прочитати за одну сесію.
-- Етап 10 успадкує сторінку без жодного інструмента.
+- Zero dependencies and zero build commands; the page opens as it is.
+- All the code is visible in one file — it can be read in a single sitting.
+- Stage 10 will inherit the page with no tooling at all.
 
 **Negative**
-- Сторінка примітивна: жодного стану, жодної маршрутизації. Для двох кнопок це
-  перевага, для чогось більшого — ні, і етап 10 вирішуватиме заново.
-- Без збірки немає й перевірки типів у скрипті. Ціна прийнята: скрипт короткий.
+- The page is primitive: no state, no routing. For two buttons that is an advantage, for anything
+  bigger it is not, and stage 10 will decide again.
+- With no build there is no type checking in the script either. The price is accepted: the script
+  is short.

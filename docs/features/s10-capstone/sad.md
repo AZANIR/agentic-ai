@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "L"
@@ -11,300 +11,306 @@ target_surfaces: [backend-service, cli]
 
 ## 1. Introduction and goals
 
-Етап 10 збирає з дев'яти частин один сервіс — і **міряє саме складання**.
+Stage 10 assembles one service out of nine parts — and **measures the assembly itself**.
 
-> **Курс учив не десяти темам, а вмінню робити ті самі компроміси в системі, про яку
-> туторіалу ще ніхто не написав.**
+> **The course taught not ten topics but the habit of making the same trade-offs in a system
+> nobody has written a tutorial about yet.**
 
-Твердження доводиться числом, а не переліком імпортів. Заміряно до першого рядка коду:
-етап 6 імпортує етап 2 і виконує з нього **нуль** рядків — там імпортується константа рівня
-доступу, а не пошук.
+The claim is proven by a number, not by a list of imports. Measured before the first line of code:
+stage 6 imports stage 2 and executes **zero** of its lines — what gets imported there is an
+access-level constant, not retrieval.
 
-> **«Імпортує» — не те саме, що «використовує».**
+> **"Imports" is not the same as "uses".**
 
-Чотири цілі, кожна перевіряється:
+Four goals, each of them checked:
 
-1. Сервіс піднімається однією командою й показує, **які частини брали участь** у відповіді.
-2. Для кожного етапу 1–9 названо, **скільки його рядків виконалось** на один запит.
-3. Ціна складання названа числом: рядки перехідників проти рядків, що виконались.
-4. Кожне рішення в `ARCHITECTURE.md` має етап-джерело, і посилання **звіряється з репозиторієм**.
+1. The service starts with one command and shows **which parts took part** in the answer.
+2. For every stage 1–9 it names **how many of its lines executed** on one request.
+3. The price of assembly is stated as a number: adapter lines against the lines that executed.
+4. Every decision in `ARCHITECTURE.md` has a source stage, and the citation is **reconciled with
+   the repository**.
 
-**Стейкхолдери:** Learner (піднімає, ставить питання, читає числа), Operator (обвіс, затримка,
-резервна копія), Contributor (автор капстоуна й звіту про складання), Tech Lead (перевіряє
-обґрунтування).
+**Stakeholders:** Learner (starts it, asks questions, reads the numbers), Operator (the wrap,
+latency, backups), Contributor (author of the capstone and of the assembly report), Tech Lead
+(checks the justifications).
 
 ## 2. Constraints
 
-| # | Обмеження | Звідки |
+| # | Constraint | Where from |
 |---|---|---|
-| C-1 | Увесь етап проходиться офлайн і без API-ключа | правило курсу, NFR-5, AC-11 |
-| C-2 | Етапи 1–9 **не змінюються** заради складання | spec §3 |
-| C-3 | Кожен модуль капстоуна ≤ 110 виконуваних рядків | NFR-1 |
-| C-4 | `if profile == ...` живе лише у фабриках `shared/` | CONVENTIONS.md |
-| C-5 | Перехідники ≤ 1/5 від виконаного | NFR-7, AC-03b |
-| C-6 | Складання йде **згори вниз**: сервіс кличе частини, частини про сервіс не знають | spec §8, припущення 4 |
-| C-7 | Одна VM, self-hosted, без керованих сервісів | рішення етапу 6, не переглядається |
-| C-8 | Воротарі імпортуються з етапу 6, а не пишуться заново | AC-07 |
-| C-9 | Голос (етап 7) — свідомо не ввімкнений адаптер | spec §8 |
-| C-10 | Трейси пишуться крізь `shared/trace.py` із ключем прогону, як на етапі 9 | AC-09 |
+| C-1 | The whole stage is passable offline and with no API key | course rule, NFR-5, AC-11 |
+| C-2 | Stages 1–9 **do not change** for the sake of assembly | spec §3 |
+| C-3 | Every capstone module is ≤ 110 executable lines | NFR-1 |
+| C-4 | `if profile == ...` lives only in the `shared/` factories | CONVENTIONS.md |
+| C-5 | Adapters ≤ 1/5 of what executed | NFR-7, AC-03b |
+| C-6 | Assembly goes **top down**: the service calls the parts, the parts know nothing of the service | spec §8, assumption 4 |
+| C-7 | One VM, self-hosted, no managed services | stage 6 decision, not revisited |
+| C-8 | The guards are imported from stage 6, not written again | AC-07 |
+| C-9 | Voice, stage 7, is an adapter deliberately not wired in | spec §8 |
+| C-10 | Traces are written through `shared/trace.py` with a run key, as at stage 9 | AC-09 |
 
 ## 3. Context and scope
 
-Капстоун стоїть **на місці етапу 6** як сервіс, але його вхід — не лише запит користувача:
-він ще й міряє сам себе.
+The capstone stands **where stage 6 stands** as a service, but its input is not only the user
+request: it also measures itself.
 
 ```mermaid
 C4Context
-    title Капстоун збирає девʼять частин і міряє складання
+    title The capstone assembles nine parts and measures the assembly
 
-    Person(learner, "Learner", "Питає сервіс, читає числа складання")
-    Person(operator, "Operator", "Обвіс, затримка, резервна копія")
-    Person(contributor, "Contributor", "Читає звіт про складання")
+    Person(learner, "Learner", "Asks the service, reads the assembly numbers")
+    Person(operator, "Operator", "The wrap, latency, backups")
+    Person(contributor, "Contributor", "Reads the assembly report")
 
-    System(capstone, "s10 - Зібраний сервіс", "Імпортує етапи 1-9; міряє, скільки з кожного виконалось")
-    System_Ext(stages, "Етапи 1-9", "Частини: цикл, пошук, роутер, інструменти, памʼять, воротарі")
-    System_Ext(evaluator, "Оцінювач етапу 8", "Читає трейси капстоуна й дає три рівні вердиктів")
-    System_Ext(tracer, "Трасувальник", "shared/trace.py - ключ прогону з першого рядка")
-    System_Ext(deploy, "Розгортання", "Одна VM за HTTPS; той самий обвіс, що на етапі 6")
+    System(capstone, "s10 - the assembled service", "Imports stages 1-9; measures how much of each executed")
+    System_Ext(stages, "Stages 1-9", "The parts: loop, retrieval, router, tools, memory, guards")
+    System_Ext(evaluator, "Stage 8 evaluator", "Reads the capstone traces and gives three levels of verdict")
+    System_Ext(tracer, "Tracer", "shared/trace.py - a run key from the first line")
+    System_Ext(deploy, "Deployment", "One VM behind HTTPS; the same wrap as at stage 6")
 
-    Rel(learner, capstone, "Запит")
-    Rel(operator, deploy, "Піднімає й обслуговує")
-    Rel(capstone, stages, "Імпортує І ВИКОНУЄ")
-    Rel(capstone, tracer, "Пише кроки")
-    Rel(evaluator, tracer, "Читає трейси капстоуна")
-    Rel(contributor, capstone, "Читає звіт про складання")
+    Rel(learner, capstone, "Request")
+    Rel(operator, deploy, "Starts and operates")
+    Rel(capstone, stages, "IMPORTS AND EXECUTES")
+    Rel(capstone, tracer, "Writes steps")
+    Rel(evaluator, tracer, "Reads the capstone traces")
+    Rel(contributor, capstone, "Reads the assembly report")
 ```
 
-**Що всередині обсягу:** складання дев'яти частин, вимір виконаного на етап, перехідники з
-названими швами, п'ять наскрізних сценаріїв, `ARCHITECTURE.md` зі звіреними посиланнями,
-обвіс із названим походженням, числа затримки з умовами.
+**What is inside the scope:** assembling nine parts, measuring what executed per stage, adapters
+with named seams, five end-to-end scenarios, `ARCHITECTURE.md` with reconciled citations, the wrap
+with a named origin, latency numbers with their conditions.
 
-**Що зовні:** будь-яка зміна етапів 1–9, нова техніка агента, Kubernetes, вимір якості
-відповідей (це етап 8, який капстоун **використовує**), реальні сторонні API.
+**What is outside:** any change to stages 1–9, a new agent technique, Kubernetes, measuring answer
+quality — that is stage 8, which the capstone **uses** — and real third-party APIs.
 
-**Brownfield.** Репозиторій зрілий і повний: дев'ять етапів, `shared/` із шістьма адаптерами,
-`deploy/` з першим розгортанням, `scripts/` із шістьма валідаторами. Найважливіше для цього
-етапу: **інструмент виміру вже є** — `stages.s09_frameworks.counters.executed_lines` рахує
-виконані рядки названого пакета, і саме він наводиться на самі етапи.
+**Brownfield.** The repository is mature and complete: nine stages, `shared/` with six adapters,
+`deploy/` with the first deployment, `scripts/` with six validators. The most important fact for
+this stage: **the measuring instrument already exists** —
+`stages.s09_frameworks.counters.executed_lines` counts the executed lines of a named package, and
+it is exactly that instrument which gets pointed at the stages themselves.
 
 ## 4. Solution strategy
 
-| Питання | Рішення | Чому саме так |
+| Question | Decision | Why this way |
 |---|---|---|
-| Цільова поверхня | **`backend-service` + `cli`** | Сервіс відповідає на запити; команда показує складання й числа. Друга поверхня не додає коду — це той самий об'єкт двома входами |
-| Що доводить складання | **Виконані рядки на етап**, а не перелік імпортів | Етап 6 імпортує етап 2 і виконує нуль його рядків; перелік імпортів це ховає. ADR-0001 |
-| Чим міряти | **`executed_lines` етапу 9**, наведений на `stages/sNN_*` | Інструмент уже є, перевірений і має названі межі. Написати другий означало б мати два визначення слова «виконано». ADR-0002 |
-| Що таке перехідник | Код **тільки** заради шва; він не вирішує | Перехідник, що вирішує, є частиною — і їй місце в етапі, з уроком і перевірками. ADR-0003 |
-| Куди йде невідповідність | У **перехідник**, ніколи в частину | Змінена частина робить тезу «частини були зрілі» недоказовою. ADR-0004 |
-| Обґрунтування | Рядок із **етапом-джерелом**, звірений із репозиторієм | Бібліографія, якої ніхто не звіряв, старіє мовчки — двічі за цей курс. ADR-0005 |
-| Власні рішення | Окремий розділ, кожне з причиною, чому етапу немає | Інакше «немає джерела» й «джерело є» злилися б в одне. ADR-0005 |
-| Сценарії | П'ять, і кожен звіряє **гілку І фінальний стан** | Перевірка самої відповіді пропускає випадок «текст правильний, стан ні». ADR-0006 |
-| Відмова частини | Сервіс живий, у відповіді названо, що саме відмовило | Відмова частини не є падінням системи — урок етапу 4. ADR-0006 |
-| Навантаження | Локально, на підробці, з **умовами поруч із числом** | Число без умов не є виміром — урок етапу 7. ADR-0007 |
-| Голос | Свідомо **не** ввімкнений, і це назване | Він не додає висновку, а додає гігабайти. Не названий — виглядав би забутим. ADR-0008 |
+| Target surface | **`backend-service` + `cli`** | The service answers requests; the command shows the assembly and the numbers. The second surface adds no code — it is the same object through two entrances |
+| What proves the assembly | **Executed lines per stage**, not a list of imports | Stage 6 imports stage 2 and executes zero of its lines; a list of imports hides that. ADR-0001 |
+| What to measure with | **`executed_lines` from stage 9**, pointed at `stages/sNN_*` | The instrument already exists, is checked, and has its limits named. Writing a second one would mean having two definitions of the word "executed". ADR-0002 |
+| What an adapter is | Code that exists **only** for a seam; it does not decide | An adapter that decides is a part — and a part belongs in a stage, with a lesson and checks. ADR-0003 |
+| Where a mismatch goes | Into the **adapter**, never into the part | A changed part makes the claim "the parts were mature" unprovable. ADR-0004 |
+| Justification | A row with a **source stage**, reconciled with the repository | A bibliography nobody reconciles ages silently — twice during this course. ADR-0005 |
+| Own decisions | A separate section, each with a reason for why there is no stage | Otherwise "there is no source" and "there is a source" would merge into one. ADR-0005 |
+| Scenarios | Five, and each checks the **branch AND the final state** | Checking the answer alone misses the case "the text is right, the state is not". ADR-0006 |
+| A part failing | The service stays alive, the answer names what exactly failed | A part failing is not the system falling over — the lesson of stage 4. ADR-0006 |
+| Load | Locally, on the fake, with the **conditions next to the number** | A number without its conditions is not a measurement — the lesson of stage 7. ADR-0007 |
+| Voice | Deliberately **not** wired in, and that is stated | It adds no conclusion and adds gigabytes. Unstated, it would look forgotten. ADR-0008 |
 
 ## 5. Building block view
 
 ```mermaid
 C4Container
-    title Модулі етапу 10
+    title Stage 10 modules
 
-    Person(learner, "Learner", "Запит або команда")
+    Person(learner, "Learner", "A request or a command")
 
     Container_Boundary(s10, "stages/s10_capstone/") {
-        Container(service, "service.py", "Python", "Складений сервіс: воротарі -> частини -> відповідь")
-        Container(seams, "seams.py", "Python", "Перехідники; кожен називає свій шов")
-        Container(assemble, "assemble.py", "Python", "Вимір: скільки рядків кожного етапу виконалось")
-        Container(scenarios, "scenarios.py", "Python", "Шість сценаріїв: гілка, інструменти, стан")
-        Container(arch, "arch.py", "Python", "Розбір ARCHITECTURE.md і звірка посилань")
-        Container(latency, "latency.py", "Python", "Затримка: умови як дані, потім числа")
-        Container(serve, "serve.py", "Python", "Точка входу: застосунок s06 навколо Capstone")
+        Container(service, "service.py", "Python", "The assembled service: guards -> parts -> answer")
+        Container(seams, "seams.py", "Python", "The adapters; each names its seam")
+        Container(assemble, "assemble.py", "Python", "Measurement: how many lines of each stage executed")
+        Container(scenarios, "scenarios.py", "Python", "Six scenarios: branch, tools, state")
+        Container(arch, "arch.py", "Python", "Parses ARCHITECTURE.md and reconciles the citations")
+        Container(latency, "latency.py", "Python", "Latency: conditions as data, then the numbers")
+        Container(serve, "serve.py", "Python", "Entry point: the s06 application around Capstone")
     }
 
-    Container_Boundary(parts, "stages/ - частини") {
-        Container(s01, "s01 цикл", "Python", "run_agent")
-        Container(s02, "s02 пошук", "Python", "store + answer")
-        Container(s03, "s03 роутер", "Python", "run_graph")
-        Container(s05, "s05 памʼять", "Python", "Memory + decide")
-        Container(s06, "s06 воротарі", "Python", "admit + charge + Metrics")
-        Container(s08, "s08 оцінювач", "Python", "levels + trajectory")
-        Container(s09, "s09 прилад", "Python", "executed_lines - НЕ частина")
+    Container_Boundary(parts, "stages/ - the parts") {
+        Container(s01, "s01 loop", "Python", "run_agent")
+        Container(s02, "s02 retrieval", "Python", "store + answer")
+        Container(s03, "s03 router", "Python", "run_graph")
+        Container(s05, "s05 memory", "Python", "Memory + decide")
+        Container(s06, "s06 guards", "Python", "admit + charge + Metrics")
+        Container(s08, "s08 evaluator", "Python", "levels + trajectory")
+        Container(s09, "s09 instrument", "Python", "executed_lines - NOT a part")
     }
 
-    Rel(learner, service, "Запит")
-    Rel(learner, assemble, "Показати складання")
-    Rel(service, seams, "Крізь перехідники")
-    Rel(seams, s01, "Викликає")
-    Rel(seams, s02, "Викликає")
-    Rel(seams, s03, "Викликає")
-    Rel(seams, s05, "Викликає")
-    Rel(service, s06, "Воротарі - без перехідника")
-    Rel(assemble, s09, "Трасує виконані рядки")
-    Rel(assemble, s08, "Оцінює власні трейси")
-    Rel(serve, s06, "Бере create_app - свого HTTP-шару немає")
+    Rel(learner, service, "Request")
+    Rel(learner, assemble, "Show the assembly")
+    Rel(service, seams, "Through the adapters")
+    Rel(seams, s01, "Calls")
+    Rel(seams, s02, "Calls")
+    Rel(seams, s03, "Calls")
+    Rel(seams, s05, "Calls")
+    Rel(service, s06, "Guards - no adapter")
+    Rel(assemble, s09, "Traces the executed lines")
+    Rel(assemble, s08, "Evaluates its own traces")
+    Rel(serve, s06, "Takes create_app - it has no HTTP layer of its own")
 ```
 
-**Чому `seams.py` окремо від `service.py`.** Перехідники мусять бути **перелічуваними**: їх
-рахує перевірка, і кожен називає свій шов. Розчинені в сервісі, вони перестають бути видимими
-як ціна — а ціна і є числом етапу.
+**Why `seams.py` is separate from `service.py`.** The adapters have to be **enumerable**: a check
+counts them, and each names its seam. Dissolved into the service, they stop being visible as a
+price — and the price is the stage's number.
 
-**Чому `assemble.py` не всередині сервісу.** Вимір складання — окрема робота, і вона дорога:
-трасування вмикається навколо одного запиту, а не на весь час життя сервісу.
+**Why `assemble.py` is not inside the service.** Measuring the assembly is separate work, and it is
+expensive: tracing is switched on around a single request, not for the whole lifetime of the
+service.
 
-**Чому `arch.py` існує.** Посилання на етап-джерело перевіряється кодом. Документ, чиї
-посилання ніхто не звіряє, старіє мовчки — за цей курс так сталося двічі, і обидва рази це
-знайшло рев'ю, а не автор.
+**Why `arch.py` exists.** A citation of a source stage is checked by code. A document whose
+citations nobody reconciles ages silently — during this course that happened twice, and both times
+it was review that found it, not the author.
 
-**Чого тут немає.** Власного циклу агента, власного пошуку, власної пам'яті, власних воротарів.
-Кожен такий модуль означав би, що відповідну частину не вдалося зібрати, — і це мало б стояти
-у звіті, а не в коді.
+**What is absent here.** An agent loop of its own, retrieval of its own, memory of its own, guards
+of its own. Every such module would mean the corresponding part could not be assembled — and that
+belongs in the report, not in the code.
 
 ## 6. Runtime view
 
-**Потік 1 — один запит крізь складений сервіс (AC-01, AC-05, AC-07).**
+**Flow 1 — one request through the assembled service (AC-01, AC-05, AC-07).**
 
 ```mermaid
 sequenceDiagram
     actor L as Learner
     participant SV as service.py
-    participant G as s06 воротарі
+    participant G as s06 guards
     participant SE as seams.py
-    participant P as частини s01-s05
+    participant P as parts s01-s05
     participant T as shared/trace.py
 
-    L->>SV: запит
+    L->>SV: request
     SV->>T: received
-    SV->>G: admit(ключ)
-    G-->>SV: вердикт
-    alt відмовлено
-        SV->>T: guard - відмова
-        SV-->>L: відмова; жодного виклику моделі
-    else дозволено
-        SV->>SE: виконати гілку
-        SE->>P: виклик частини крізь перехідник
-        P-->>SE: результат у формі частини
-        SE-->>SV: результат у формі сервісу
-        SV->>T: done - гілка, частини, стан
-        SV-->>L: відповідь + які частини брали участь
+    SV->>G: admit(key)
+    G-->>SV: verdict
+    alt refused
+        SV->>T: guard - refusal
+        SV-->>L: refusal; not a single model call
+    else admitted
+        SV->>SE: run the branch
+        SE->>P: call the part through an adapter
+        P-->>SE: result in the shape of the part
+        SE-->>SV: result in the shape of the service
+        SV->>T: done - branch, parts, state
+        SV-->>L: answer + which parts took part
     end
 ```
 
-**Потік 2 — вимір складання: скільки кожного етапу виконалось (AC-02, AC-03).**
+**Flow 2 — measuring the assembly: how much of each stage executed (AC-02, AC-03).**
 
 ```mermaid
 sequenceDiagram
     participant A as assemble.py
-    participant C as s09 лічильник
+    participant C as s09 counter
     participant SV as service.py
-    participant P as етапи 1-9
+    participant P as stages 1-9
 
-    A->>C: почати облік виконаних рядків по кожному stages/sNN
-    A->>SV: один запит
-    SV->>P: робота
-    P-->>SV: результат
-    A->>C: зібрати
+    A->>C: start counting executed lines for each stages/sNN
+    A->>SV: one request
+    SV->>P: work
+    P-->>SV: result
+    A->>C: collect
     C-->>A: {s01: N, s02: M, ...}
-    A->>A: етап із нулем - названо окремо
-    A-->>A: перехідники / виконане - ціна складання
-    Note over A,C: Прогрів перед виміром: імпорт трапляється раз на процес, не раз на запит
+    A->>A: a stage with a zero is named separately
+    A-->>A: adapters / executed - the price of assembly
+    Note over A,C: Warm-up before the measurement: an import happens once per process, not once per request
 ```
 
-**Потік 3 — капстоун оцінює себе інструментом етапу 8 (AC-09).**
+**Flow 3 — the capstone evaluates itself with the stage 8 instrument (AC-09).**
 
 ```mermaid
 sequenceDiagram
     participant S as scenarios.py
     participant SV as service.py
-    participant T as трейс
-    participant E as s08 оцінювач
+    participant T as trace
+    participant E as s08 evaluator
 
-    S->>SV: пʼять запитів
-    SV->>T: кроки з ключем прогону
-    S->>E: витягнути траєкторії
-    E-->>S: більше однієї траєкторії
-    S->>E: оцінити три рівні
-    E-->>S: вердикти - без жодної зміни в оцінювачі
-    Note over S,E: Не працює - це знахідка про етап 8, і вона йде у звіт
+    S->>SV: five requests
+    SV->>T: steps with a run key
+    S->>E: extract the trajectories
+    E-->>S: more than one trajectory
+    S->>E: judge on three levels
+    E-->>S: verdicts - with no change to the evaluator
+    Note over S,E: If it does not work, that is a finding about stage 8, and it goes into the report
 ```
 
 ## 7. Deployment view
 
-Той самий обвіс, що на етапі 6, і **той самий код**: капстоун не розгортає себе інакше.
+The same wrap as at stage 6, and **the same code**: the capstone does not deploy itself any
+differently.
 
 ```
-HTTPS → Caddy → uvicorn (N воркерів) → s06 воротарі → s10 сервіс → частини s01-s05
+HTTPS → Caddy → uvicorn (N workers) → s06 guards → s10 service → parts s01-s05
                                           │                            │
-                                        Redis                      Postgres (том)
+                                        Redis                      Postgres (volume)
 ```
 
-**Що додається капстоуном:** нічого в інфраструктурі. `ARCHITECTURE.md` називає, звідки
-прийшов кожен пункт обвісу, а `RUNBOOK` етапу 6 лишається чинним.
+**What the capstone adds:** nothing in the infrastructure. `ARCHITECTURE.md` names where every item
+of the wrap came from, and the stage 6 `RUNBOOK` stays in force.
 
-**Навантажувальний прогін** іде проти **локально** піднятого сервісу на підробленій моделі.
-Числа p50/p95 друкуються разом з умовами; справжнє розгортання лишається `НЕ ПЕРЕВІРЕНО` — так
-само, як довіра до сертифіката на етапі 6.
+**The load run** goes against a **locally** started service on a fake model. The p50/p95 numbers are
+printed together with their conditions; a real deployment stays `NOT EVALUATED` — exactly as trust
+in a certificate did at stage 6.
 
 ## 8. Crosscutting concepts
 
-- **Вимірювати, а не стверджувати.** Наскрізне правило курсу; тут воно наведене на сам курс.
-- **Третій стан.** «Не перевірено» ≠ «пройдено» ≠ «провалено» — і навантажувальний прогін без
-  інструмента дає саме його.
-- **Ціна названа поруч із виграшем.** Перехідники — ціна складання, і вони в тій самій таблиці.
-- **Межі виміру названі.** Виконані рядки описують **цей запит** і **цей потік**; обидві межі
-  успадковані з етапу 9 разом з інструментом.
-- **Ключ прогону з першого рядка** — правило етапу 9; капстоун його не переглядає.
+- **Measure, do not assert.** The cross-cutting rule of the course; here it is pointed at the
+  course itself.
+- **The third state.** "Not evaluated" ≠ "passed" ≠ "failed" — and a load run with no instrument
+  gives exactly that.
+- **The price is named next to the gain.** The adapters are the price of assembly, and they are in
+  the same table.
+- **The limits of the measurement are named.** Executed lines describe **this request** and **this
+  thread**; both limits are inherited from stage 9 along with the instrument.
+- **A run key from the first line** — the stage 9 rule; the capstone does not revisit it.
 
 ## 9. Architecture decisions
 
-| # | Рішення | Статус | Де відгукується |
+| # | Decision | Status | Where it echoes |
 |---|---|---|---|
-| 0001 | Складання доводиться виконаними рядками, а не переліком імпортів | Accepted | §4, §6 потік 2 |
-| 0002 | Інструмент виміру береться з етапу 9, а не пишеться заново | Accepted | §4, §5 |
-| 0003 | Перехідник не вирішує; той, що вирішує, є частиною | Accepted | §4, §5 |
-| 0004 | Невідповідність іде в перехідник, ніколи в частину | Accepted | §4, §8 |
-| 0005 | Кожне обґрунтування має етап-джерело, і воно звіряється кодом | Accepted | §4, §5 |
-| 0006 | Сценарій звіряє гілку **І** фінальний стан | Accepted | §4, §6 потік 1 |
-| 0007 | Числа затримки друкуються разом з умовами | Accepted | §4, §7 |
-| 0008 | Голос свідомо не ввімкнений, і це назване | Accepted | §4 |
+| 0001 | Assembly is proven by executed lines, not by a list of imports | Accepted | §4, §6 flow 2 |
+| 0002 | The measuring instrument is taken from stage 9, not written again | Accepted | §4, §5 |
+| 0003 | An adapter does not decide; whatever decides is a part | Accepted | §4, §5 |
+| 0004 | A mismatch goes into the adapter, never into the part | Accepted | §4, §8 |
+| 0005 | Every justification has a source stage, and code verifies it | Accepted | §4, §5 |
+| 0006 | A scenario checks the branch **AND** the final state | Accepted | §4, §6 flow 1 |
+| 0007 | Latency numbers are printed together with their conditions | Accepted | §4, §7 |
+| 0008 | Voice is deliberately not wired in, and that is stated | Accepted | §4 |
 
 ## 10. Quality requirements
 
-| Атрибут | Сценарій (When) | Очікування (Then) | Як перевіряється |
+| Attribute | Scenario — When | Expectation — Then | How it is checked |
 |---|---|---|---|
-| Складання | Етап названо частиною | Його виконані рядки > 0, інакше червоне з назвою | AC-02b |
-| Повнота | Читач рахує етапи в роботі | ≥ 6 із девʼяти дають ненульове число | NFR-9 |
-| Ціна | Читач дивиться на перехідники | Їхня сума ≤ 1/5 виконаного | NFR-7, AC-03b |
-| Правдивість | Обґрунтування посилається на етап | Етап існує; биле посилання червонить | AC-06b |
-| Наскрізність | Пʼять сценаріїв | Гілка **і** фінальний стан правильні | AC-05 |
-| Живучість | Частина відмовляє | Сервіс живий, відмову названо | AC-05b |
-| Офлайн | Машина без ключа й без мережі | Усі пʼять сценаріїв проходять | AC-11, NFR-5 |
-| Детермінізм | Двадцять прогонів офлайн | Ті самі гілки й ті самі фінальні стани | NFR-6 |
-| Обсяг | Читач відкриває урок | ≤ 2500 слів | NFR-3 |
+| Assembly | A stage is named a part | Its executed lines are above zero, otherwise red with the name | AC-02b |
+| Completeness | The reader counts the stages at work | ≥ 6 of nine give a non-zero number | NFR-9 |
+| Price | The reader looks at the adapters | Their sum is ≤ 1/5 of what executed | NFR-7, AC-03b |
+| Truthfulness | A justification cites a stage | The stage exists; a dangling citation reddens | AC-06b |
+| End-to-end | Five scenarios | The branch **and** the final state are right | AC-05 |
+| Survivability | A part fails | The service stays alive, the failure is named | AC-05b |
+| Offline | A machine with no key and no network | All five scenarios pass | AC-11, NFR-5 |
+| Determinism | Twenty offline runs | The same branches and the same final states | NFR-6 |
+| Length | The reader opens the lesson | ≤ 2500 words | NFR-3 |
 
 ## 11. Risks and technical debt
 
-| Ризик | Серйозність | Пом'якшення | Власник, термін |
+| Risk | Severity | Mitigation | Owner, due |
 |---|---|---|---|
-| Капстоун тихо перепише частину, щоб вона встала | High | C-2 + перевірка: змінена частина ламає її власний набір, і `check_all` це показує одразу | Contributor, перед тегом |
-| Перехідник розростеться в шар із поведінкою | High | ADR-0003 + NFR-7: сума перехідників ≤ 1/5 виконаного; понад — червоне | Contributor, перед тегом |
-| Етап у переліку є, у роботі немає | Medium | Це і є головний вимір етапу (AC-02b), а не ризик, який ховають | Contributor, перед тегом |
-| Числа підробки перенесуть на продакшн | Medium | Умови друкуються поруч із числом (ADR-0007); справжнє розгортання — `НЕ ПЕРЕВІРЕНО` | Contributor, перед тегом |
-| Оцінювач етапу 8 не впорається з трейсом капстоуна | Medium | Це знахідка про етап 8, і вона йде у звіт §10 `ARCHITECTURE.md`, а не в мовчазне виправлення етапу 8 | Contributor, етап поза курсом |
-| Трасування `sys.settrace` не бачить інших потоків | Low | Межа успадкована з етапу 9 разом з інструментом і названа в уроці | Contributor, перед тегом |
-| Чи вмикати голос | Open question | Default now: ні — не додає висновку, додає гігабайти | Contributor, перед тегом `stage-10` |
-| Чи проганяти навантаження в CI | Open question | Default now: ні — потребує піднятого сервісу, дає число, залежне від машини | Contributor, перед тегом `stage-10` |
-| Чи виносити перехідники у `shared/` | Open question | Default now: ні — перехідник існує заради конкретного шва | Contributor, після курсу |
-| Чи фіксувати p50/p95 у прозі | Open question | Default now: так, разом з умовами й позначкою «локальна підробка» | Contributor, перед тегом `stage-10` |
+| The capstone quietly rewrites a part to make it fit | High | C-2 plus a check: a changed part breaks its own suite, and `check_all` shows that at once | Contributor, before the tag |
+| An adapter grows into a layer with behaviour | High | ADR-0003 plus NFR-7: the sum of the adapters is ≤ 1/5 of what executed; above that it is red | Contributor, before the tag |
+| A stage is in the list and absent from the work | Medium | That is the stage's main measurement, AC-02b, not a risk to be hidden | Contributor, before the tag |
+| The numbers from the fake get carried over to production | Medium | The conditions are printed next to the number, ADR-0007; a real deployment stays `NOT EVALUATED` | Contributor, before the tag |
+| The stage 8 evaluator cannot handle a capstone trace | Medium | That is a finding about stage 8, and it goes into §10 of `ARCHITECTURE.md`, not into a silent fix of stage 8 | Contributor, a stage beyond the course |
+| `sys.settrace` tracing does not see other threads | Low | The limit is inherited from stage 9 along with the instrument and named in the lesson | Contributor, before the tag |
+| Whether to wire voice in | Open question | Default now: no — it adds no conclusion and adds gigabytes | Contributor, before the `stage-10` tag |
+| Whether to run the load test in CI | Open question | Default now: no — it needs a running service and yields a machine-dependent number | Contributor, before the `stage-10` tag |
+| Whether to move the adapters into `shared/` | Open question | Default now: no — an adapter exists for a particular seam | Contributor, after the course |
+| Whether to pin p50/p95 in the prose | Open question | Default now: yes, together with the conditions and a "local fake" marker | Contributor, before the `stage-10` tag |
 
 ## 12. Glossary
 
-| Термін | Значення в цьому етапі |
+| Term | What it means in this stage |
 |---|---|
-| **Частина** | Модуль етапу 1–9, який капстоун імпортує **і виконує** |
-| **Шов** | Місце, де дві частини не стикуються без перехідника |
-| **Перехідник** | Код капстоуна, що існує тільки заради шва; він не вирішує |
-| **Виконані рядки етапу** | Скільки рядків `stages/sNN_*` спрацювало на один запит |
-| **Ціна складання** | Рядки перехідників проти рядків, що виконались |
-| **Обґрунтування** | Рішення плюс етап-джерело, звірений із репозиторієм |
-| **Власне рішення** | Рішення капстоуна без етапу-джерела; стоїть окремо, з причиною |
-| **Звіт про складання** | Розділ «що складання виявило» — перелік того, що зібралось погано |
+| **Part** | A module of stages 1–9 that the capstone imports **and executes** |
+| **Seam** | A place where two parts do not meet without an adapter |
+| **Adapter** | Capstone code that exists only for a seam; it does not decide |
+| **Executed stage lines** | How many lines of `stages/sNN_*` fired on one request |
+| **Price of assembly** | Adapter lines against the lines that executed |
+| **Justification** | A decision plus a source stage, reconciled with the repository |
+| **Own decision** | A capstone decision with no source stage; it stands separately, with a reason |
+| **Assembly report** | The section "what assembly revealed" — the list of what joined badly |

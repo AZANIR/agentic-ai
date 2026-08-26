@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0009 — Вимога до сховища трейсів: сформульована, і JSONL її задовольняє
+# 0009 — The trace store requirement: stated, and JSONL satisfies it
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,71 +15,72 @@ ticket: "n/a"
 
 ## Context
 
-Друга обіцянка, що переходить сюди. `adr/0008` етапу 6:
+The second promise that lands here. Stage 6's `adr/0008`:
 
-> «Оцінювання (етап 8) читатиме трейси й **сформулює вимогу** до сховища. Зараз такої вимоги
-> немає — є здогад… Обіцянки в коді треба або виконати, або перенести з назвою нового етапу.
-> Лишити як є не можна.»
+> "Evaluation (stage 8) will read the traces and **state a requirement** for the store. Right now
+> there is no such requirement — there is a guess… A promise in the code must either be kept or
+> moved with the name of the new stage. Leaving it as it is is not allowed."
 
-Обіцянка про зовнішній стік трейсів (Langfuse) переносилась уже двічі: спершу з етапу 1 на
-етап 6, потім з етапу 6 сюди. Текст у `shared/trace.py` досі каже, що стік «переїхав на етап
-8». Третій перенос без нової причини був би не рішенням, а звичкою.
+The promise of an external trace sink (Langfuse) has been moved twice already: first from stage 1
+to stage 6, then from stage 6 to here. The text in `shared/trace.py` still says the sink "moved to
+stage 8". A third move without a new reason would not be a decision, it would be a habit.
 
-Тепер читач існує, і вимогу можна не вгадувати.
+Now the reader exists, and the requirement no longer has to be guessed.
 
-## Що оцінювачеві справді потрібно від сховища
+## What the evaluator actually needs from the store
 
-Виведено з написаного коду, а не з уявлення про нього:
+Derived from the code as written, not from an idea of it:
 
-1. **Прочитати все за період одним проходом.** `trajectory.extract` читає файл цілком і
-   групує в памʼяті. На денному файлі демо це мілісекунди.
-2. **Групування за ключем прогону.** Робиться читачем (ADR-0001), не сховищем. Сховищу
-   достатньо віддати кроки; індексу за ключем оцінювач не просить.
-3. **Дописування без переписування.** AC-02b вимагає, щоб файл, який оцінювач читає, лишався
-   побайтово незмінним. Append-only це дає безкоштовно; сховище з оновленням на місці
-   зробило б інваріант недоказовим.
-4. **Порядок відновлюваний із даних.** `seq` є в кожному кроці, тож фізичний порядок рядків
-   не має значення — два процеси можуть писати в один файл.
-5. **Читання очима.** `cat` і `grep` лишаються способом подивитись, що сталося. Це
-   властивість, заради якої формат обрано на етапі 1.
+1. **Read everything for a period in one pass.** `trajectory.extract` reads the file whole and
+   groups in memory. On the demo's daily file that is milliseconds.
+2. **Grouping by the run key.** Done by the reader (ADR-0001), not by the store. It is enough for
+   the store to hand over the steps; the evaluator asks for no index by key.
+3. **Appending without rewriting.** AC-02b requires the file the evaluator reads to stay
+   byte-for-byte unchanged. Append-only gives that for free; a store with in-place updates would
+   make the invariant unprovable.
+4. **The order is recoverable from the data.** `seq` is on every step, so the physical order of
+   the lines does not matter — two processes can write into one file.
+5. **Reading with your eyes.** `cat` and `grep` remain the way to look at what happened. It is the
+   property the format was chosen for back in stage 1.
 
-Чого оцінювач **не** просить: транзакцій, запитів, часткового читання, індексів,
-ретенції, багатокористувацького доступу, дедуплікації.
+What the evaluator does **not** ask for: transactions, queries, partial reads, indexes, retention,
+multi-user access, deduplication.
 
 ## Decision
 
-**JSONL на томі задовольняє всі пʼять вимог. Зовнішній стік не додає жодної.**
+**JSONL on a volume satisfies all five requirements. An external sink adds none.**
 
-Обіцянка **виконується тим, що вимога тепер існує** — і вона виявилась меншою за здогад.
-Langfuse відхиляється не «поки що», а **за фактом**: він розвʼязує задачі (пошук по
-траєкторіях, порівняння прогонів у вебі, командний доступ), яких у переліку вище немає й на
-цьому масштабі не буде.
+The promise **is kept by the requirement now existing** — and it turned out to be smaller than the
+guess. Langfuse is rejected not "for now" but **on the facts**: it solves problems (search across
+trajectories, comparing runs in a web UI, team access) that are not in the list above and will not
+be at this scale.
 
-Текст у `shared/trace.py`, що обіцяв стік «на етапі 8», **виправляється цим самим комітом**:
-третього переносу немає, є відповідь.
+The text in `shared/trace.py` promising a sink "in stage 8" **is fixed by this very commit**:
+there is no third move, there is an answer.
 
 ## Consequences
 
-**Добре.** Обіцянка, що мандрувала трьома етапами, закрита. Наступний, хто захоче зовнішній
-стік, матиме перелік із пʼяти пунктів і побачить, що жоден із них його не вимагає — отже,
-доведеться назвати **шосту** вимогу, і вона буде справжньою.
+**Good.** A promise that travelled through three stages is closed. The next person who wants an
+external sink will have a list of five items and will see that not one of them requires it — so
+they will have to name a **sixth** requirement, and it will be a real one.
 
-**Ціна.** Трейси не переживуть втрати машини — це вже записано в `adr/0008` етапу 6 і
-адресовано резервному копіюванню на етапі 10. Оцінювання цього не змінює.
+**The price.** The traces will not survive the loss of the machine — that is already recorded in
+stage 6's `adr/0008` and addressed to backups in stage 10. Evaluation does not change it.
 
-**Межа, названа прямо.** Пʼять вимог виведено з **навчального** масштабу: денний файл демо й
-пʼятнадцять запитів сервісу. На мільйоні траєкторій пункт 1 («прочитати все одним проходом»)
-перестане бути дешевим, і вимога №6 зʼявиться сама. Етап каже це, а не вдає, що JSONL
-масштабується.
+**The limit, named out loud.** The five requirements are derived from a **teaching** scale: the
+demo's daily file and fifteen requests to the service. At a million trajectories item 1 ("read
+everything in one pass") stops being cheap, and requirement No. 6 will appear on its own. The
+stage says so rather than pretending that JSONL scales.
 
-## Альтернативи
+## Alternatives considered
 
-**Перенести обіцянку на етап 10.** Третій перенос поспіль. Причини для нього немає:
-питання не в тому, коли підключати стік, а в тому, чи він потрібен, — і на це вже є відповідь.
+**Move the promise to stage 10.** A third move in a row. There is no reason for it: the question
+is not when to wire up the sink but whether it is needed — and that already has an answer.
 
-**Підключити Langfuse, щоб виконати обіцянку буквально.** Виконує букву й порушує суть:
-інтеграція під споживача, який її не просить. Курс уже має цей урок на етапі 4, де реєстр
-інструментів існував без жодного споживача й тому нічого не доводив.
+**Wire up Langfuse to keep the promise literally.** Keeps the letter and breaks the spirit: an
+integration for a consumer that is not asking for it. The course already has this lesson in
+stage 4, where a tool registry existed with no consumer at all and therefore proved nothing.
 
-**Таблиця в Postgres.** Дає запити, яких оцінювач не робить, і забирає читання очима, яке він
-робить. Плюс міграція й друга реалізація читання за нуль нових уроків.
+**A table in Postgres.** Gives the queries the evaluator does not make, and takes away the reading
+with your eyes that it does. Plus a migration and a second read implementation for zero new
+lessons.

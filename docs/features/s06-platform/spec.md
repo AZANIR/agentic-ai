@@ -1,6 +1,6 @@
 ---
 status: Draft
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
@@ -8,431 +8,439 @@ feature_size: "M"
 
 # Spec — s06-platform
 
-> **Glossary:** [CONTEXT](../../../CONTEXT.md) (ролі + доменні об'єкти), [GLOSSARY](../../../GLOSSARY.md) (терміни курсу)
-> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §9 (s06) · `CURRICULUM.md` · `PLAYBOOK.md` · етапи 1–5 як складові · `deploy/docker-compose.yml` як наявна основа · стаття-джерело #6 (From Prototype to Production)
+> **Glossary:** [CONTEXT](../../../CONTEXT.md) (roles + domain objects), [GLOSSARY](../../../GLOSSARY.md) (course terms)
+> **Reference module / docs / channels used:** `planning/2026-08-22-agentic-ai-course-design.md` §9 (s06) · `CURRICULUM.md` · `PLAYBOOK.md` · stages 1–5 as the parts · `deploy/docker-compose.yml` as the existing base · source article #6 (From Prototype to Production)
 
 ## 1. Context
 
-Після п'яти етапів у репозиторії є цикл агента, пошук, маршрутизація, інструменти за межею
-процесу й пам'ять. Кожне працює. **Системи немає.**
+After five stages the repository holds an agent loop, search, routing, tools across a process
+boundary and memory. Each of them works. **There is no system.**
 
-Етап 6 зшиває їх в один сервіс і показує, що перехід у продакшн — це не «те саме, тільки на
-сервері». Це інший набір задач, і майже жодна з них не про якість відповідей:
+Stage 6 stitches them into one service and shows that going to production is not "the same thing,
+only on a server". It is a different set of tasks, and almost none of them are about the quality
+of the answers:
 
-> **Прототип відповідає на питання «чи це працює?». Продакшн відповідає на питання «що
-> станеться, коли це зламається о третій ночі, і хто про це дізнається».**
+> **A prototype answers the question "does this work?". Production answers the question "what
+> happens when it breaks at three in the morning, and who finds out".**
 
-Три речі, яких у прототипі не було й не могло бути:
+Three things that were not in the prototype and could not have been:
 
-    межі        хто має право питати, скільки разів, і за чий рахунок
-    видимість   що сервіс робить зараз і що робив тоді, коли ніхто не дивився
-    життя       він переживає перезапуск, оновлення й другий процес поруч
+    boundaries   who is allowed to ask, how many times, and at whose expense
+    visibility   what the service is doing now and what it was doing when nobody was watching
+    life         it survives a restart, an upgrade, and a second process alongside
 
-Останнє — найпідступніше. Прототип живе в одному процесі, і будь-який стан у пам'яті процесу
-працює бездоганно. Другий воркер перетворює цей стан на джерело неправди, причому **мовчки**:
-лічильники розходяться, фонова задача виконується двічі, кеш віддає застаріле. Помилки немає
-ніде.
+The last one is the most treacherous. A prototype lives in one process, and any state in process
+memory works flawlessly. A second worker turns that state into a source of untruth, and does it
+**silently**: counters drift apart, the background job runs twice, the cache serves something
+stale. There is no error anywhere.
 
-Тому центральна пастка етапу відтворюється **навмисно й наживо**: `--workers 2`, планувальник
-у пам'яті процесу, і задача, що виконується двічі за один інтервал. Читач бачить це числом у
-власному логу, а не читає про це абзац.
+That is why the central trap of this stage is reproduced **deliberately and live**: `--workers 2`,
+a scheduler in process memory, and a job that runs twice in a single interval. The Learner sees it
+as a number in their own log instead of reading a paragraph about it.
 
-Обраний підхід: **один сервіс, що імпортує етапи 1–5 без змін у них**. Якщо зшивання
-вимагає правити етап 3, значить межа між етапами була не там.
+The chosen approach: **one service that imports stages 1–5 without changing them**. If the
+stitching requires editing stage 3, then the boundary between stages was in the wrong place.
 
-Ухвалено на глибині інтерв'ю `easy`: рішення зафіксовані в дизайн-специфікації курсу.
-Прийняті припущення — наприкінці §5, після плану тестів.
+Settled at interview depth `easy`: the decisions are fixed in the course design specification.
+The assumptions taken are at the end of §5, after the test plan.
 
 ## 2. Goals
 
-- Читач може запустити **один** сервіс, який відповідає на запит, використовуючи всі п'ять
-  попередніх етапів, і побачити у трейсі, які саме вузли спрацювали.
-- Читач розуміє, що автентифікація, ліміт запитів і бюджетний запобіжник — це **три різні**
-  механізми з трьома різними відмовами, а не «безпека».
-- Читач бачить, чому метрики не відповідають на питання «чому агент так вирішив», і що на
-  нього відповідає трейс.
-- Читач відтворює пастку другого воркера, бачить її наживо й виправляє.
-- Читач розгортає сервіс за HTTPS і перевіряє його одним скриптом, який працює однаково
-  проти локальної збірки й проти справжнього URL.
+- The Learner can bring up **one** service that answers a request using all five previous stages,
+  and can see in the trace exactly which nodes fired.
+- The Learner understands that authentication, the rate limit and the budget guard are **three
+  different** mechanisms with three different failures, not "security".
+- The Learner sees why metrics do not answer the question "why did the agent decide that", and
+  what does answer it — the trace.
+- The Learner reproduces the two-worker trap, sees it live, and fixes it.
+- The Learner deploys the service behind HTTPS and verifies it with one script that works the same
+  way against a local build and against a real URL.
 
 ## 3. Non-goals
 
-- **Не пишемо новий агент.** Етап зшиває наявне; будь-яка правка етапів 1–5 — це сигнал, що
-  межа була не там, і привід для ADR, а не для тихого патча.
-- **Не будуємо повноцінного supervisor.** Класифікатор наміру достатній, і компроміс між
-  ними названо чесно, а не проголошено.
-- **Не робимо мультитенантність.** Один ключ — один власник пам'яті; ролі, квоти на команду
-  й адміністрування — поза межами.
-- **Не оптимізуємо латентність.** Вимірювання приходить на етапі 7, оцінювання — на 8.
-  Оптимізувати до вимірювання — це вгадування.
-- **Не вигадуємо свій моніторинг.** Формат метрик стандартний, дашборд — етап 10.
-- **Не автоматизуємо провізіювання VM.** Термінал і два файли; Terraform — інша книга.
+- **We are not writing a new agent.** The stage stitches what exists; any edit to stages 1–5 is a
+  signal that the boundary was in the wrong place, and grounds for an ADR rather than a quiet patch.
+- **We are not building a full supervisor.** An intent classifier is sufficient, and the trade-off
+  between the two is named honestly rather than declared away.
+- **We are not doing multi-tenancy.** One key — one owner of memory; roles, per-team quotas and
+  administration are out of scope.
+- **We are not optimising latency.** Measurement arrives at stage 7, evaluation at stage 8.
+  Optimising before measuring is guessing.
+- **We are not inventing our own monitoring.** The metrics format is standard, the dashboard is
+  stage 10.
+- **We are not automating VM provisioning.** A terminal and two files; Terraform is a different
+  book.
 
 ## 4. User stories
 
-### US-01: Отримати відповідь від сервісу, а не від демо
+### US-01: Get an answer from the service, not from a demo
 
 **As a** Learner
-**I want** надіслати запит одному сервісу й отримати відповідь агента
-**So that** я бачив, що п'ять етапів справді складаються в щось одне
+**I want** to send a request to one service and receive the agent's answer
+**So that** I can see that the five stages really do add up to one thing
 
-### US-02: Побачити, який шлях пройшов запит
-
-**As a** Learner
-**I want** отримати трейс із вузлами, що спрацювали на цьому запиті
-**So that** я міг відповісти на питання «чому агент так вирішив», а не лише «скільки це тривало»
-
-### US-03: Не пустити того, хто не має права
-
-**As an** Operator
-**I want** щоб запит без дійсного ключа не доходив до агента
-**So that** я не платив за чужі запити й не віддавав чужу пам'ять
-
-### US-04: Пережити зловживання без падіння
-
-**As an** Operator
-**I want** щоб надто часті запити відхилялись до виклику моделі
-**So that** один клієнт не вичерпував ресурс для всіх
-
-### US-05: Не збанкрутувати за ніч
-
-**As an** Operator
-**I want** щоб сервіс зупиняв виклики моделі, коли витрати сягають межі
-**So that** цикл, що зациклився, коштував десять доларів, а не десять тисяч
-
-### US-06: Побачити, що сервіс живий
-
-**As an** Operator
-**I want** ендпоінт стану й ендпоінт метрик
-**So that** зовнішній монітор бачив збій раніше за користувача
-
-### US-07: Наступити на пастку двох воркерів навмисно
+### US-02: See the path a request took
 
 **As a** Learner
-**I want** побачити, як фонова задача виконується двічі при двох воркерах
-**So that** я впізнав цей клас вад у власному коді, перш ніж він з'явиться в проді
+**I want** to get a trace with the nodes that fired on this request
+**So that** I can answer the question "why did the agent decide that", not only "how long did it take"
 
-### US-08: Розгорнути за HTTPS
-
-**As an** Operator
-**I want** підняти сервіс на машині з сертифікатом і доменом
-**So that** я мав справжню URL, до якої можна звернутись ззовні
-
-### US-09: Перевірити розгорнуте одним рухом
+### US-03: Keep out whoever has no right to be there
 
 **As an** Operator
-**I want** один скрипт, що перевіряє живий сервіс
-**So that** «здається, працює» замінилось на перелік перевірок із вердиктом
+**I want** a request without a valid key never to reach the agent
+**So that** I do not pay for somebody else's requests and do not hand over somebody else's memory
 
-### US-10: Пережити перезапуск
+### US-04: Survive abuse without falling over
 
 **As an** Operator
-**I want** щоб пам'ять і трейси переживали перезапуск контейнера
-**So that** оновлення сервісу не стирало того, що він знає
+**I want** requests that come in too often to be refused before the model is called
+**So that** one client cannot exhaust the resource for everybody
+
+### US-05: Not go bankrupt overnight
+
+**As an** Operator
+**I want** the service to stop calling the model when spending reaches the limit
+**So that** a loop that ran away costs ten dollars and not ten thousand
+
+### US-06: See that the service is alive
+
+**As an** Operator
+**I want** a health endpoint and a metrics endpoint
+**So that** an external monitor sees a failure before a user does
+
+### US-07: Step into the two-worker trap on purpose
+
+**As a** Learner
+**I want** to watch a background job run twice under two workers
+**So that** I recognise this class of defect in my own code before it shows up in production
+
+### US-08: Deploy behind HTTPS
+
+**As an** Operator
+**I want** to bring the service up on a machine with a certificate and a domain
+**So that** I have a real URL that can be reached from outside
+
+### US-09: Verify what was deployed in one move
+
+**As an** Operator
+**I want** one script that checks a live service
+**So that** "seems to work" is replaced by a list of checks with a verdict
+
+### US-10: Survive a restart
+
+**As an** Operator
+**I want** memory and traces to survive a container restart
+**So that** upgrading the service does not erase what it knows
 
 ## 5. Acceptance criteria
 
 ### AC-01 (US-01) — happy path
 
-**Given** запущений сервіс і дійсний ключ
-**When** Learner надсилає три різні запити: про статус замовлення, про політику повернення й
-арифметичний
-**Then** кожен отримує відповідь, і **три відповіді приходять різними гілками** — це видно у
-трейсі, а не з формулювань відповідей
+**Given** a running service and a valid key
+**When** the Learner sends three different requests: about an order's status, about the returns
+policy, and an arithmetic one
+**Then** each receives an answer, and **the three answers arrive by different branches** — visible
+in the trace, not inferred from the wording of the answers
 
 ### AC-02 (US-02) — happy path
 
-**Given** оброблений запит
-**When** Learner дивиться на трейс цього запиту
-**Then** трейс містить, у порядку виконання, **кроки, які пише сам сервіс** — прийом запиту,
-рішення воротарів, вибір гілки, звернення до пам'яті, відповідь — і кожен несе **причину**, а
-не лише тривалість. Трейс одного запиту знаходиться за його ідентифікатором
+**Given** a processed request
+**When** the Learner looks at that request's trace
+**Then** the trace contains, in execution order, **the steps the service itself writes** — accepting
+the request, the guards' decisions, the choice of branch, the call into memory, the answer — and each
+one carries a **reason**, not just a duration. One request's trace is found by its identifier
 
-**Межа названа явно.** Етапи 2 і 5 не пишуть у трейс **жодного** кроку: `store.search()` не
-приймає трейсера, а `Memory.context_for()` вертає причини у `Context.skipped`, не у трейс.
-Тому AC-02 вимагає кроків сервісу, а не «всіх задіяних етапів»: вимога до чужого коду, який
-§3 забороняє правити, — це прихована задача, а не критерій. Чи протягувати трейсер усередину
-етапів 2 і 5 — рішення для `design` з окремим ADR (див. §8)
+**The boundary is named explicitly.** Stages 2 and 5 write **no** step into the trace at all:
+`store.search()` takes no tracer, and `Memory.context_for()` returns its reasons in
+`Context.skipped` rather than in the trace. That is why AC-02 requires the service's own steps
+rather than "all the stages involved": a requirement on somebody else's code, which §3 forbids
+editing, is a hidden task rather than a criterion. Whether to thread the tracer down into stages 2
+and 5 is a decision for `design`, with its own ADR (see §8)
 
 ### AC-03 (US-03) — authorization
 
-**Given** запит без ключа або з недійсним ключем
-**When** сервіс його обробляє
-**Then** запит **відхиляється до будь-якого виклику моделі**, і у трейсі немає жодного кроку
-цього запиту, крім самої відмови. Відповідь не розкриває, чи існує такий ключ
+**Given** a request with no key, or with an invalid one
+**When** the service handles it
+**Then** the request is **refused before any call to the model**, and the trace holds no step for
+that request other than the refusal itself. The response does not reveal whether such a key exists
 
 ### AC-03b (US-03) — authorization
 
-**Given** запит із дійсним ключем
-**When** сервіс його обробляє
-**Then** запит **доходить** до агента, і пам'ять, яку він бачить, належить власникові цього
-ключа й нікому іншому.
-Дзеркальна половина AC-03: воротар, що не пускає нікого, задовольняє AC-03 повністю й при
-цьому зламаний
+**Given** a request with a valid key
+**When** the service handles it
+**Then** the request **reaches** the agent, and the memory it sees belongs to the owner of that key
+and to nobody else.
+The mirrored half of AC-03: a guard that lets nobody through satisfies AC-03 completely and is
+broken while doing so
 
 ### AC-03c (US-03) — authorization
 
-**Given** два ключі різних власників і схожі за змістом факти в пам'яті кожного
-**When** обидва ставлять **те саме** питання
-**Then** кожен отримує **свій** факт, і жоден не бачить чужого.
-Дзеркальна пара до AC-03b, і потрібна саме тому, що AC-03b доводить лише свій бік: сервіс,
-що передає в пам'ять неправильного власника й повертає порожньо, задовольняє його повністю.
-Витоку немає; відповідь зникла — той самий клас, що на етапі 5
+**Given** two keys belonging to different owners, and similar facts in each one's memory
+**When** both ask **the same** question
+**Then** each receives **their own** fact, and neither sees the other's.
+The mirrored pair to AC-03b, and it is needed precisely because AC-03b proves only its own side: a
+service that passes the wrong owner into memory and comes back empty satisfies it completely.
+Nothing leaked; the answer disappeared — the same class as at stage 5
 
 ### AC-04 (US-04) — error
 
-**Given** клієнт, що перевищив дозволену частоту
-**When** він надсилає наступний запит
-**Then** запит відхиляється **до виклику моделі**, відповідь називає, коли можна повторити, і
-відмова відрізняється від відмови автентифікації — не тільки текстом, а й у метриках
+**Given** a client that has exceeded the permitted rate
+**When** it sends the next request
+**Then** the request is refused **before the model is called**, the response names when it may be
+retried, and this refusal differs from an authentication refusal — not only in its text, but in the
+metrics as well
 
 ### AC-04b (US-04) — authorization
 
-**Given** два різні клієнти, один з яких вичерпав ліміт
-**When** обидва надсилають запит
-**Then** другий **отримує відповідь**: ліміт рахується на клієнта, а не на сервіс. Спільний
-лічильник задовольняє AC-04 і робить одного клієнта здатним зупинити всіх
+**Given** two different clients, one of which has exhausted its limit
+**When** both send a request
+**Then** the second one **receives an answer**: the limit is counted per client, not per service. A
+shared counter satisfies AC-04 and makes one client able to stop everybody
 
 ### AC-05 (US-05) — domain invariant
 
-**Given** витрати, що сягнули налаштованої межі
-**When** надходить наступний запит
-**Then** виклик моделі **не відбувається**, відповідь називає причину як вичерпаний бюджет, і
-причина відрізняється від ліміту частоти. Межа задається конфігурацією, а не константою в коді
+**Given** spending that has reached the configured limit
+**When** the next request arrives
+**Then** the call to the model **does not happen**, the response names the cause as an exhausted
+budget, and that cause differs from the rate limit. The limit comes from configuration, not from a
+constant in the code
 
 ### AC-05b (US-05) — domain invariant
 
-**Given** сервіс із бюджетом, що не вичерпано
-**When** проходить запит
-**Then** облік витрат **зростає** на вартість цього запиту, і цю величину видно у метриках.
-Запобіжник, який ніколи не рахує, ніколи й не спрацює
+**Given** a service whose budget is not exhausted
+**When** a request goes through
+**Then** the spending record **grows** by the cost of that request, and the amount is visible in the
+metrics. A guard that never counts will never fire
 
 ### AC-06 (US-06) — happy path
 
-**Given** запущений сервіс
-**When** зовнішній монітор звертається до ендпоінта стану
-**Then** відповідь приходить **без автентифікації**, називає стан кожної зовнішньої залежності
-окремо, і сервіс без справної залежності повідомляє про це, а не рапортує «живий»
+**Given** a running service
+**When** an external monitor calls the health endpoint
+**Then** the response arrives **without authentication**, names the state of every external
+dependency separately, and a service with a broken dependency says so rather than reporting "alive"
 
 ### AC-06c (US-06) — happy path
 
-**Given** сервіс, у якого всі залежності справні
-**When** монітор звертається до ендпоінта стану
-**Then** відповідь каже, що сервіс **живий**, і кожна залежність названа справною.
-Без цього критерію ендпоінт, зашитий у «зламано», задовольняє AC-06 і AC-11 разом — воротар,
-що не пускає нікого, і монітор, що завжди кричить, — це та сама вада
+**Given** a service whose dependencies are all healthy
+**When** the monitor calls the health endpoint
+**Then** the response says the service is **alive**, and every dependency is named as healthy.
+Without this criterion an endpoint hard-wired to "broken" satisfies AC-06 and AC-11 together — a
+guard that lets nobody through and a monitor that always screams are the same defect
 
 ### AC-06b (US-06) — cross-context
 
-**Given** оброблені запити, серед них успішні й відхилені
-**When** монітор читає ендпоінт метрик
-**Then** метрики розрізняють **типи відмов** — автентифікація, ліміт, бюджет, помилка агента —
-і кількість успішних збігається з кількістю трейсів за той самий період.
+**Given** processed requests, some successful and some refused
+**When** the monitor reads the metrics endpoint
+**Then** the metrics tell the **kinds of failure** apart — authentication, rate limit, budget, agent
+error — and the number of successful ones matches the number of traces over the same period.
 
-**Звірка стверджується для одного воркера.** Збирач метрик тримає лічильники в пам'яті
-процесу — це третє обличчя тієї самої причини, що й з лімітами та планувальником. За N
-воркерів видача показує зріз одного з них, і звірка не сходиться недетерміновано. Урок
-називає це прямо, а не лишає читачеві як сюрприз
+**The reconciliation is asserted for one worker.** The metrics collector keeps its counters in
+process memory — the third face of the same cause as the limits and the scheduler. With N workers
+the endpoint serves one worker's slice, and the reconciliation stops adding up non-deterministically.
+The lesson says this outright instead of leaving it to the Learner as a surprise
 
 ### AC-07 (US-07) — error
 
-**Given** сервіс, запущений із двома воркерами й планувальником усередині застосунку
-**When** настає час фонової задачі
-**Then** задача виконується **двічі**, і це видно числом у логах. Після винесення планувальника
-в окремий процес та сама задача за тих самих двох воркерів виконується **один** раз
+**Given** a service started with two workers and a scheduler inside the application
+**When** the background job's time comes
+**Then** the job runs **twice**, and this is visible as a number in the logs. After the scheduler is
+moved into its own process, the same job under the same two workers runs **once**
 
 ### AC-07b (US-07) — error
 
-**Given** ті самі два воркери з лічильниками в пам'яті процесу
-**When** клієнт надсилає рівно стільки запитів, скільки дозволяє ліміт, і ще один
-**Then** зайвий запит **проходить**: кожен воркер має власний лічильник, і ліміт мовчки
-подвоївся.
+**Given** those same two workers with counters in process memory
+**When** a client sends exactly as many requests as the limit allows, and one more
+**Then** the extra request **goes through**: each worker has its own counter, and the limit has
+quietly doubled.
 
-**Друга половина тієї самої пастки, і вона важливіша за першу.** Подвоєну задачу видно в
-логах; подвоєний ліміт не видно ніде — сервіс поводиться нормально, просто межа означає
-вдвічі більше. Після перемикання на спільне сховище той самий прогін дає відмову на
-зайвому запиті
+**The second half of the same trap, and it matters more than the first.** A doubled job is visible
+in the logs; a doubled limit is visible nowhere — the service behaves normally, the boundary merely
+means twice as much. After the switch to a shared store, the same run refuses the extra request
 
 ### AC-08 (US-08) — happy path
 
-**Given** машина з доменом і відкритими портами
-**When** Operator виконує описану в інструкції послідовність
-**Then** сервіс доступний за HTTPS, а звернення незашифрованим з'єднанням перенаправляється
-на захищене.
+**Given** a machine with a domain and open ports
+**When** the Operator follows the sequence described in the instructions
+**Then** the service is reachable over HTTPS, and a call over an unencrypted connection is
+redirected to the secure one.
 
-**Критерій розділено навмисно.** Механіка — перенаправлення, наявність сертифіката, робота
-за доменним ім'ям — перевіряється локально на самопідписаному. **Дійсність сертифіката від
-публічного центру перевірити без машини неможливо**, тож ця половина позначається як
-`НЕ ПЕРЕВІРЕНО`, а не як пройдена. Так само зроблено на етапі 4 з перевірками, що потребують
-MCP: невиконане має третій стан, і він не дорівнює зеленому
+**The criterion is split deliberately.** The mechanics — the redirect, the presence of a
+certificate, working under a domain name — are checked locally against a self-signed one.
+**The validity of a certificate from a public authority cannot be checked without a machine**, so
+that half is marked `NOT EVALUATED` rather than passed. Stage 4 did the same with the checks that
+need MCP: what was not run has a third state, and it does not equal green
 
 ### AC-09 (US-09) — cross-context
 
-**Given** адреса сервісу — локальна збірка або справжній домен
-**When** Operator запускає скрипт перевірки з цією адресою
-**Then** скрипт виконує **той самий** перелік перевірок в обох випадках і завершується
-ненульовим кодом, якщо хоч одна не пройшла. Локальний прогін не потребує ні домену, ні
-сертифіката
+**Given** an address for the service — a local build or a real domain
+**When** the Operator runs the smoke script against that address
+**Then** the script runs **the same** list of checks in both cases and exits with a non-zero code if
+even one of them failed. The local run needs neither a domain nor a certificate
 
 ### AC-09b (US-09) — happy path
 
-**Given** справну локальну збірку
-**When** Operator запускає скрипт перевірки
-**Then** скрипт завершується **нульовим** кодом і друкує перелік того, що пройшло.
-Дзеркальна половина AC-09: скрипт, який завжди повертає ненульовий код, задовольняє AC-09
-дослівно й не перевіряє нічого
+**Given** a healthy local build
+**When** the Operator runs the smoke script
+**Then** the script exits with a **zero** code and prints the list of what passed.
+The mirrored half of AC-09: a script that always returns a non-zero code satisfies AC-09 to the
+letter and checks nothing
 
 ### AC-10 (US-10) — domain invariant
 
-**Given** сервіс, який зберіг факт і записав трейс
-**When** контейнер перезапускається
-**Then** факт лишається доступним, а трейс — читаним. Дані живуть поза життєвим циклом
-контейнера
+**Given** a service that has stored a fact and written a trace
+**When** the container restarts
+**Then** the fact is still available and the trace is still readable. The data lives outside the
+container's lifecycle
 
 ### AC-12 (US-03) — authorization
 
-**Given** оброблений запит із дійсним ключем
-**When** Learner читає лог, трейс і саму відповідь
-**Then** значення ключа **не трапляється в жодному з трьох**. У трейсі стоїть похідний
-ідентифікатор власника, за яким ключ не відновлюється
+**Given** a processed request with a valid key
+**When** the Learner reads the log, the trace and the answer itself
+**Then** the key's value **appears in none of the three**. The trace holds a derived owner
+identifier, from which the key cannot be reconstructed
 
 ### AC-13 (US-06) — authorization
 
-**Given** запит до ендпоінта метрик без ключа
-**When** сервіс його обробляє
-**Then** метрики **не віддаються**: кількість запитів на клієнта — це бізнес-інформація.
-Ендпоінт стану при цьому лишається відкритим і не називає ні версій, ні адрес, ні рядків
-підключення
+**Given** a request to the metrics endpoint with no key
+**When** the service handles it
+**Then** the metrics are **not served**: the number of requests per client is business information.
+The health endpoint stays open while this is true, and names neither versions, nor addresses, nor
+connection strings
 
 ### AC-14 (US-09) — happy path
 
-**Given** машину без ключа, без мережі й без запущених контейнерів
-**When** Learner запускає перевірки етапу
-**Then** усі вони зелені або позначені як **невиконані**; жодної червоної. Перевірка, що
-потребує контейнера, каже про це словами, а не падає
+**Given** a machine with no key, no network and no running containers
+**When** the Learner runs the stage's checks
+**Then** all of them are green or marked **not evaluated**; none red. A check that needs a container
+says so in words instead of failing
 
 ### AC-11 (US-01) — error
 
-**Given** недоступну зовнішню залежність, від якої залежить обробка запиту
-**When** надходить запит
-**Then** сервіс відповідає названою помилкою, а не зависає й не падає цілком; ендпоінт стану
-одночасно повідомляє про несправну залежність
+**Given** an unavailable external dependency that handling a request depends on
+**When** a request arrives
+**Then** the service answers with a named error rather than hanging or falling over entirely; at the
+same time the health endpoint reports the broken dependency
 
 ## Test plan
 
-| AC | Тест | Рівень | Що доводить |
+| AC | Test | Level | What it proves |
 |---|---|---|---|
-| AC-01 | `three requests take three different branches` | integration | Три гілки видно у трейсі, а не у формулюваннях |
-| AC-02 | `the trace names every node and its reason` | integration | Кроки, порядок, причини; пошук за ідентифікатором |
-| AC-03 | `a request without a key never reaches the agent` | integration | **FAILURE.** Жодного кроку, крім відмови |
-| AC-03b | `a valid key reaches the agent and sees its own memory` | integration | Дзеркальна: воротар не глухий |
-| AC-03c | `two owners asking the same question get their own fact` | integration | **FAILURE.** Дзеркальна пара: чуже не дійшло **і** своє дійшло |
-| AC-04 | `an over-quota request is refused before the model` | integration | **FAILURE.** Відмова названа окремо від автентифікації |
-| AC-04b | `one client's limit does not stop another` | integration | **FAILURE.** Лічильник на клієнта, не на сервіс |
-| AC-05 | `an exhausted budget stops the model call` | integration | **FAILURE.** Причина відрізняється від ліміту |
-| AC-05b | `spending is counted and visible` | integration | Запобіжник, що рахує |
-| AC-06 | `health names each dependency separately` | integration | **FAILURE.** Несправна залежність не «жива» |
-| AC-06c | `a healthy service reports healthy` | integration | Позитивний вердикт: монітор, що завжди кричить, — та сама вада, що воротар, який нікого не пускає |
-| AC-06b | `metrics tell the failure kinds apart` | integration | Типи відмов + звірка з трейсами |
-| AC-07 | `two workers run the job twice, one scheduler runs it once` | e2e | **FAILURE.** Пастка наживо й її виправлення |
-| AC-07b | `two workers double the rate limit until the store is shared` | e2e | **FAILURE.** Друга половина пастки: подвоєння, якого не видно в логах |
-| AC-08 | `https serves the service and http redirects` | e2e | Перевіряється скриптом; локально — самопідписаний |
-| AC-09 | `the smoke script runs the same list against both targets` | e2e | Один перелік, два цілі, ненульовий код |
-| AC-09b | `the smoke script exits zero against a healthy build` | e2e | Дзеркальна половина AC-09: скрипт, що завжди падає, доводить нуль |
-| AC-10 | `data survives a container restart` | e2e | **FAILURE.** Стан поза контейнером |
-| AC-11 | `an unavailable dependency degrades, not crashes` | integration | **FAILURE.** Названа помилка + стан |
-| AC-12 | `the key appears in no log, trace or response` | integration | **FAILURE.** Похідний ідентифікатор замість ключа |
-| AC-13 | `metrics need a key, health does not` | integration | **FAILURE.** Агрегати теж розкривають |
-| AC-14 | `the suite is green or not-verified, never red, without Docker` | unit | **FAILURE.** Третій стан замість падіння |
+| AC-01 | `three requests take three different branches` | integration | Three branches visible in the trace, not in the wording |
+| AC-02 | `the trace names every node and its reason` | integration | Steps, order, reasons; lookup by identifier |
+| AC-03 | `a request without a key never reaches the agent` | integration | **FAILURE.** No step other than the refusal |
+| AC-03b | `a valid key reaches the agent and sees its own memory` | integration | Mirrored: the guard is not deaf |
+| AC-03c | `two owners asking the same question get their own fact` | integration | **FAILURE.** Mirrored pair: somebody else's did not arrive **and** one's own did |
+| AC-04 | `an over-quota request is refused before the model` | integration | **FAILURE.** The refusal is named separately from authentication |
+| AC-04b | `one client's limit does not stop another` | integration | **FAILURE.** A counter per client, not per service |
+| AC-05 | `an exhausted budget stops the model call` | integration | **FAILURE.** The cause differs from the rate limit |
+| AC-05b | `spending is counted and visible` | integration | A guard that counts |
+| AC-06 | `health names each dependency separately` | integration | **FAILURE.** A broken dependency is not "alive" |
+| AC-06c | `a healthy service reports healthy` | integration | A positive verdict: a monitor that always screams is the same defect as a guard that lets nobody through |
+| AC-06b | `metrics tell the failure kinds apart` | integration | Kinds of failure + reconciliation with the traces |
+| AC-07 | `two workers run the job twice, one scheduler runs it once` | e2e | **FAILURE.** The trap live, and its fix |
+| AC-07b | `two workers double the rate limit until the store is shared` | e2e | **FAILURE.** The second half of the trap: a doubling the logs do not show |
+| AC-08 | `https serves the service and http redirects` | e2e | Checked by the script; locally — self-signed |
+| AC-09 | `the smoke script runs the same list against both targets` | e2e | One list, two targets, a non-zero code |
+| AC-09b | `the smoke script exits zero against a healthy build` | e2e | The mirrored half of AC-09: a script that always fails proves zero |
+| AC-10 | `data survives a container restart` | e2e | **FAILURE.** State outside the container |
+| AC-11 | `an unavailable dependency degrades, not crashes` | integration | **FAILURE.** A named error + health |
+| AC-12 | `the key appears in no log, trace or response` | integration | **FAILURE.** A derived identifier instead of the key |
+| AC-13 | `metrics need a key, health does not` | integration | **FAILURE.** Aggregates disclose too |
+| AC-14 | `the suite is green or not-verified, never red, without Docker` | unit | **FAILURE.** A third state instead of a crash |
 
-### Чого цей план свідомо не доводить
+### What this plan deliberately does not prove
 
-- **Що сервіс витримає навантаження.** Жодного числа про пропускну здатність тут немає й не
-  буде: навантажувальний тест приходить на етапі 10, після вимірювання на 7 і 8.
-- **Що HTTPS налаштовано правильно на справжньому домені.** Локально перевіряється механіка —
-  перенаправлення й наявність сертифіката; правильність ланцюга довіри перевіряє лише реальний
-  прогін, і це названо в §8 як залежність від зовнішнього ресурсу.
-- **Що бюджетний облік точний.** Він рахує **оцінку** вартості за токенами, а не рахунок
-  провайдера. Запобіжник має спрацювати раніше за катастрофу, а не звести баланс.
-- **Що класифікатор наміру кращий за supervisor.** Він дешевший і достатній для цього обсягу;
-  межу названо в уроці числом, а не думкою.
+- **That the service will hold up under load.** There is not a single throughput number here and
+  there will not be: the load test arrives at stage 10, after the measurement at 7 and 8.
+- **That HTTPS is configured correctly on a real domain.** What is checked locally is the mechanics
+  — the redirect and the presence of a certificate; the correctness of the chain of trust is proved
+  only by a real run, and that is named in §8 as a dependency on an external resource.
+- **That the budget accounting is accurate.** It counts an **estimate** of cost from tokens, not the
+  provider's invoice. A guard has to fire before the catastrophe, not balance the books.
+- **That an intent classifier is better than a supervisor.** It is cheaper and sufficient at this
+  volume; the limit is named in the lesson with a number rather than an opinion.
 
-### Прийняті припущення
+### Assumptions taken
 
-Ухвалено на глибині `easy` без окремого питання. Кожне можна відхилити одним рядком у §8.
+Settled at depth `easy` without a separate question. Each of them can be rejected with one line
+in §8.
 
-1. **Сервіс синхронний.** Запит → відповідь в одному з'єднанні. Черга й довгі задачі
-   ускладнили б етап удвічі за нуль нових уроків.
-2. **Ключ = власник пам'яті.** Найпростіша модель, що дає дзеркальну перевірку ізоляції.
-3. **Ліміт і бюджет живуть у спільному сховищі у профілі `prod`** і **навмисно в пам'яті
-   процесу в `local`**. Локальна половина — не поступка, а вправа: саме там читач запускає
-   два воркери й бачить, що подвоївся не лише планувальник, а й ліміт.
-4. **Один домен, один сервіс.** Ні балансувальника, ні кількох середовищ.
-5. **Секрети — у файлі оточення на сервері.** Сховище секретів — правильно й поза межами.
+1. **The service is synchronous.** Request → answer on one connection. A queue and long-running
+   jobs would double the complexity of the stage for zero new lessons.
+2. **Key = owner of the memory.** The simplest model that still gives a mirrored isolation check.
+3. **The limit and the budget live in a shared store under the `prod` profile** and **deliberately
+   in process memory under `local`**. The local half is not a concession but an exercise: that is
+   exactly where the Learner starts two workers and sees that it is not only the scheduler that
+   doubled, but the limit as well.
+4. **One domain, one service.** No load balancer, no multiple environments.
+5. **Secrets live in an environment file on the server.** A secret store is the right answer and
+   out of scope.
 
 ## 6. Non-functional requirements
 
-| # | Вимога | Ціль | Як міряємо |
+| # | Requirement | Target | How we measure |
 |---|---|---|---|
-| NFR-1 | Розмір `app.py` — тільки зшивання | ≤ 120 виконуваних рядків | підрахунок у перевірці |
-| NFR-1b | Розмір `guards.py` — три воротарі | ≤ 100 виконуваних рядків | підрахунок у перевірці |
-| NFR-2 | Прогін перевірок | ≤ 60 с (**оцінка**, не заміряно), офлайн, без ключа | `BUDGET_SECONDS`, стелю тримає `check_all` |
-| NFR-3 | Час уроку | ≤ 2500 слів | перевірка звірки чисел |
-| NFR-4 | Частка режимів відмови | ≥ 1/3 перевірок етапу | лічильник у перевірці |
-| NFR-5 | Прогін без Docker | усі перевірки зелені або `НЕ ПЕРЕВІРЕНО`, жодної червоної | `scripts/clean_install.py` |
-| NFR-6 | Час відповіді скрипта перевірки | ≤ 30 с (**оцінка**, не заміряно) проти локальної збірки | замір у самому скрипті |
+| NFR-1 | Size of `app.py` — stitching only | ≤ 120 executable lines | counted in the check |
+| NFR-1b | Size of `guards.py` — three guards | ≤ 100 executable lines | counted in the check |
+| NFR-2 | Check run | ≤ 60 s (**estimate**, not measured), offline, no key | `BUDGET_SECONDS`, the ceiling held by `check_all` |
+| NFR-3 | Lesson length | ≤ 2500 words | the number-reconciliation check |
+| NFR-4 | Share of failure modes | ≥ 1/3 of the stage's checks | a counter in the check |
+| NFR-5 | Run without Docker | every check green or `NOT EVALUATED`, none red | `scripts/clean_install.py` |
+| NFR-6 | Response time of the smoke script | ≤ 30 s (**estimate**, not measured) against a local build | timed inside the script itself |
 
-**Числа NFR-2 і NFR-6 позначені як оцінки навмисно.** Їх ще ніхто не міряв: сервіс не
-написано. Число без заміру, поставлене в документ без позначки, стає твердженням, яке
-нічого не тримає, — і етапи 2, 3, 4 і 5 ловили цей клас поспіль. Позначка знімається в
-той момент, коли перший прогін дасть реальне число, і замінюється на «(заміряно N)».
+**The numbers in NFR-2 and NFR-6 are marked as estimates deliberately.** Nobody has measured them
+yet: the service has not been written. A number with no measurement behind it, put into a document
+without the marker, becomes a claim that holds nothing up — and stages 2, 3, 4 and 5 caught this
+class one after another. The marker comes off the moment the first run produces a real number, and
+is replaced with "(measured N)".
 
-**NFR-1 названо іменем файлу, а не «модулем застосунку».** Бюджет без імені задовольняється
-розбиттям на N файлів по 119 рядків — тобто не задовольняється ніколи.
+**NFR-1 is named by the file, not by "the application module".** A budget with no name is satisfied
+by splitting into N files of 119 lines each — which is to say, never satisfied at all.
 
 ## 6.1 Security and privacy
 
-- **Ключ ніколи не потрапляє ні в лог, ні у трейс, ні у відповідь.** У трейсі живе похідний
-  ідентифікатор власника, і перевірка стверджує саме відсутність ключа в записаному.
-- **Відмова автентифікації не розрізняє «немає такого ключа» й «ключ прострочено».** Різниця
-  у відповіді — це оракул для перебору.
-- **Ендпоінт стану доступний без ключа й тому не називає нічого чутливого**: імена
-  залежностей і їхній стан, без версій, адрес і рядків підключення.
-- **Ендпоінт метрик закритий**, бо агрегати теж розкривають: кількість запитів на клієнта —
-  це бізнес-інформація.
-- **Текст запиту недовірений** — усе, що етапи 2 і 5 знають про це, лишається чинним; сервіс
-  нічого з цим не послаблює.
-- **Зловживання, які етап відтворює:** запит без ключа, запит із чужим ключем, перевищення
-  частоти, вичерпання бюджету, недоступна залежність. Кожне має свою перевірку.
+- **The key never reaches a log, a trace or a response.** What lives in the trace is a derived owner
+  identifier, and the check asserts precisely the absence of the key from what was written.
+- **An authentication refusal does not distinguish "no such key" from "key expired".** A difference
+  in the response is an oracle for brute force.
+- **The health endpoint is reachable without a key and therefore names nothing sensitive**: the
+  names of the dependencies and their state, with no versions, addresses or connection strings.
+- **The metrics endpoint is closed**, because aggregates disclose too: the number of requests per
+  client is business information.
+- **Request text is untrusted** — everything stages 2 and 5 know about that stays in force; the
+  service weakens none of it.
+- **The abuses this stage reproduces:** a request with no key, a request with somebody else's key,
+  exceeding the rate, exhausting the budget, an unavailable dependency. Each has its own check.
 
 ## 7. KPIs
 
-| # | Показник | Ціль |
+| # | Metric | Target |
 |---|---|---|
-| KPI-1 | Learner піднімає сервіс локально з нуля | ≤ 10 хвилин за інструкцією |
-| KPI-2 | Learner відтворює пастку двох воркерів і бачить число | 100 % за вправою |
-| KPI-3 | Скрипт перевірки проходить проти локальної збірки | 100 % на чистій машині |
-| KPI-4 | Читач може назвати три різні механізми відмови й чим вони відрізняються | за чеклістом |
+| KPI-1 | The Learner brings the service up locally from scratch | ≤ 10 minutes following the instructions |
+| KPI-2 | The Learner reproduces the two-worker trap and sees the number | 100 % via the exercise |
+| KPI-3 | The smoke script passes against a local build | 100 % on a clean machine |
+| KPI-4 | The Learner can name the three different failure mechanisms and what tells them apart | via the checklist |
 
 ## 8. Open questions
 
-- [ ] Чи буде реальний деплой виконано на справжній VM, чи етап лишиться з локальною
-      верифікацією? Зараз доступу до машини немає, тож усе будується так, щоб працювати в
-      обох режимах, а AC-08 у частині «дійсний сертифікат від публічного центру» лишається
-      неперевіреним до появи машини. Default now: локальна верифікація з самопідписаним
-      сертифікатом, `НЕ ПЕРЕВІРЕНО` для решти. — owner: Operator, due: перед тегом `stage-06`
-- [ ] Чи протягувати трейсер усередину етапів 2 і 5? Зараз вони не пишуть жодного кроку:
-      `store.search()` трейсера не приймає, а `Memory.context_for()` вертає причини у
-      `Context.skipped`. Через це трейс сервісу показує, **яку гілку** обрано, і не показує,
-      **чому** знайдено саме ці документи й факти — тобто половина обіцянки «трейс відповідає
-      на питання чому» лишається за межами. Додати необовʼязковий `tracer=None` — правка
-      адитивна, але §3 вимагає ADR на будь-яку правку етапів 1–5, і тут він доречний: питання
-      не в тому, чи можна, а в тому, чи межа між етапами була проведена в правильному місці.
-      Default now: не протягувати; етап 8 читатиме трейси й тоді скаже, чого йому бракує. —
-      owner: Contributor, due: `design` етапу 6
-- [ ] Чи потрібен окремий ендпоінт для читання трейсу, чи достатньо файлу? Default now:
-      файл, як на етапах 1–5; ендпоінт з'явиться на етапі 8, якщо оцінювання його
-      вимагатиме. — owner: Contributor, due: етап 8
-- [ ] Трейлери `SDD-AC` у комітах — борг із етапу 1, не закритий досі. Default now: не
-      блокує етап 6, закривається окремим проходом по всіх етапах. — owner: Contributor,
-      due: перед етапом 7
+- [ ] Will a real deployment happen on a real VM, or will the stage stay with local verification?
+      There is no access to a machine right now, so everything is built to work in both modes, and
+      AC-08 in the part about "a valid certificate from a public authority" stays unverified until
+      a machine appears. Default now: local verification with a self-signed certificate,
+      `NOT EVALUATED` for the rest. — owner: Operator, due: before the `stage-06` tag
+- [ ] Should the tracer be threaded down into stages 2 and 5? Right now they write no step at all:
+      `store.search()` takes no tracer, and `Memory.context_for()` returns its reasons in
+      `Context.skipped`. Because of this the service's trace shows **which branch** was chosen and
+      does not show **why** exactly these documents and facts were found — that is, half of the
+      promise that "the trace answers the question why" stays out of reach. Adding an optional
+      `tracer=None` is an additive edit, but §3 requires an ADR for any edit to stages 1–5, and here
+      it is apt: the question is not whether it is possible, but whether the boundary between stages
+      was drawn in the right place. Default now: do not thread it; stage 8 will read the traces and
+      then say what it is missing. — owner: Contributor, due: `design` of stage 6
+- [ ] Is a separate endpoint needed for reading a trace, or is a file enough? Default now: a file,
+      as in stages 1–5; an endpoint will appear at stage 8 if evaluation demands it. — owner:
+      Contributor, due: stage 8
+- [ ] `SDD-AC` trailers in commits — debt from stage 1, still not closed. Default now: it does not
+      block stage 6, and is closed by a separate pass over all the stages. — owner: Contributor,
+      due: before stage 7

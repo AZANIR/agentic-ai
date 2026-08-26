@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "S"
@@ -11,234 +11,235 @@ target_surfaces: [cli, library-sdk]
 
 ## 1. Introduction and goals
 
-Етап 5 показує, що **пам'ять — це система навколо моделі, а не її властивість**. Модель не
-пам'ятає нічого; усе, що виглядає як пам'ять, хтось поклав у контекст перед викликом.
+Stage 5 shows that **memory is a system around the model, not a property of it**. The model
+remembers nothing; everything that looks like memory was put into the context by somebody before
+the call.
 
-Із цього одразу випливає, чому етап не про збереження:
+From which it follows immediately why the stage is not about storage:
 
-> **Що більше нерелевантного в контексті, то гірша відповідь. Обмеження є на токени, а не
-> на дурниці.**
+> **The more irrelevant material there is in the context, the worse the answer. The limit is on
+> tokens, not on nonsense.**
 
-Три цілі, кожна перевіряється:
+Three goals, each of them checked:
 
-1. Читач бачить, що короткочасна й довготривала пам'ять розв'язують різні задачі.
-2. Читач бачить, що вибірка з пам'яті — **та сама** задача, що пошук етапу 2, із тими самими
-   межами.
-3. Читач будує перевірку на **селективність**, а не на збереження.
+1. The reader sees that short-term and long-term memory solve different problems.
+2. The reader sees that retrieval from memory is **the same** problem as the stage 2 search, with
+   the same boundaries.
+3. The reader builds a check for **selectivity** rather than for storage.
 
 ## 2. Constraints
 
-| # | Обмеження | Звідки |
+| # | Constraint | Where from |
 |---|---|---|
-| C-1 | Офлайн, без ключа, без сховища | правило курсу; файл замість БД до етапу 6 |
-| C-2 | Довготривала ≤ 90 рядків, короткочасна ≤ 50 | NFR-1, NFR-2 |
-| C-3 | Семантична вибірка необов'язкова | NFR-6: словникова працює завжди |
-| C-4 | Ембеддер — той самий, що на етапі 2 | теза: це та сама задача, а не нова |
-| C-5 | Власник — поле запису, не аргумент вибірки | §6.1; урок етапу 3 про рівень доступу |
-| C-6 | Проза українською, код англійською | CONVENTIONS.md |
+| C-1 | Offline, no key, no datastore | the course rule; a file instead of a database until stage 6 |
+| C-2 | Long-term ≤ 90 lines, short-term ≤ 50 | NFR-1, NFR-2 |
+| C-3 | Semantic retrieval is optional | NFR-6: the dictionary-based one always works |
+| C-4 | The embedder is the same one as at stage 2 | the thesis: this is the same problem, not a new one |
+| C-5 | The owner is a field of the record, not an argument of the retrieval | §6.1; the lesson of stage 3 about the access level |
+| C-6 | Everything published is written in English | CONVENTIONS.md |
 
 ## 3. Context and scope
 
 ```mermaid
 C4Context
-    title Етап 5 — пам'ять як система навколо моделі
+    title Stage 5 — memory as a system around the model
 
-    Person(learner, "Learner", "Проходить дві сесії, ламає код навмисно")
-    Person(owner, "Owner", "Персонаж домену: те, що він сказав, стає фактами")
+    Person(learner, "Learner", "Works through two sessions, breaks the code on purpose")
+    Person(owner, "Owner", "A domain character: what they said becomes facts")
 
-    System_Boundary(s05, "Етап 5 — Memory") {
-        System(short, "Короткочасна", "Вікно розмови + підсумок при переповненні")
-        System(long, "Довготривала", "extract -> store -> retrieve; факти у файлі")
+    System_Boundary(s05, "Stage 5 — Memory") {
+        System(short, "Short-term", "The conversation window + a summary on overflow")
+        System(long, "Long-term", "extract -> store -> retrieve; facts in a file")
     }
 
-    System_Ext(emb, "Етап 2 — ембеддер", "Опційно: семантична вибірка замість словникової")
-    System_Ext(llm, "LLM-провайдер", "Витяг фактів і сумаризація; підробка за замовчуванням")
-    System_Ext(store, "memory.jsonl", "Один запис на рядок; читається очима")
+    System_Ext(emb, "Stage 2 — embedder", "Optional: semantic retrieval instead of dictionary-based")
+    System_Ext(llm, "LLM provider", "Fact extraction and summarisation; fake by default")
+    System_Ext(store, "memory.jsonl", "One record per line; readable by eye")
 
-    Rel(learner, short, "Запускає дві сесії")
-    Rel(owner, long, "Каже те, що стає фактом")
-    Rel(short, llm, "Сумаризація при переповненні")
-    Rel(long, llm, "Витяг фактів із розмови")
-    Rel(long, emb, "Вибірка, коли увімкнено")
-    Rel(long, store, "Пише й читає")
+    Rel(learner, short, "Runs two sessions")
+    Rel(owner, long, "Says what becomes a fact")
+    Rel(short, llm, "Summarisation on overflow")
+    Rel(long, llm, "Fact extraction from the conversation")
+    Rel(long, emb, "Retrieval, when it is switched on")
+    Rel(long, store, "Writes and reads")
 ```
 
-**У межах:** вікно й сумаризація, витяг/збереження/вибірка фактів, суперечності, TTL,
-ізоляція власників, дві реалізації вибірки, чекліст «що запам'ятовувати».
+**In scope:** the window and summarisation, extracting/storing/retrieving facts, contradictions,
+TTL, isolation between owners, two retrieval implementations, the "what to remember" checklist.
 
-**Поза межами:** сховище в БД (етап 6), багатокористувацька модель, графи знань, зв'язки
-між фактами, оптимізація вибірки (етап 8).
+**Out of scope:** a datastore in a database (stage 6), the multi-user model, knowledge graphs,
+relationships between facts, optimising retrieval (stage 8).
 
 ## 4. Solution strategy
 
-| Рішення | Вибір | Чому |
+| Decision | Choice | Why |
 |---|---|---|
-| Дві пам'яті | Окремі модулі з окремими задачами | Плутати їх — найчастіша помилка; вони не замінюють одна одну |
-| Сховище | JSONL-файл, один запис на рядок | Читається очима; етап 6 замінить тим самим інтерфейсом. ADR-0001 |
-| Суперечності | Тема факту, не зміст | Порівняння змісту — це вже вивід. ADR-0002 |
-| Протухання | TTL у записі, перевірка при вибірці | Видалення при записі втратило б історію. ADR-0003 |
-| Власник | Поле запису; фільтр **до** відбору top-k | Урок етапів 2 і 3. ADR-0004 |
-| Вибірка | Один інтерфейс, дві реалізації | Показати, що це та сама задача, що пошук |
+| Two memories | Separate modules with separate jobs | Confusing them is the commonest mistake; they do not substitute for each other |
+| Datastore | A JSONL file, one record per line | Readable by eye; stage 6 will swap it out behind the same interface. ADR-0001 |
+| Contradictions | The fact's topic, not its content | Comparing content is already inference. ADR-0002 |
+| Expiry | A TTL in the record, checked at retrieval | Deleting on write would lose the history. ADR-0003 |
+| Owner | A field of the record; the filter sits **before** the top-k selection | The lesson of stages 2 and 3. ADR-0004 |
+| Retrieval | One interface, two implementations | To show that this is the same problem as search |
 
 ## 5. Building block view
 
 ```
 stages/s05_memory/
-├── facts.py        запис факту: власник, тема, текст, час, TTL, статус
-├── short_term.py   вікно розмови + підсумок при переповненні; ≤50 рядків
-├── long_term.py    extract -> store -> retrieve, суперечності, TTL; ≤90 рядків
-├── retrieval.py    дві реалізації вибірки на одному інтерфейсі
-├── decision.py     чекліст «що запам'ятовувати»
-├── run.py          демо: дві сесії поспіль
-├── check.py        перевірки
-└── DECISION.md     проза чекліста
+├── facts.py        the fact record: owner, topic, text, time, TTL, status
+├── short_term.py   the conversation window + a summary on overflow; ≤50 lines
+├── long_term.py    extract -> store -> retrieve, contradictions, TTL; ≤90 lines
+├── retrieval.py    two retrieval implementations behind one interface
+├── decision.py     the "what to remember" checklist
+├── run.py          the demo: two sessions in a row
+├── check.py        the checks
+└── DECISION.md     the checklist in prose
 ```
 
 **C4 Container (L2):**
 
 ```mermaid
 C4Container
-    title Етап 5 — внутрішня будова
+    title Stage 5 — internal structure
 
     Person(learner, "Learner")
 
     Container_Boundary(s05, "stages/s05_memory") {
-        Container(facts, "facts.py", "Python", "Запис факту й те, що робить його активним")
-        Container(short, "short_term.py", "Python", "Вікно; підсумок стискає СТАРЕ, не себе")
-        Container(long, "long_term.py", "Python", "Витяг, збереження, вибірка, суперечності")
-        Container(ret, "retrieval.py", "Python", "Словникова й семантична — один інтерфейс")
-        Container(dec, "decision.py", "Python", "Чекліст «що запам'ятовувати»")
+        Container(facts, "facts.py", "Python", "The fact record and what makes it active")
+        Container(short, "short_term.py", "Python", "The window; the summary compresses the OLD, not itself")
+        Container(long, "long_term.py", "Python", "Extraction, storage, retrieval, contradictions")
+        Container(ret, "retrieval.py", "Python", "Dictionary-based and semantic — one interface")
+        Container(dec, "decision.py", "Python", "The 'what to remember' checklist")
     }
 
     Container_Boundary(shared, "shared/") {
-        Container(llm, "llm.py", "Python", "Витяг фактів і сумаризація")
-        Container(emb, "embeddings.py", "Python", "Ембеддер етапу 2; опційно")
-        Container(trace, "trace.py", "Python", "Кроки пам'яті у трейс")
+        Container(llm, "llm.py", "Python", "Fact extraction and summarisation")
+        Container(emb, "embeddings.py", "Python", "The stage 2 embedder; optional")
+        Container(trace, "trace.py", "Python", "Memory steps into the trace")
     }
 
-    System_Ext(file, "memory.jsonl", "Один факт на рядок")
+    System_Ext(file, "memory.jsonl", "One fact per line")
 
-    Rel(learner, short, "Веде розмову")
-    Rel(learner, long, "Починає другу сесію")
-    Rel(short, llm, "Сумаризація")
-    Rel(long, llm, "Витяг фактів")
-    Rel(long, facts, "Створює й читає записи")
-    Rel(long, ret, "Питає, що релевантне")
-    Rel(ret, emb, "Коли семантична")
-    Rel(long, file, "Пише й читає")
-    Rel(long, trace, "Сцени демо: скільки взято, скільки відкинуто")
+    Rel(learner, short, "Holds a conversation")
+    Rel(learner, long, "Starts a second session")
+    Rel(short, llm, "Summarisation")
+    Rel(long, llm, "Fact extraction")
+    Rel(long, facts, "Creates and reads records")
+    Rel(long, ret, "Asks what is relevant")
+    Rel(ret, emb, "When it is the semantic one")
+    Rel(long, file, "Writes and reads")
+    Rel(long, trace, "Demo scenes: how many taken, how many rejected")
 ```
 
-**Чому `retrieval.py` окремо.** Дві реалізації на одному інтерфейсі — це і є доказ тези
-«вибірка з пам'яті = пошук етапу 2». Усередині `long_term.py` вони виглядали б як `if`, і
-теза перетворилась би на деталь реалізації.
+**Why `retrieval.py` is separate.** Two implementations behind one interface is itself the proof
+of the thesis "retrieval from memory = the stage 2 search". Inside `long_term.py` they would look
+like an `if`, and the thesis would turn into an implementation detail.
 
-**Чому `facts.py` окремо.** Питання «що робить факт активним» — це чотири умови (власник,
-статус, TTL, поріг), і вони мають бути видимі разом. Розкидані по місцях використання вони
-перестають читатися як одне правило.
+**Why `facts.py` is separate.** The question "what makes a fact active" is four conditions (owner,
+status, TTL, threshold), and they have to be visible together. Scattered across their points of
+use they stop reading as one rule.
 
 ## 6. Runtime view
 
-**Потік 1 — друга сесія бачить факт першої (AC-02, AC-03).**
+**Flow 1 — the second session sees the first one's fact (AC-02, AC-03).**
 
 ```mermaid
 sequenceDiagram
     actor Owner
-    participant S as сесія 2
+    participant S as session 2
     participant L as long_term
     participant R as retrieval
     participant F as memory.jsonl
 
-    Owner->>S: «коли приїде моє замовлення?»
+    Owner->>S: "when will my order arrive?"
     S->>L: context_for(owner, question)
-    L->>F: прочитати всі записи власника
-    F-->>L: факти, серед них нерелевантні
-    L->>R: оцінити релевантність
-    R-->>L: оцінки
-    Note over L: фільтр власника ДО відбору top-k,<br/>потім поріг, потім межа кількості
-    L-->>S: активні релевантні факти + причина відкинутих
-    S->>Owner: відповідь, що спирається на факт із сесії 1
+    L->>F: read all of the owner's records
+    F-->>L: facts, some of them irrelevant
+    L->>R: score the relevance
+    R-->>L: scores
+    Note over L: the owner filter BEFORE the top-k selection,<br/>then the threshold, then the count bound
+    L-->>S: active relevant facts + the reason for the rejected ones
+    S->>Owner: an answer resting on a fact from session 1
 ```
 
-**Потік 2 — суперечність (AC-04).**
+**Flow 2 — a contradiction (AC-04).**
 
 ```mermaid
 sequenceDiagram
     participant L as long_term
     participant F as memory.jsonl
 
-    L->>L: новий факт, тема «адреса»
-    L->>F: знайти активний факт тієї ж теми того ж власника
-    F-->>L: старий факт
-    L->>F: старий -> статус "replaced", час заміни
-    L->>F: новий -> статус "active"
-    Note over L,F: обидва лишаються у файлі;<br/>у вибірку йде один
+    L->>L: a new fact, topic "address"
+    L->>F: find the active fact on the same topic for the same owner
+    F-->>L: the old fact
+    L->>F: the old one -> status "replaced", the replacement time
+    L->>F: the new one -> status "active"
+    Note over L,F: both stay in the file;<br/>one goes into retrieval
 ```
 
-**Потік 3 — переповнення вікна (AC-01, AC-01b).**
+**Flow 3 — the window overflows (AC-01, AC-01b).**
 
 ```mermaid
 sequenceDiagram
     participant S as short_term
-    participant M as модель
+    participant M as model
 
-    S->>S: повідомлень більше за вікно
-    S->>M: стиснути НАЙСТАРІШІ, підсумок не чіпати
-    M-->>S: підсумок
-    Note over S: хвіст лишається дослівно;<br/>кількість стиснутого — число
+    S->>S: more messages than the window
+    S->>M: compress the OLDEST, leave the summary alone
+    M-->>S: the summary
+    Note over S: the tail stays verbatim;<br/>the amount compressed is a number
 ```
 
 ## 7. Deployment view
 
-`<!-- N/A: файл у теці етапу. Сховище — етап 6. -->`
+`<!-- N/A: a file in the stage's directory. The datastore is stage 6. -->`
 
 ## 8. Crosscutting concepts
 
-| Аспект | Як вирішено |
+| Aspect | How it is solved |
 |---|---|
-| Трейс | Демо пише крок на сцену з лічильниками. Причина відкидання живе у `Context.skipped` і у виводі, **не** у трейсі — етап 8 читатиме трейси, і тоді ця різниця стане задачею, а не боргом |
-| Помилки | Зіпсований запис названо й пропущено; решта пам'яті робоча (AC-09b) |
-| Довіра | Текст факту писав користувач: у промпт іде як дані, у позначеному блоці |
-| Ізоляція | Власник — поле запису; фільтр до відбору; перевіряється в обидва боки |
-| Детермінізм | Витяг і сумаризація — підробка за сценарієм; час подається явно |
+| Trace | The demo writes a step per scene with counters. The reason for a rejection lives in `Context.skipped` and in the output, **not** in the trace — stage 8 will read traces, and then that difference becomes a task rather than debt |
+| Errors | A corrupted record is named and skipped; the rest of the memory works (AC-09b) |
+| Trust | The text of a fact was written by a user: it goes into the prompt as data, inside a marked block |
+| Isolation | The owner is a field of the record; the filter sits before the selection; checked in both directions |
+| Determinism | Extraction and summarisation come from the fake following a script; time is supplied explicitly |
 
 ## 9. Architecture decisions
 
-| # | Рішення | Статус | Де відбилось |
+| # | Decision | Status | Where it shows |
 |---|---|---|---|
-| 0001 | JSONL-файл, а не БД і не пам'ять процесу | Accepted | §4, §5 |
-| 0002 | Суперечність за темою факту, не за змістом | Accepted | §4, §6 |
-| 0003 | Протухання при вибірці, а не видалення при записі | Accepted | §4, §6 |
-| 0004 | Власник — поле запису; фільтр до відбору top-k | Accepted | §4, §8 |
+| 0001 | A JSONL file, not a database and not process memory | Accepted | §4, §5 |
+| 0002 | A contradiction by the fact's topic, not by its content | Accepted | §4, §6 |
+| 0003 | Expiry at retrieval, not deletion on write | Accepted | §4, §6 |
+| 0004 | The owner is a field of the record; the filter sits before the top-k selection | Accepted | §4, §8 |
 
 ## 10. Quality requirements
 
-| Сценарій | When | Then | How verify |
+| Scenario | When | Then | How verify |
 |---|---|---|---|
-| Селективність | Питання з нерелевантним фактом у пам'яті | Факт не в контексті, причина названа | unit-перевірка |
-| Ізоляція | Дві пам'яті, схожі факти | Чужий не дійшов, свій дійшов | дві дзеркальні перевірки |
-| Розмір модулів | Підрахунок виконуваних рядків | ≤90 і ≤50 | перевірка бюджету |
-| Без ембеддера | Прогін на базовій установці | Зелено; словникова вибірка | `scripts/clean_install.py` |
-| Час набору | `python -m stages.s05_memory.check` | ≤5 с | замір у `check_all` |
+| Selectivity | A question with an irrelevant fact in memory | The fact is not in the context, the reason is named | a unit check |
+| Isolation | Two memories, similar facts | Somebody else's did not arrive, your own did | two mirror checks |
+| Module size | Counting the executable lines | ≤90 and ≤50 | a budget check |
+| Without the embedder | A run on a base install | Green; dictionary-based retrieval | `scripts/clean_install.py` |
+| Suite time | `python -m stages.s05_memory.check` | ≤30 s | a measurement in `check_all` |
 
 ## 11. Risks and technical debt
 
-| Ризик | Тяжкість | Мітигація | Власник |
+| Risk | Severity | Mitigation | Owner |
 |---|---|---|---|
-| **Перевірка доводить збереження замість селективності** | High | Це головна вада, яку етап може мати. Тому AC-03 і AC-06b — окремі критерії з окремими перевірками, а не пункти всередині інших. Досвід етапів 2–4: дзеркальна половина не з'являється сама | Contributor |
-| **Ліміт рядків `long_term` затісний** | Medium | **Ризик спрацював на рев'ю, мітигація виявилась правильною.** Виправлення знахідок довело модуль до 90 із 90; винесено саме витяг фактів (`extraction.py`) — рівно те, що тут і було названо. Після винесення 79 із 90 | Contributor |
-| **Час у перевірках робить їх мигтливими** | High | Час подається **явно** параметром, ніде не береться з `datetime.now()` усередині логіки. Інакше перевірка TTL проходить уночі й падає вдень | Contributor |
-| **Суперечність за темою пропустить справжню суперечність** | Medium | Названо в §«Чого план не доводить» і в ADR-0002. Не мітигується — обмежується й називається | Contributor |
-| **Текст факту вплине на модель** | Medium | Клієнт не покладається на модель: порядок, поріг і власник — його рішення. Перевірка AC-06c стверджує механізм, не поведінку моделі | Contributor |
+| **A check proves storage instead of selectivity** | High | This is the main defect the stage can have. Which is why AC-03 and AC-06b are separate criteria with separate checks, rather than clauses inside other ones. The lesson of stages 2–4: the mirror half does not appear by itself | Contributor |
+| **The `long_term` line limit is too tight** | Medium | **The risk fired at review, and the mitigation turned out to be the right one.** Fixing the findings brought the module to 90 out of 90; what was moved out was fact extraction (`extraction.py`) — exactly what was named here. After the move, 79 out of 90 | Contributor |
+| **Time in the checks makes them flicker** | High | Time is supplied **explicitly** as a parameter and is never taken from `datetime.now()` inside the logic. Otherwise a TTL check passes at night and fails in the daytime | Contributor |
+| **Contradiction by topic will miss a real contradiction** | Medium | Named in §"What the plan does not prove" and in ADR-0002. Not mitigated — bounded and named | Contributor |
+| **The text of a fact will affect the model** | Medium | The client does not rely on the model: the order, the threshold and the owner are its own decision. The AC-06c check asserts a mechanism, not a model's behaviour | Contributor |
 
 ## 12. Glossary
 
-| Термін | Значення в цьому етапі |
+| Term | Meaning in this stage |
 |---|---|
-| Короткочасна пам'ять | Вікно поточної розмови плюс підсумок витісненого. Живе один прогін |
-| Довготривала пам'ять | Факти, що переживають сесію. Живуть у файлі |
-| Факт | Плаский запис: власник, тема, текст, час, TTL, статус |
-| Тема | Про що факт («адреса», «ім'я»). За нею визначається суперечність |
-| Статус | `active` або `replaced`. У вибірку йде лише перший |
-| Context rot | Погіршення відповіді через нерелевантне в контексті. Не помилка — деградація |
-| Селективність | Здатність **не** взяти те, що не потрібне. Головна властивість етапу |
+| Short-term memory | The window of the current conversation plus a summary of what was pushed out. Lives for one run |
+| Long-term memory | Facts that outlive the session. They live in a file |
+| Fact | A flat record: owner, topic, text, time, TTL, status |
+| Topic | What a fact is about ("address", "name"). A contradiction is decided by it |
+| Status | `active` or `replaced`. Only the first goes into retrieval |
+| Context rot | The answer degrading because of irrelevant material in the context. Not an error — a degradation |
+| Selectivity | The ability **not** to take what is not needed. The stage's main property |

@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0006 — «Не оцінено» — повноправний третій стан звіту
+# 0006 — "Unscored" is a third state of the report in its own right
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,49 +15,51 @@ ticket: "n/a"
 
 ## Context
 
-Суддя може бути недоступний: немає ключа, вичерпано бюджет, провайдер відмовив. Це не «кейс
-провалено» і не «кейс пройдено».
+The judge can be unavailable: no key, the budget is spent, the provider refused. That is not "the
+case failed" and it is not "the case passed".
 
-Репозиторій уже ухвалив це рішення для перевірок: `NotVerified` у `shared/check_runner.py`
-рахується окремо, друкується жовтим і потрапляє в підсумок. Причина там записана прямо:
-різниця між «збіглося» і «не перевіряли» зникає з виводу, і зелений набір починає означати
-менше, ніж здається.
+The repository has already made this decision for checks: `NotVerified` in
+`shared/check_runner.py` is counted separately, printed in yellow and carried into the summary.
+The reason is written down there in plain words: the difference between "it matched" and "it was
+never checked" disappears from the output, and a green suite starts meaning less than it looks
+like.
 
-Звіт оцінювання — інший артефакт, і рішення треба ухвалити для нього окремо, бо спокуса тут
-сильніша: частка «пройдено» виглядає гірше, коли знаменник чесний.
+The evaluation report is a different artefact, and the decision has to be made for it separately,
+because the temptation is stronger here: the "passed" fraction looks worse when the denominator is
+honest.
 
 ## Decision drivers
 
-- AC-08: недоступний суддя дає «не оцінено», і воно рахується окремо.
-- Мовчазний провал перетворює відсутність ключа на погану якість — і читач без ключа бачить
-  розгромний звіт про справний агент.
-- Мовчазний успіх робить зелений звіт беззмістовним: без ключа все зелене завжди.
-- Викинути кейс зі знаменника — найгірше з трьох: частка виглядає чесною й порахована не з
-  того набору.
+- AC-08: an unavailable judge yields "unscored", and it is counted separately.
+- A silent failure turns a missing key into poor quality — and a reader without a key sees a
+  devastating report about a healthy agent.
+- A silent success makes a green report meaningless: without a key everything is green, always.
+- Dropping the case from the denominator is the worst of the three: the fraction looks honest and
+  is computed over the wrong set.
 
 ## Considered options
 
-**А. Рахувати провалом.** Штрафує за відсутність ключа, а не за якість.
+**A. Count it as a failure.** Penalises the missing key rather than the quality.
 
-**Б. Рахувати успіхом.** Дає стовідсотковий звіт на порожньому місці.
+**B. Count it as a success.** Produces a hundred-percent report out of nothing.
 
-**В. Викинути зі знаменника.** Тихо змінює те, про що звіт.
+**C. Drop it from the denominator.** Silently changes what the report is about.
 
-**Г. Окремий стан і окрема колонка.**
+**D. A state of its own and a column of its own.**
 
 ## Decision
 
-**Г.** Вердикт рівня має три значення: пройдено, провалено, не оцінено. Підсумок друкує три
-числа й **знаменник**, з якого їх узято. Частка «пройдено» рахується від усіх кейсів, а не
-від оцінених, — інакше вона росте, коли суддя падає.
+**D.** A level's verdict has three values: passed, failed, unscored. The summary prints three
+numbers and the **denominator** they were taken from. The "passed" fraction is computed over all
+cases rather than over the scored ones — otherwise it grows when the judge goes down.
 
 ## Consequences
 
-**Добре.** Звіт без ключа чесний: агент не оголошується поганим, і оцінка не вдається
-проведеною. Читач бачить, скільки коштувало б оцінити решту.
+**Good.** A report without a key is honest: the agent is not declared bad, and the evaluation does
+not pretend to have happened. The reader sees what scoring the rest would have cost.
 
-**Ціна.** Три числа замість одного в кожному рівні. Це та сама ціна, що й у ADR-0003, і
-платиться вона з тієї самої причини.
+**The price.** Three numbers instead of one at every level. It is the same price as in ADR-0003,
+and it is paid for the same reason.
 
-**Наслідок.** Перевірка набору стверджує, що частка пройдених **зменшується**, коли суддя
-зникає, а не лишається тією самою. Інакше знаменник тихо змінився б.
+**Consequence.** The suite's check asserts that the passed fraction **falls** when the judge
+disappears, rather than staying the same. Otherwise the denominator would have changed silently.

@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0006 — Відсутній пакет — третій стан, але ввімкнений прапорець мовчати не має
+# 0006 — A missing package is a third state, but a flag that is on must not be silent
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,43 +15,44 @@ ticket: "n/a"
 
 ## Context
 
-Три з чотирьох реалізацій потребують опційних пакетів, а одна з них — ще й чужих креденшелів.
-На машині читача може не бути нічого з цього.
+Three of the four implementations need optional packages, and one of them needs someone else's
+credentials on top. The reader's machine may have none of it.
 
-Червоніти на відсутність опційного пакета означало б вимагати встановити все — і зробити етап
-непрохідним для того, хто прийшов подивитись. Тому стан «не перевірено», який репозиторій уже
-має (`shared/check_runner.NotVerified`).
+Going red on a missing optional package would mean demanding that everything be installed — and
+making the stage impassable for anyone who came to have a look. Hence the "not evaluated" state,
+which the repository already has (`shared/check_runner.NotVerified`).
 
-Але цієї відповіді недосить, і саме тут ховається пастка. Якщо «не перевірено» застосувати й
-до випадку «читач **явно ввімкнув** ADK, а креденшелів немає», прапорець стане мовчазним: його
-попросили ввімкнути, він начебто ввімкнувся, а таблиця показала три рядки замість чотирьох.
-Читач не дізнається, що нічого не сталося.
+But that answer is not enough, and this is exactly where the trap hides. If "not evaluated" is
+applied to the case "the reader **explicitly turned on** ADK and there are no credentials", the flag
+becomes silent: it was asked to switch on, it seemingly switched on, and the table showed three rows
+instead of four. The reader never learns that nothing happened.
 
 ## Decision Drivers
 
-- Базова установка лишається прохідною.
-- Відсутність **не проханого** — не помилка.
-- Відсутність **проханого** — помилка, і гучна.
+- A base install stays passable.
+- The absence of what was **not asked for** is not an error.
+- The absence of what **was** asked for is an error, and a loud one.
 
 ## Considered Options
 
-**А. Червоніти на будь-яку відсутність.** Вимагає встановити все, включно з чужими ключами.
+**A. Go red on any absence.** Demands installing everything, someone else's keys included.
 
-**Б. «Не перевірено» на будь-яку відсутність.** Робить прапорець мовчазним.
+**B. "Not evaluated" for any absence.** Makes the flag silent.
 
-**В. Розрізняти прохане й непрохане.**
+**C. Distinguish the asked-for from the unasked-for.**
 
 ## Decision
 
-**В.** Пакета немає, і його не просили — **не перевірено**, окремий рядок таблиці. Прапорець
-увімкнено, а креденшелів чи пакета немає — **гучна відмова**, що називає, чого саме бракує,
-не показуючи вмісту оточення.
+**C.** The package is missing and nobody asked for it — **not evaluated**, its own row in the table.
+The flag is on and the credentials or the package are missing — **a loud failure** that names
+exactly what is lacking, without showing the contents of the environment.
 
 ## Consequences
 
-**Добре.** Етап проходиться на голій установці й водночас не бреше тому, хто просив більшого.
+**Good.** The stage passes on a bare install and at the same time does not lie to whoever asked for
+more.
 
-**Ціна.** Дві гілки замість однієї, і обидві треба перевіряти.
+**The price.** Two branches instead of one, and both have to be checked.
 
-**Межа.** «Не перевірено» лишається найслабшим місцем етапу: реалізація ADK написана, але в
-авторів немає креденшелів, щоб її прогнати. Це назване в §11 SAD, а не сховане.
+**The limit.** "Not evaluated" remains the stage's weakest spot: the ADK implementation is written,
+but the authors have no credentials to run it. That is named in §11 of the SAD, not hidden.

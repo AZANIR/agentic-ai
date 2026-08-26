@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0004 — Базова лінія пишеться тут, а не переноситься з етапу 3
+# 0004 — The baseline is written here, not carried over from stage 3
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,43 +15,45 @@ ticket: "n/a"
 
 ## Context
 
-Теза «риштування, а не архітектура» перевіряється лише проти варіанта, у якому риштувань немає.
-Отже, потрібен рядок «без фреймворка».
+The thesis "scaffolding, not architecture" can only be tested against a variant that has no
+scaffolding. So a "no framework" row is needed.
 
-У репозиторії вже є власний міні-граф — етап 3. Спокуса взяти його велика: код написаний,
-перевірений, і повторне використання виглядає ощадливо.
+The repository already has a mini-graph of its own — stage 3. The temptation to take it is strong:
+the code is written, it is checked, and reuse looks thrifty.
 
-Але етап 3 — це **supervisor-роутер**: маршрутизація за вибором моделі, реєстр спеціалістів,
-цикл ревізій із лічильником. Задача цього етапу — два послідовні кроки. Підігнати одне під
-інше означає або урізати граф етапу 3 (тобто змінити етап, що заборонено), або роздути задачу
-до форми роутера — і тоді всі чотири реалізації будуть роутером, а не research → writer.
+But stage 3 is a **supervisor router**: routing by the model's choice, a registry of specialists, a
+revision loop with a counter. This stage's task is two sequential steps. Fitting one to the other
+means either trimming stage 3's graph (that is, changing a stage, which is forbidden) or inflating
+the task into the shape of a router — and then all four implementations would be a router rather
+than research → writer.
 
 ## Decision Drivers
 
-- Контракт задачі однаковий для всіх чотирьох (ADR-0001).
-- Етапи 1–8 не змінюються (C-2).
-- Розмір базової лінії — це **висновок** етапу, а не деталь.
+- The task contract is the same for all four (ADR-0001).
+- Stages 1–8 do not change (C-2).
+- The size of the baseline is a **conclusion** of the stage, not a detail.
 
 ## Considered Options
 
-**А. Перенести граф етапу 3.** Порушує контракт задачі або змінює етап 3.
+**A. Carry stage 3's graph over.** Breaks the task contract, or changes stage 3.
 
-**Б. Не мати базової лінії.** Таблиця відповідає на «який фреймворк», а не на «чи потрібен».
+**B. Have no baseline.** The table then answers "which framework" rather than "is one needed".
 
-**В. Написати мінімальну базову лінію тут.** Два кроки, явна передача стану, жодних риштувань.
+**C. Write a minimal baseline here.** Two steps, explicit state passing, no scaffolding.
 
 ## Decision
 
-**В.** Базова лінія пишеться в `baseline.py` і навмисно мінімальна. Етап 3 лишається джерелом
-**патерну** — там видно, як виглядає явна координація власними руками, — але не джерелом коду.
+**C.** The baseline is written in `baseline.py` and is deliberately minimal. Stage 3 remains the
+source of the **pattern** — that is where you can see what explicit coordination by hand looks
+like — but not a source of code.
 
 ## Consequences
 
-**Добре.** Задача лишається однією для всіх чотирьох. А розмір базової лінії стає першим
-числом таблиці — і найкрасномовнішим.
+**Good.** The task stays one and the same for all four. And the size of the baseline becomes the
+table's first number — and its most eloquent one.
 
-**Ціна.** Трохи дубльованої ідеї між етапами 3 і 9. Дублювання **ідеї** дешевше за підгін
-задачі під наявний код.
+**The price.** A little duplicated idea between stages 3 and 9. Duplicating an **idea** is cheaper
+than fitting the task to existing code.
 
-**Межа.** Базова лінія не є продакшн-кодом: у ній немає ретраїв і запобіжників, як і в решти
-трьох (C-8). Вона чесна щодо порівняння, а не щодо експлуатації.
+**The limit.** The baseline is not production code: it has no retries and no safeguards, and
+neither do the other three (C-8). It is honest about the comparison, not about running anything.

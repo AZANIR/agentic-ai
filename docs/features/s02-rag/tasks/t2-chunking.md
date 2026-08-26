@@ -1,6 +1,6 @@
 ---
 id: T2
-title: "Нарізка документів на фрагменти"
+title: "Splitting documents into fragments"
 layer: "domain"
 deps: []
 acs: ["AC-03"]
@@ -10,27 +10,27 @@ estimate: "S"
 status: "todo"
 ---
 
-# T2 — Нарізка документів на фрагменти
+# T2 — Splitting documents into fragments
 
 ## Why
 
-Розмір фрагмента змінює результат пошуку — це рішення, а не технічна дрібниця ([spec AC-03](../spec.md)).
+The fragment size changes the search result — that is a decision, not a technical detail ([spec AC-03](../spec.md)).
 
 ## What
 
-`chunk.py`: розбиття тексту на фрагменти заданого розміру з перекриттям, зі збереженням посилання на документ-джерело й на позицію. Нарізка за розміром, не за структурою: нарізка за заголовками — вправа, а не реалізація ([sad §11](../sad.md)).
+`chunk.py`: splitting text into fragments of a given size with overlap, keeping a reference to the source document and to the position. Splitting by size, not by structure: splitting by headings is an exercise, not an implementation ([sad §11](../sad.md)).
 
 ## Definition of Done
 
-- [ ] Фрагменти покривають увесь текст без втрат
-- [ ] Кожен фрагмент несе назву документа-джерела й позицію
-- [ ] Документ, коротший за розмір фрагмента, дає рівно один фрагмент
-- [ ] Порожній документ дає нуль фрагментів і не кидає винятку
-- [ ] Модуль ≤ 50 рядків виконуваного коду (spec §6)
-- [ ] lint чистий
+- [ ] The fragments cover the whole text with no loss
+- [ ] Every fragment carries the name of its source document and its position
+- [ ] A document shorter than the fragment size gives exactly one fragment
+- [ ] An empty document gives zero fragments and raises no exception
+- [ ] The module is ≤ 50 lines of executable code (spec §6)
+- [ ] lint clean
 
 ## Notes
 
-Паралельна з T1: спільних файлів немає.
+Parallel with T1: they share no files.
 
-Блокується: —
+Blocked by: —

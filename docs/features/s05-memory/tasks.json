@@ -3,92 +3,92 @@
   "tasks": [
     {
       "id": "T1",
-      "title": "Запис факту: власник, тема, TTL, статус — і що робить його активним",
+      "title": "The fact record: owner, topic, TTL, status — and what makes it active",
       "layer": "domain",
       "deps": [],
       "acs": ["AC-04", "AC-05"],
-      "dod": "Чотири умови активності зібрані в одному місці; час подається параметром, ніде не береться з системного годинника всередині логіки",
+      "dod": "The four conditions of being active are gathered in one place; time is supplied as a parameter and is nowhere taken from the system clock inside the logic",
       "files_hint": ["stages/s05_memory/facts.py"]
     },
     {
       "id": "T2",
-      "title": "Короткочасна пам'ять: вікно й сумаризація найстарішого",
+      "title": "Short-term memory: the window and summarisation of the oldest",
       "layer": "domain",
       "deps": [],
       "acs": ["AC-01", "AC-01b"],
-      "dod": "Хвіст лишається дослівно, кількість стиснутого — число; повторне переповнення стискає нові повідомлення, а не попередній підсумок. ≤50 виконуваних рядків",
+      "dod": "The tail stays verbatim, the amount compressed is a number; a second overflow compresses the new messages rather than the previous summary. ≤50 executable lines",
       "files_hint": ["stages/s05_memory/short_term.py"]
     },
     {
       "id": "T3",
-      "title": "Чекліст «що запам'ятовувати» кодом і прозою",
+      "title": "The \"what to remember\" checklist in code and in prose",
       "layer": "domain",
       "deps": [],
       "acs": ["AC-08"],
-      "dod": "Кожна ситуація має одну відповідь, кожне правило має ситуацію, склад закріплено; DECISION.md збирається з коду",
+      "dod": "Every situation has one answer, every rule has a situation, the composition is pinned; DECISION.md is assembled from the code",
       "files_hint": ["stages/s05_memory/decision.py", "stages/s05_memory/DECISION.md"]
     },
     {
       "id": "T4",
-      "title": "Дві вибірки на одному інтерфейсі: словникова й семантична",
+      "title": "Two retrievals on one interface: dictionary-based and semantic",
       "layer": "domain",
       "deps": ["T1"],
       "acs": ["AC-03", "AC-07"],
-      "dod": "Обидві дають оцінку релевантності на однаковому виклику; семантична вмикається ембеддером етапу 2 і не потрібна для зеленого набору",
+      "dod": "Both give a relevance score on the same call; the semantic one is switched on by the stage 2 embedder and is not needed for a green suite",
       "files_hint": ["stages/s05_memory/retrieval.py"]
     },
     {
       "id": "T5",
-      "title": "Довготривала пам'ять: витяг, збереження, вибірка, суперечності",
+      "title": "Long-term memory: extraction, storing, retrieval, contradictions",
       "layer": "app",
       "deps": ["T1", "T4"],
       "acs": ["AC-02", "AC-03", "AC-04", "AC-05", "AC-09b"],
-      "dod": "Друга сесія читає ЗАПИСАНЕ; суперечливий факт замінює старий зі збереженням історії; зіпсований рядок названо й пропущено. ≤90 виконуваних рядків",
+      "dod": "The second session reads what was WRITTEN; a contradicting fact replaces the old one with the history kept; a corrupted line is named and skipped. ≤90 executable lines",
       "files_hint": ["stages/s05_memory/long_term.py"]
     },
     {
       "id": "T6",
-      "title": "Ізоляція власників — три перевірки замість однієї",
+      "title": "Owner isolation — three checks instead of one",
       "layer": "tests",
       "deps": ["T5"],
       "acs": ["AC-06", "AC-06b", "AC-06c"],
-      "dod": "Чуже не дійшло, своє дійшло, текст факту не змінює порядку й порога — три окремі перевірки, кожна червоніє від власної мутації",
+      "dod": "Somebody else's did not arrive, your own did, the text of a fact changes neither the order nor the threshold — three separate checks, each going red on a mutation of its own",
       "files_hint": ["stages/s05_memory/check.py"]
     },
     {
       "id": "T7",
-      "title": "Демо: дві сесії поспіль, і що між ними сталося",
+      "title": "Demo: two sessions in a row, and what happened between them",
       "layer": "ports",
       "deps": ["T2", "T5"],
       "acs": ["AC-01", "AC-02", "AC-03", "AC-06"],
-      "dod": "Демо показує переповнення вікна, витяг фактів, другу сесію, відкинуте з причиною й різницю двох власників; іде офлайн; пише трейс",
+      "dod": "The demo shows the window overflowing, fact extraction, the second session, what was rejected and why, and the difference between two owners; it runs offline; it writes a trace",
       "files_hint": ["stages/s05_memory/run.py"]
     },
     {
       "id": "T8",
-      "title": "Перевірки до повного покриття таблиці",
+      "title": "Checks up to full coverage of the table",
       "layer": "tests",
       "deps": ["T5", "T6", "T7"],
       "acs": ["AC-01", "AC-01b", "AC-02", "AC-03", "AC-04", "AC-05", "AC-07", "AC-08", "AC-09", "AC-09b"],
-      "dod": "Кожен із 13 рядків таблиці має перевірку; частка відмов ≥1/3; лічильники прози; mutations.json із закріпленими числами",
+      "dod": "Each of the 13 rows of the table has a check; the share of failure modes is ≥1/3; the prose counters; mutations.json with the numbers pinned",
       "files_hint": ["stages/s05_memory/check.py", "stages/s05_memory/mutations.json"]
     },
     {
       "id": "T9",
-      "title": "Урок, англійська карта, вправи, чекліст, розв'язки",
+      "title": "The lesson, the English map, exercises, the checklist, the solutions",
       "layer": "docs",
       "deps": ["T7", "T8"],
       "acs": ["AC-01", "AC-03", "AC-06", "AC-08"],
-      "dod": "README ≤2500 слів; числа звіряються перевіркою; вправи з виміряними результатами через scripts/mutate.py --expect",
+      "dod": "README is ≤2500 words; the numbers are reconciled by a check; exercises with measured results via scripts/mutate.py --expect",
       "files_hint": ["stages/s05_memory/README.md", "stages/s05_memory/README.en.md", "stages/s05_memory/exercises.md", "stages/s05_memory/CHECKLIST.md", "stages/s05_memory/solutions/"]
     },
     {
       "id": "T10",
-      "title": "Глосарій і статуси",
+      "title": "The glossary and the statuses",
       "layer": "docs",
       "deps": ["T9"],
       "acs": ["AC-08"],
-      "dod": "Терміни етапу в GLOSSARY.md; статус етапу 5 у README.md і CURRICULUM.md; прев'ю етапу 5 прибрано з розділу «Далі»",
+      "dod": "The stage's terms in GLOSSARY.md; the stage 5 status in README.md and CURRICULUM.md; the stage 5 preview removed from the \"Next\" section",
       "files_hint": ["GLOSSARY.md", "README.md", "CURRICULUM.md"]
     }
   ]

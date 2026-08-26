@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0003 — Три рівні — три незалежні вердикти, ніколи не один бал
+# 0003 — Three levels are three independent verdicts, never one score
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,46 +15,50 @@ ticket: "n/a"
 
 ## Context
 
-Стаття називає три рівні: e2e (чи задача виконана), траєкторія (чи шлях розумний), компонент
-(що саме зламалось). Спокуса звести їх в один бал велика: одне число легше показати, легше
-порівняти з учорашнім, легше поставити на дашборд.
+The article names three levels: e2e (was the task done), trajectory (was the path sensible),
+component (what exactly broke). The temptation to collapse them into one score is strong: a
+single number is easier to show, easier to compare with yesterday's, easier to put on a
+dashboard.
 
-Один бал знищує рівно те, заради чого рівнів три.
+One score destroys exactly what having three levels is for.
 
-Агент, що дав правильну відповідь через зайвий цикл і виклик не того інструмента, у зведеному
-балі виглядає «майже добре» — тобто так само, як агент, що дав трохи гіршу відповідь прямим
-шляхом. Це два принципово різні продакшн-ризики, і зважена сума їх плутає.
+An agent that produced the right answer through a redundant loop and a call to the wrong tool
+looks "almost good" in a combined score — that is, the same as an agent that produced a slightly
+worse answer by the direct route. Those are two fundamentally different production risks, and a
+weighted sum confuses them.
 
 ## Decision drivers
 
-- AC-03b: кейс може пройти один рівень і провалити інший, і звіт показує обидва.
-- Стаття прямо каже: агент, який технічно успішний, але йде нестабільним шляхом, — це ризик,
-  що проявиться саме на тому розподілі входів, який ви не тестували.
-- Зведений бал приховує «не оцінено»: він або рахує його нулем (несправедливо), або одиницею
-  (брехливо), або викидає кейс (мовчки).
+- AC-03b: a case can pass one level and fail another, and the report shows both.
+- The article says it outright: an agent that is technically successful but takes an unstable
+  path is a risk that will surface on exactly the distribution of inputs you did not test.
+- A combined score hides "unscored": it either counts it as zero (unfair), or as one (a lie), or
+  drops the case (silently).
 
 ## Considered options
 
-**А. Зважена сума.** Ваги доведеться вигадати, і будь-які ваги — це прихована думка про те,
-який рівень важливіший, вбудована в число.
+**A. A weighted sum.** The weights would have to be invented, and any weights are a hidden
+opinion about which level matters more, built into a number.
 
-**Б. Найгірший із трьох.** Не бреше, але втрачає інформацію: «провалив» не каже, що саме.
+**B. The worst of the three.** It does not lie, but it loses information: "failed" does not say
+what.
 
-**В. Три вердикти поруч, підсумки по кожному окремо.**
+**C. Three verdicts side by side, totals for each one separately.**
 
 ## Decision
 
-**В.** Рядок кейса у звіті несе три вердикти. Підсумок рахує три частки — по одній на рівень
-— і четверту колонку «не оцінено». Жодного зведеного числа звіт не друкує.
+**C.** A case's row in the report carries three verdicts. The summary counts three fractions —
+one per level — and a fourth column, "unscored". The report prints no combined number at all.
 
 ## Consequences
 
-**Добре.** «Зламалось» відповідає на питання «де». Кейс із правильною відповіддю й поганим
-шляхом видно **як окремий рядок**, а не як 0.7.
+**Good.** "It broke" answers the question "where". A case with the right answer and a bad path
+is visible **as a row of its own**, not as 0.7.
 
-**Ціна.** Звіт ширший, і «одне число для дашборду» доведеться комусь порахувати самому. Це
-свідомо: той, хто його рахує, обирає ваги явно й відповідає за них.
+**The price.** The report is wider, and "one number for the dashboard" is left for somebody to
+compute themselves. That is deliberate: whoever computes it chooses the weights explicitly and
+answers for them.
 
-**Наслідок для етапу 10.** Він успадкує три частки, а не один бал, і його дашборд
-показуватиме три лінії. Це правильно: одна лінія, що поволі падає через траєкторії при
-незмінному e2e, — саме той дрейф, який помічають запізно.
+**Consequence for stage 10.** It inherits three fractions rather than one score, and its
+dashboard will show three lines. That is right: a single line sagging slowly because of
+trajectories while e2e stays flat is exactly the drift that gets noticed too late.

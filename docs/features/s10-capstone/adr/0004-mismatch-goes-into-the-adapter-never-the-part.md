@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "L"
 ticket: "n/a"
 ---
 
-# 0004 — Невідповідність іде в перехідник, ніколи в частину
+# 0004 — A mismatch goes into the adapter, never into the part
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,41 +15,43 @@ ticket: "n/a"
 
 ## Context
 
-Під час складання неминуче знайдеться частина, яку **однією правкою** можна було б зробити
-зручнішою: перейменувати поле, додати аргумент, повернути інший тип.
+During assembly there is inevitably a part that **one edit** would make more convenient: rename a
+field, add an argument, return a different type.
 
-Спокуса зробити цю правку майже непереборна: вона дешевша за перехідник, чистіша на вигляд і
-покращує сам етап.
+The temptation to make that edit is nearly irresistible: it is cheaper than an adapter, it looks
+cleaner, and it improves the stage itself.
 
 ## Decision Drivers
 
-- Теза капстоуна — «частини були зрілі». Частина, яку довелось правити, її спростовує.
-- Етапи 1–9 мають власні уроки, перевірки й теги; зміна зачіпає їх усі.
-- Ціна складання має лишитись **виміряною**, а не схованою в чужому етапі.
+- The capstone's claim is "the parts were mature". A part you had to edit disproves it.
+- Stages 1–9 have lessons, checks and tags of their own; a change touches all of them.
+- The price of assembly has to stay **measured**, not hidden inside somebody else's stage.
 
 ## Considered Options
 
-**А. Правити частину.** Дешево тут, дорого скрізь: урок, перевірки, тег, стаття.
+**A. Edit the part.** Cheap here, expensive everywhere: the lesson, the checks, the tag, the
+article.
 
-**Б. Правити частину «трохи», лише сумісно.** Та сама дія з м'якшою назвою.
+**B. Edit the part "just a little", compatibly only.** The same act under a softer name.
 
-**В. Уся невідповідність — у перехідник.**
+**C. Every mismatch goes into the adapter.**
 
 ## Decision
 
-**В.** Частини не змінюються (C-2). Кожна невідповідність стає рядками перехідника й
-потрапляє в число ціни складання.
+**C.** The parts do not change (C-2). Every mismatch becomes adapter lines and lands in the number
+that is the price of assembly.
 
-Якщо правка в частині справді потрібна — вона йде **у звіт** «що складання виявило», з назвою
-етапу, а не в код.
+If an edit to a part really is needed, it goes **into the report** "what assembly revealed", naming
+the stage — not into the code.
 
 ## Consequences
 
-**Добре.** Ціна складання чесна: вона видна повністю, в одному місці, і її не можна зменшити,
-переклавши в чужий етап.
+**Good.** The price of assembly is honest: it is visible in full, in one place, and it cannot be
+lowered by moving it into somebody else's stage.
 
-**Ціна.** Кілька перехідників існують лише тому, що дві частини називають одне й те саме
-по-різному. Виглядає марно — і саме це є висновком про курс.
+**The price.** A few adapters exist purely because two parts call the same thing by different
+names. It looks wasteful — and that is precisely the finding about the course.
 
-**Межа.** Рішення не забороняє правити етапи **колись**. Воно забороняє робити це **під час
-складання**, коли правка виглядає дрібною саме тому, що дивишся на неї з боку капстоуна.
+**The limit.** The decision does not forbid editing the stages **at some point**. It forbids doing
+it **during assembly**, when an edit looks small exactly because you are looking at it from the
+capstone's side.

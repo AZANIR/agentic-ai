@@ -1,6 +1,6 @@
 ---
 id: T3
-title: "Цикл ReAct із трасуванням і лімітом кроків"
+title: "The ReAct loop with tracing and a step limit"
 layer: "app"
 deps: ["T1", "T2"]
 acs: ["AC-01", "AC-02", "AC-03"]
@@ -10,28 +10,33 @@ estimate: "M"
 status: "todo"
 ---
 
-# T3 — Цикл ReAct із трасуванням і лімітом кроків
+# T3 — The ReAct loop with tracing and a step limit
 
 ## Why
 
-Серце етапу: перетворення рішення моделі на виклик функції. Потік — [sad §6, flow 1](../sad.md).
+The heart of the stage: turning the model's decision into a function call. The flow —
+[sad §6, flow 1](../sad.md).
 
 ## What
 
-`loop.py`: цикл «звернення до моделі → рішення → валідація → виконання → спостереження». Ліміт кроків читається з конфігурації, не хардкодиться. Крок = одна ітерація, скільки б інструментів модель не попросила в одній відповіді. Відмова валідації — **результат кроку**, що повертається моделі, а не виняток. Кожен крок пишеться у трейс через спільний трасувальник.
+`loop.py`: the cycle "call the model → decision → validation → execution → observation". The step
+limit is read from configuration, not hard-coded. A step = one iteration, however many tools the
+model asked for in one response. A validation rejection is **the step's result**, returned to the
+model, not an exception. Every step is written into the trace through the shared tracer.
 
 ## Definition of Done
 
-- [ ] Щасливий шлях: модель обирає інструмент, отримує результат, дає відповідь
-- [ ] Підробка, що завжди просить інструмент, зупиняється рівно на ліміті
-- [ ] Зупинка лімітом не повертає вигаданої відповіді й повідомляє причину
-- [ ] Криві аргументи не доходять до функції; пояснення йде моделі, цикл триває
-- [ ] Трейс містить run_start, llm_call на кожен крок і run_end
-- [ ] Модуль ≤ 120 рядків виконуваного коду (spec §6)
-- [ ] lint чистий
+- [ ] Happy path: the model picks a tool, gets a result, gives an answer
+- [ ] A fake that always asks for a tool stops exactly at the limit
+- [ ] A stop at the limit returns no invented answer and states the reason
+- [ ] Malformed arguments never reach the function; the explanation goes to the model, the loop
+      continues
+- [ ] The trace contains run_start, an llm_call per step and run_end
+- [ ] The module is ≤ 120 lines of executable code (spec §6)
+- [ ] lint clean
 
 ## Notes
 
-Спільна смуга з T4: обидві задачі правлять `loop.py`, тож виконуються послідовно.
+Shares a lane with T4: both tasks edit `loop.py`, so they run one after the other.
 
-Блокується: T1, T2
+Blocked by: T1, T2

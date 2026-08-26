@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "S"
@@ -8,7 +8,7 @@ ticket: "n/a"
 ---
 
 
-# 0001 — Спершу власний міні-граф, потім LangGraph
+# 0001 — A hand-rolled mini-graph first, LangGraph second
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -16,39 +16,41 @@ ticket: "n/a"
 
 ## Context
 
-Стаття-джерело показує LangGraph і згадує ручну реалізацію як довідку. Курс має вирішити,
-що читач бачить **першим**, бо перше він і запам'ятає як «те, як воно працює».
+The source article shows LangGraph and mentions a hand-rolled implementation as a reference.
+The course has to decide what the reader sees **first**, because the first thing is what they
+will remember as "how it works".
 
 ## Considered options
 
-1. **Власний граф, потім LangGraph.**
-2. **Лише LangGraph** — коротше, ближче до продакшн-практики.
-3. **Лише власний граф** — жодних залежностей, але читач не побачить того, чим користуються.
+1. **Our own graph, then LangGraph.**
+2. **LangGraph only** — shorter, closer to production practice.
+3. **Our own graph only** — no dependencies, but the reader never sees what everyone else uses.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Маршрутизація — це `while`, словник і лічильник. Прочитавши це шістдесятьма рядками, читач
-далі впізнає в `add_node` і `add_edge` те саме, і питання «за що я плачу залежністю» стає
-відповідним. Прочитавши спершу LangGraph, він отримує API замість механіки.
+Routing is a `while`, a dictionary and a counter. Having read that in sixty lines, the reader
+then recognises the same thing in `add_node` and `add_edge`, and the question "what am I paying
+for with this dependency" becomes answerable. Having read LangGraph first, they get an API
+instead of the mechanics.
 
-Option 2 відпадає не тому, що LangGraph поганий, а тому, що етап існує заради розуміння, а
-не заради результату: результат уже є в статті. Option 3 лишає читача без орієнтира в тому,
-чим користується решта світу, — і без можливості порівняти.
+Option 2 is out not because LangGraph is bad, but because this stage exists for the sake of
+understanding rather than the result: the result is already in the article. Option 3 leaves the
+reader with no bearing on what the rest of the world uses — and with nothing to compare against.
 
-Ціна вибору названа прямо: **два коди замість одного**, тобто два місця, які можуть
-розійтися. Тому AC-06 порівнює маршрути й падає при розбіжності, а не покладається на те, що
-автор оновить обидва.
+The price of the choice is named plainly: **two codebases instead of one**, that is, two places
+that can drift apart. Which is why AC-06 compares the routes and fails on a divergence, rather
+than relying on the author to update both.
 
 ## Consequences
 
 **Positive**
-- Читач бачить, що в маршрутизації немає магії, до того як побачить бібліотеку.
-- Порівняння стає можливим: та сама задача, два коди, той самий маршрут.
-- LangGraph лишається необов'язковим (NFR-5), тож етап проходиться без встановлення.
+- The reader sees that there is no magic in routing before they see the library.
+- Comparison becomes possible: the same task, two codebases, the same route.
+- LangGraph stays optional (NFR-5), so the stage can be completed without installing it.
 
 **Negative**
-- Дві реалізації треба тримати синхронними. Закріплено перевіркою, не дисципліною.
-- Власний граф не придатний до продакшну, і урок мусить це сказати вголос, інакше хтось
-  віднесе шістдесят рядків у робочий код.
+- Two implementations have to be kept in sync. Pinned by a check, not by discipline.
+- The hand-rolled graph is not fit for production, and the lesson must say so out loud, or
+  somebody will carry those sixty lines into working code.

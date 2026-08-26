@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
@@ -11,289 +11,294 @@ target_surfaces: [cli]
 
 ## 1. Introduction and goals
 
-Етап 9 будує **вимірювальний стенд**, а не ще одну реалізацію агента. Одна задача виконується
-чотирма способами, і мірятиметься не якість відповіді, а **ціна риштувань**.
+Stage 9 builds a **measuring bench**, not another agent implementation. One task is carried out
+four ways, and what gets measured is not the quality of the answer but the **price of the
+scaffolding**.
 
-> **Фреймворк — це риштування, а не архітектура.** Обраний до того, як відома форма будівлі,
-> він стає формою.
+> **A framework is scaffolding, not architecture.** Chosen before the shape of the building is
+> known, it becomes the shape.
 
-Друга теза — операційна, і саме вона перетворюється на колонки таблиці:
+The second thesis is operational, and it is the one that turns into the columns of the table:
 
-> **Явна координація коштує рядків. Неявна коштує розуміння.**
+> **Explicit coordination costs lines. Implicit coordination costs understanding.**
 
-Три цілі, кожна перевіряється:
+Three goals, each of them checked:
 
-1. Одна команда дає **порівняльну таблицю з власними числами** — і числа обчислені, не набрані.
-2. Усі реалізації виконують **буквально ту саму задачу**, і це доводиться виконанням спільного
-   контракту, а не оглядом коду.
-3. У таблиці є рядок **без жодного фреймворка** — інакше вона відповідає не на те питання.
+1. One command produces **a comparison table with numbers of its own** — and the numbers are
+   computed, not typed in.
+2. Every implementation carries out **literally the same task**, and that is proved by executing
+   a shared contract rather than by reading the code.
+3. The table has a row with **no framework at all** — otherwise it answers the wrong question.
 
-**Стейкхолдери:** Learner (проганяє, читає таблицю, робить вправи), Operator (цікавиться
-токенами понад запит), Contributor (автор етапу, супроводжує смоук версій).
+**Stakeholders:** Learner (runs it, reads the table, does the exercises), Operator (cares about
+tokens above the request), Contributor (the stage's author, maintains the version smoke test).
 
 ## 2. Constraints
 
-| # | Обмеження | Звідки |
+| # | Constraint | Where from |
 |---|---|---|
-| C-1 | Увесь етап проходиться офлайн і без API-ключа | правило курсу, NFR-5 |
-| C-2 | Етапи 1–8 **не змінюються** заради порівняння | spec §3 |
-| C-3 | Жодна реалізація не створює власного клієнта провайдера | spec §6.1, AC-11 |
-| C-4 | `if profile == ...` живе лише у фабриках `shared/` | CONVENTIONS.md |
-| C-5 | Кожен модуль реалізації ≤ 110 виконуваних рядків | NFR-1 |
-| C-6 | Пакети фреймворків **опційні**; їхня відсутність дає «не перевірено» | spec §6.1, NFR-5 |
-| C-7 | Креденшели Google не є вимогою етапу; ADK — за прапорцем | spec §8, припущення 3 |
-| C-8 | Реалізації **мінімальні**: жодних ретраїв, кешу, запобіжників | spec §3 |
-| C-9 | Версії фреймворків запінені **верхньою** межею | NFR-8 |
-| C-10 | Трейси пишуться крізь `shared/trace.py` — і з ключем прогону з першого рядка | spec §5, AC-12 |
+| C-1 | The whole stage runs offline and with no API key | course rule, NFR-5 |
+| C-2 | Stages 1–8 **do not change** for the sake of the comparison | spec §3 |
+| C-3 | No implementation creates a provider client of its own | spec §6.1, AC-11 |
+| C-4 | `if profile == ...` lives only in the `shared/` factories | CONVENTIONS.md |
+| C-5 | Every implementation module is ≤ 110 executable lines | NFR-1 |
+| C-6 | Framework packages are **optional**; their absence gives "not evaluated" | spec §6.1, NFR-5 |
+| C-7 | Google credentials are not a requirement of the stage; ADK sits behind a flag | spec §8, assumption 3 |
+| C-8 | Implementations are **minimal**: no retries, no cache, no circuit breakers | spec §3 |
+| C-9 | Framework versions are pinned by an **upper** bound | NFR-8 |
+| C-10 | Traces are written through `shared/trace.py` — and with a run key from the first line | spec §5, AC-12 |
 
 ## 3. Context and scope
 
-Стенд стоїть **збоку** від системи: він нічого не обслуговує, нічого не розгортає й ні від чого
-не залежить, крім спільної межі провайдера.
+The bench stands **beside** the system: it serves nothing, deploys nothing and depends on
+nothing but the shared provider boundary.
 
 ```mermaid
 C4Context
-    title Стенд порівняння стоїть збоку від системи
+    title The comparison bench stands beside the system
 
-    Person(learner, "Learner", "Проганяє порівняння, читає таблицю")
-    Person(contributor, "Contributor", "Супроводжує смоук версій")
+    Person(learner, "Learner", "Runs the comparison, reads the table")
+    Person(contributor, "Contributor", "Maintains the version smoke test")
 
-    System(bench, "s09 · Стенд порівняння", "Один контракт, чотири реалізації, дві колонки чисел")
-    System_Ext(llm, "Межа провайдера", "shared/llm.py - єдиний вхід до моделі")
-    System_Ext(frameworks, "Фреймворки", "LangGraph, CrewAI, Google ADK - опційні пакети")
-    System_Ext(traces, "Трейси", "JSONL, який читає оцінювач етапу 8")
+    System(bench, "s09 · Comparison bench", "One contract, four implementations, two columns of numbers")
+    System_Ext(llm, "Provider boundary", "shared/llm.py - the only way in to the model")
+    System_Ext(frameworks, "Frameworks", "LangGraph, CrewAI, Google ADK - optional packages")
+    System_Ext(traces, "Traces", "JSONL, read by the stage 8 evaluator")
 
-    Rel(learner, bench, "Прогнати порівняння")
-    Rel(contributor, bench, "Прогнати смоук версій")
-    Rel(bench, llm, "Усі чотири реалізації - тільки сюди")
-    Rel(bench, frameworks, "Імпортує, якщо встановлені")
-    Rel(bench, traces, "Пише з ключем прогону")
+    Rel(learner, bench, "Run the comparison")
+    Rel(contributor, bench, "Run the version smoke test")
+    Rel(bench, llm, "All four implementations - only here")
+    Rel(bench, frameworks, "Imports them if installed")
+    Rel(bench, traces, "Writes with a run key")
 ```
 
-**Що всередині обсягу:** контракт задачі, чотири реалізації, облік токенів на межі провайдера,
-підрахунок моїх і невидимих рядків, порівняльна таблиця, смоук версій.
+**Inside the scope:** the task contract, four implementations, token accounting at the provider
+boundary, counting my lines and invisible lines, the comparison table, the version smoke test.
 
-**Що зовні:** швидкодія фреймворків, порівняння екосистем, навчання фреймворкам, продакшн-обвіс,
-будь-яка зміна етапів 1–8.
+**Outside it:** framework performance, ecosystem comparison, teaching the frameworks,
+production trimmings, any change to stages 1–8.
 
-**Brownfield.** Репозиторій зрілий: `shared/llm.py` уже є єдиною межею провайдера (ADR-0003
-репозиторію), `shared/trace.py` — єдиним трасувальником, `shared/check_runner.py` — раннером
-перевірок із третім станом. Етап 3 уже містить і власний міні-граф, і реалізацію на LangGraph —
-він є джерелом **патерну**, але не коду (spec §3).
+**Brownfield.** The repository is mature: `shared/llm.py` is already the single provider boundary
+(repository ADR-0003), `shared/trace.py` the single tracer, `shared/check_runner.py` the check
+runner with a third state. Stage 3 already contains both a mini-graph of its own and a LangGraph
+implementation — it is the source of the **pattern**, but not of the code (spec §3).
 
 ## 4. Solution strategy
 
-| Питання | Рішення | Чому саме так |
+| Question | Decision | Why this way |
 |---|---|---|
-| Цільова поверхня | **`cli`** — команда й файл, який читає людина | Етап нічого не обслуговує; сервіс додав би поверхню, якої порівняння не потребує |
-| Що таке «та сама задача» | **Виконуваний контракт**, спільний для всіх реалізацій | Описаний контракт не ловить відхилення; виконуваний ловить, і саме він робить числа порівнянними. ADR-0001 |
-| Де рахуються токени | На **межі провайдера**, обгорткою навколо клієнта | Лічильник у коді реалізації не бачить того, що фреймворк додав від себе, — тобто саме того, що міряється. ADR-0002 |
-| Що таке «менше коду» | **Два** числа: мої рядки й невидимі рядки | Одне число перетворює «менше коду» на аргумент без другої половини. ADR-0003 |
-| Як виміряти невидиме | Трасування **виконаних** рядків пакета фреймворка | Установлений код не є виконаним; міряти треба те, що справді працювало на цьому вході. ADR-0003 |
-| Базова лінія | Пишеться **тут**, мінімально, не переноситься з етапу 3 | Там supervisor-роутер, тут два послідовні кроки; підгін зробив би задачі різними. ADR-0004 |
-| Форма висновку | **«Обмеження → інструмент»**, жодного зведеного бала | Ваги обмежень — це думка, а не вимір. Та сама заборона, що на етапі 8. ADR-0005 |
-| Відсутній фреймворк | Стан **«не перевірено»**, окремий рядок таблиці | Червоне на відсутність опційного пакета вимагало б установити все. ADR-0006 |
-| ADK | За прапорцем; **увімкнений без креденшелів — гучно** | Прапорець, який просили ввімкнути й який мовчки не спрацював, гірший за його відсутність. ADR-0006 |
-| Клієнт провайдера | Тільки крізь `shared.llm`, і це доводиться **виконанням** | Фреймворк із власним клієнтом ламає і офлайн-прогін, і облік токенів — мовчки. ADR-0007 |
-| Ключ прогону в трейсі | **Є з першого рядка** | Етап 8 виміряв, що його бракує чотирьом етапам. Перший етап після виміру або користується ним, або вимір не був потрібен. ADR-0008 |
+| Target surface | **`cli`** — a command and a file a human reads | The stage serves nothing; a service would add a surface the comparison does not need |
+| What "the same task" means | An **executable contract**, shared by every implementation | A described contract catches no deviation; an executable one does, and that is what makes the numbers comparable. ADR-0001 |
+| Where tokens are counted | At the **provider boundary**, by a wrapper around the client | A counter inside an implementation's code cannot see what the framework added of its own — which is precisely what is being measured. ADR-0002 |
+| What "less code" means | **Two** numbers: my lines and invisible lines | One number turns "less code" into an argument missing its other half. ADR-0003 |
+| How to measure the invisible | Tracing the **executed** lines of the framework package | Installed code is not executed code; what has to be measured is what actually ran on this input. ADR-0003 |
+| The baseline | Written **here**, minimally, not carried over from stage 3 | There it is a supervisor router, here two sequential steps; fitting one to the other would make the tasks different. ADR-0004 |
+| The shape of the conclusion | **"Constraint → tool"**, no aggregate score | Weights on constraints are an opinion, not a measurement. The same ban as at stage 8. ADR-0005 |
+| A missing framework | The **"not evaluated"** state, its own row in the table | Going red over a missing optional package would demand installing everything. ADR-0006 |
+| ADK | Behind a flag; **turned on without credentials — loudly** | A flag somebody was asked to turn on, which then silently did nothing, is worse than no flag at all. ADR-0006 |
+| The provider client | Only through `shared.llm`, and that is proved by **execution** | A framework with a client of its own breaks both the offline run and the token accounting — silently. ADR-0007 |
+| The run key in the trace | **Present from the first line** | Stage 8 measured that four stages lack it. The first stage after the measurement either uses it, or the measurement was not needed. ADR-0008 |
 
 ## 5. Building block view
 
 ```mermaid
 C4Container
-    title Модулі етапу 9
+    title Stage 9 modules
 
-    Person(learner, "Learner", "Одна команда")
+    Person(learner, "Learner", "One command")
 
     Container_Boundary(s09, "stages/s09_frameworks/") {
-        Container(contract, "contract.py", "Python", "Задача, інструменти, умова зупинки, перевірка дотримання")
-        Container(counters, "counters.py", "Python", "Облік токенів на межі; трасування виконаних рядків")
-        Container(baseline, "baseline.py", "Python", "Без фреймворка: два кроки власними руками")
-        Container(lg, "via_langgraph.py", "Python", "Явна координація: вузли й ребра")
-        Container(crew, "via_crewai.py", "Python", "Неявна координація: ролі й делегування")
-        Container(adk, "via_adk.py", "Python", "Google ADK - за прапорцем")
-        Container(compare, "compare.py", "Python", "Таблиця: збирає, рендерить, розбирає назад")
+        Container(contract, "contract.py", "Python", "Task, tools, stopping condition, compliance check")
+        Container(counters, "counters.py", "Python", "Token accounting at the boundary; tracing executed lines")
+        Container(baseline, "baseline.py", "Python", "No framework: two steps by hand")
+        Container(lg, "via_langgraph.py", "Python", "Explicit coordination: nodes and edges")
+        Container(crew, "via_crewai.py", "Python", "Implicit coordination: roles and delegation")
+        Container(adk, "via_adk.py", "Python", "Google ADK - behind a flag")
+        Container(compare, "compare.py", "Python", "The table: collects, renders, parses back")
     }
 
     Container_Boundary(shared, "shared/") {
-        Container(llm, "llm.py", "Python", "Єдина межа провайдера; підробка за замовчуванням")
-        Container(trace, "trace.py", "Python", "Трасувальник; ключ прогону з першого рядка")
+        Container(llm, "llm.py", "Python", "The single provider boundary; a fake by default")
+        Container(trace, "trace.py", "Python", "The tracer; a run key from the first line")
     }
 
-    Rel(learner, compare, "Прогнати й прочитати")
-    Rel(compare, contract, "Звірити дотримання")
-    Rel(compare, counters, "Взяти числа")
-    Rel(contract, baseline, "Виконати")
-    Rel(contract, lg, "Виконати")
-    Rel(contract, crew, "Виконати")
-    Rel(contract, adk, "Виконати")
-    Rel(counters, llm, "Обгортає клієнта")
-    Rel(baseline, trace, "Пише кроки")
+    Rel(learner, compare, "Run it and read it")
+    Rel(compare, contract, "Verify compliance")
+    Rel(compare, counters, "Take the numbers")
+    Rel(contract, baseline, "Execute")
+    Rel(contract, lg, "Execute")
+    Rel(contract, crew, "Execute")
+    Rel(contract, adk, "Execute")
+    Rel(counters, llm, "Wraps the client")
+    Rel(baseline, trace, "Writes steps")
 ```
 
-**Чому `contract.py` окремо від реалізацій.** Контракт мусить бути **однією** річчю, яку всі
-чотири виконують і жодна не визначає. Розкладений по реалізаціях, він перестає бути спільним
-рівно тоді, коли одна з них зручно його трактує.
+**Why `contract.py` is separate from the implementations.** The contract has to be **one** thing
+that all four carry out and none of them defines. Spread across the implementations, it stops
+being shared exactly when one of them reads it conveniently.
 
-**Чому `counters.py` не всередині реалізацій.** Лічильник, який реалізація містить у собі,
-бачить лише те, що ця реалізація попросила. Надбавка фреймворка — це різниця між попросили й
-пішло, і побачити її можна тільки ззовні.
+**Why `counters.py` is not inside the implementations.** A counter an implementation holds inside
+itself sees only what that implementation asked for. The framework's markup is the difference
+between what was asked for and what went out, and it can only be seen from outside.
 
-**Чому по модулю на фреймворк.** Відсутній пакет має давати «не перевірено» для **своєї**
-реалізації, а не валити імпорт усього етапу. Один файл — одна опційна залежність.
+**Why one module per framework.** A missing package must give "not evaluated" for **its own**
+implementation rather than break the import of the whole stage. One file, one optional
+dependency.
 
-**Чому `compare.py` і рендерить, і розбирає.** Таблиця перевіряється розбором **записаного
-файлу** — двома незалежними джерелами, як звіт етапу 8. Рівність, обчислена з одного джерела,
-є тотожністю.
+**Why `compare.py` both renders and parses.** The table is checked by parsing the **written
+file** — two independent sources, like the stage 8 report. An equality computed from a single
+source is an identity.
 
 ## 6. Runtime view
 
-**Потік 1 — один вимір: контракт, лічильники, дотримання (AC-01, AC-02, AC-04).**
+**Flow 1 — one measurement: contract, counters, compliance (AC-01, AC-02, AC-04).**
 
 ```mermaid
 sequenceDiagram
     actor L as Learner
     participant CMP as compare.py
     participant CTR as counters.py
-    participant IMP as реалізація
+    participant IMP as implementation
     participant LLM as shared/llm.py
     participant CON as contract.py
 
-    L->>CMP: прогнати порівняння
-    CMP->>CTR: обгорнути клієнта лічильником
+    L->>CMP: run the comparison
+    CMP->>CTR: wrap the client in a counter
     CTR->>LLM: get_client(...)
-    LLM-->>CTR: клієнт
-    CMP->>IMP: виконати задачу цим клієнтом
-    IMP->>CTR: запит до моделі
-    CTR->>CTR: порахувати: просив автор / пішло насправді
-    CTR-->>IMP: відповідь
-    IMP-->>CMP: результат і трейс
-    CMP->>CON: чи дотримано контракт
-    alt контракт дотримано
-        CON-->>CMP: рядок із числами
-    else порушено
-        CON-->>CMP: назва порушеного елемента, без чисел
+    LLM-->>CTR: client
+    CMP->>IMP: carry out the task with this client
+    IMP->>CTR: request to the model
+    CTR->>CTR: count: what the author asked for / what actually went out
+    CTR-->>IMP: response
+    IMP-->>CMP: result and trace
+    CMP->>CON: was the contract kept
+    alt contract kept
+        CON-->>CMP: a row with numbers
+    else violated
+        CON-->>CMP: the name of the violated element, no numbers
     end
-    CMP-->>L: таблиця; рядок-порушник названо, а не пораховано
+    CMP-->>L: the table; the offending row is named, not counted
 ```
 
-**Потік 2 — невидимі рядки: міряється виконане, не встановлене (AC-03).**
+**Flow 2 — invisible lines: what is measured is executed, not installed (AC-03).**
 
 ```mermaid
 sequenceDiagram
     participant CMP as compare.py
     participant CTR as counters.py
-    participant IMP as реалізація
-    participant FW as пакет фреймворка
+    participant IMP as implementation
+    participant FW as framework package
 
-    CMP->>CTR: почати облік виконаних рядків
-    CTR->>CTR: увімкнути трасування
-    CMP->>IMP: виконати задачу
-    IMP->>FW: виклики фреймворка
-    FW-->>IMP: результат
-    CTR->>CTR: зібрати виконані рядки, лишити тільки пакет фреймворка
-    CTR-->>CMP: мої рядки / невидимі рядки
-    Note over CTR,FW: Міряється те, що ВИКОНАЛОСЬ на цьому вході, а не те, що встановлено
+    CMP->>CTR: start counting executed lines
+    CTR->>CTR: turn on tracing
+    CMP->>IMP: carry out the task
+    IMP->>FW: framework calls
+    FW-->>IMP: result
+    CTR->>CTR: collect executed lines, keep only the framework package
+    CTR-->>CMP: my lines / invisible lines
+    Note over CTR,FW: What is measured is what EXECUTED on this input, not what is installed
 ```
 
-**Потік 3 — ADK: прапорець, креденшели, третій стан (AC-07, AC-07b).**
+**Flow 3 — ADK: the flag, the credentials, the third state (AC-07, AC-07b).**
 
 ```mermaid
 sequenceDiagram
     participant CMP as compare.py
     participant ADK as via_adk.py
-    participant ENV as оточення
+    participant ENV as environment
 
-    CMP->>ADK: чи можеш виконати
-    ADK->>ENV: прапорець увімкнено?
-    alt прапорець вимкнено
-        ADK-->>CMP: не перевірено - вимкнено за замовчуванням
-    else увімкнено
-        ADK->>ENV: креденшели є?
-        alt креденшелів немає
-            ADK-->>CMP: ГУЧНА відмова: названо, чого бракує
-        else є
-            ADK-->>CMP: виконую
+    CMP->>ADK: can you run
+    ADK->>ENV: is the flag on?
+    alt the flag is off
+        ADK-->>CMP: not evaluated - off by default
+    else it is on
+        ADK->>ENV: are the credentials there?
+        alt no credentials
+            ADK-->>CMP: LOUD refusal: names what is missing
+        else they are
+            ADK-->>CMP: running
         end
     end
-    Note over ADK,ENV: Вміст оточення не потрапляє ані в таблицю, ані у вивід
+    Note over ADK,ENV: The contents of the environment reach neither the table nor the output
 ```
 
 ## 7. Deployment view
 
-Стенд **не розгортається**. Це команда, що читає код і пише файл.
+The bench is **not deployed**. It is a command that reads code and writes a file.
 
-**Опційні залежності.** `pip install -e ".[s09]"` приносить LangGraph і CrewAI; ADK — окремий
-extra `[adk]`, бо потребує чужих креденшелів. Базова установка не приносить нічого з цього, і
-етап у ній лишається прохідним: три рядки таблиці стають «не перевірено», четвертий — базова
-лінія — рахується завжди.
+**Optional dependencies.** `pip install -e ".[s09]"` brings in LangGraph and CrewAI; ADK is a
+separate extra, `[adk]`, because it needs somebody else's credentials. A base install brings none
+of this, and the stage stays passable under it: three rows of the table become "not evaluated",
+the fourth — the baseline — is computed always.
 
-<!-- N/A: окремого середовища немає; етап нічого не обслуговує -->
+<!-- N/A: there is no separate environment; the stage serves nothing -->
 
 ## 8. Crosscutting concepts
 
-- **Третій стан** — той самий, що на етапі 8: «не перевірено» ≠ «пройдено» ≠ «провалено».
-  Тут він означає «пакета немає» або «креденшелів немає», і має власний рядок у таблиці.
-- **Два незалежні джерела.** Таблиця перевіряється розбором записаного файлу, а не повторним
-  підрахунком тим самим кодом.
-- **Межа провайдера одна.** Усе, що йде до моделі, проходить крізь `shared/llm.py`; це
-  водночас умова офлайну, умова обліку токенів і умова відтворюваності.
-- **Мінімальність як вимога, а не як лінь.** Кожен доданий рядок в одній реалізації робить
-  колонку «мої рядки» несумірною з іншими.
-- **Ключ прогону** — поле `case` у кожному кроці трейсу: етап 8 виміряв, що чотирьом етапам
-  його бракує, і цей етап пишеться вже з ним.
+- **The third state** — the same one as at stage 8: "not evaluated" ≠ "passed" ≠ "failed".
+  Here it means "the package is missing" or "the credentials are missing", and it has a row of
+  its own in the table.
+- **Two independent sources.** The table is checked by parsing the written file, not by counting
+  again with the same code.
+- **There is one provider boundary.** Everything that goes to the model passes through
+  `shared/llm.py`; that is at once the condition for offline, for token accounting and for
+  reproducibility.
+- **Minimality as a requirement, not as laziness.** Every line added in one implementation makes
+  the "my lines" column incommensurable with the others.
+- **The run key** — the `case` field in every trace step: stage 8 measured that four stages lack
+  it, and this stage is written with it from the start.
 
 ## 9. Architecture decisions
 
-| # | Рішення | Статус | Де відгукується |
+| # | Decision | Status | Where it echoes |
 |---|---|---|---|
-| 0001 | Контракт задачі — виконуваний, а не описаний | Accepted | §4, §6 потік 1 |
-| 0002 | Токени рахуються на межі провайдера | Accepted | §4, §5, §6 потік 1 |
-| 0003 | Мої рядки й невидимі рядки — два числа; невидиме міряється виконанням | Accepted | §4, §6 потік 2 |
-| 0004 | Базова лінія пишеться тут, а не переноситься з етапу 3 | Accepted | §4, §5 |
-| 0005 | Жодного зведеного бала; висновок у формі «обмеження → інструмент» | Accepted | §4, §10 |
-| 0006 | Відсутній пакет і відсутні креденшели — третій стан, але прапорець мовчати не має | Accepted | §4, §6 потік 3, §7 |
-| 0007 | Клієнт провайдера тільки крізь `shared.llm`, і це доводиться виконанням | Accepted | §4, §8 |
-| 0008 | Етап пише ключ прогону з першого рядка | Accepted | §4, §8 |
+| 0001 | The task contract is executable, not described | Accepted | §4, §6 flow 1 |
+| 0002 | Tokens are counted at the provider boundary | Accepted | §4, §5, §6 flow 1 |
+| 0003 | My lines and invisible lines are two numbers; the invisible is measured by execution | Accepted | §4, §6 flow 2 |
+| 0004 | The baseline is written here rather than carried over from stage 3 | Accepted | §4, §5 |
+| 0005 | No aggregate score; the conclusion takes the form "constraint → tool" | Accepted | §4, §10 |
+| 0006 | A missing package and missing credentials are a third state, but a flag must not stay silent | Accepted | §4, §6 flow 3, §7 |
+| 0007 | The provider client only through `shared.llm`, and that is proved by execution | Accepted | §4, §8 |
+| 0008 | The stage writes a run key from its first line | Accepted | §4, §8 |
 
 ## 10. Quality requirements
 
-| Атрибут | Сценарій (When) | Очікування (Then) | Як перевіряється |
+| Attribute | Scenario (When) | Expectation (Then) | How it is checked |
 |---|---|---|---|
-| Порівнянність | Реалізація відхилилась від контракту | Її рядок не має чисел; названо порушений елемент | перевірка контракту, AC-02b |
-| Чесність числа | Читач дивиться на «менше коду» | Поруч стоїть число невидимих рядків | AC-03 |
-| Спостережність | Фреймворк додав власний текст до запиту | Надбавка строго додатна; у базової лінії — нуль | AC-04b |
-| Детермінізм | Двадцять прогонів офлайн | Усі числа таблиці однакові | NFR-6, перевірка мигтіння |
-| Повнота | Читач рахує рядки таблиці | ≥ 4 реалізації, рівно одна без фреймворка | NFR-7 |
-| Стійкість до версій | Мажорна версія фреймворка змінилась | Червоніє смоук **цієї** реалізації, називаючи виклик | AC-08, NFR-8 |
-| Офлайн | Машина без ключа й без мережі | Прогін зелений; відсутні пакети — «не перевірено» | NFR-5, `clean_install.py` |
-| Обсяг | Читач відкриває урок | ≤ 2500 слів | NFR-3 |
+| Comparability | An implementation deviated from the contract | Its row carries no numbers; the violated element is named | the contract check, AC-02b |
+| Honesty of the number | The reader looks at "less code" | The invisible-lines number stands next to it | AC-03 |
+| Observability | The framework added text of its own to the request | The markup is strictly positive; for the baseline it is zero | AC-04b |
+| Determinism | Twenty offline runs | Every number in the table is the same | NFR-6, the flakiness check |
+| Completeness | The reader counts the table's rows | ≥ 4 implementations, exactly one with no framework | NFR-7 |
+| Version resilience | A framework's major version changed | The smoke test of **that** implementation goes red, naming the call | AC-08, NFR-8 |
+| Offline | A machine with no key and no network | The run is green; missing packages are "not evaluated" | NFR-5, `clean_install.py` |
+| Length | The reader opens the lesson | ≤ 2500 words | NFR-3 |
 
 ## 11. Risks and technical debt
 
-| Ризик | Серйозність | Пом'якшення | Власник, термін |
+| Risk | Severity | Mitigation | Owner, deadline |
 |---|---|---|---|
-| Реалізації написані нерівно, і таблиця міряє автора | High | Виконуваний контракт (ADR-0001) + мінімальність як вимога (C-8); мутації ламають контракт і червонять саме його перевірку | Contributor, перед тегом |
-| «Невидимі рядки» тлумачаться як розмір пакета | Medium | Міряється **виконане** на цьому вході; межа названа прямо в уроці й у ADR-0003 | Contributor, перед тегом |
-| Фреймворк ходить у мережу власним клієнтом | Medium | Перевірка **виконанням** без ключа (ADR-0007): мережевий виклик падає гучно, а не мовчки працює | Contributor, перед тегом |
-| CrewAI / LangGraph ламають API між мінорними версіями | Medium | Пін мінорною межею (C-9); смоук кожної реалізації в наборі (AC-08) | Contributor, постійно |
-| ADK недоступний авторові — реалізація написана, але не прогнана | Medium | Стан «не перевірено» з названою причиною; це найслабше місце етапу, і воно назване, а не сховане | Contributor, етап 10 |
-| Число токенів підробленої моделі не переноситься на реальну | Low | Урок каже це першим рядком: висновки про **співвідношення**, не про абсолютні значення | Contributor, перед тегом |
-| Чи додавати п'яту реалізацію | Open question | Default now: ні — чотирьох досить для обох кінців шкали | Contributor, перед тегом `stage-09` |
-| Чи виносити лічильник у `shared/` | Open question | Default now: лишається в етапі 9 | Contributor, етап 10 |
-| Чи міряти час поруч із токенами | Open question | Default now: ні — на підробці час міряє підробку | Contributor, етап 10 |
-| Невидимі рядки: число чи порядок величини | Open question | Default now: число з прямо названим способом підрахунку й межею | Contributor, перед тегом `stage-09` |
+| The implementations are written unevenly, and the table measures the author | High | An executable contract (ADR-0001) plus minimality as a requirement (C-8); mutations break the contract and redden exactly its check | Contributor, before the tag |
+| "Invisible lines" is read as package size | Medium | What is measured is what **executed** on this input; the limit is named outright in the lesson and in ADR-0003 | Contributor, before the tag |
+| A framework goes to the network with a client of its own | Medium | A check **by execution** with no key (ADR-0007): a network call fails loudly rather than silently working | Contributor, before the tag |
+| CrewAI / LangGraph break their API between minor versions | Medium | Pinned by a minor bound (C-9); a smoke test of every implementation in the suite (AC-08) | Contributor, continuously |
+| ADK is unavailable to the author — the implementation is written but never run | Medium | The "not evaluated" state with a named cause; this is the stage's weakest point, and it is named rather than hidden | Contributor, stage 10 |
+| The token count of a fake model does not carry over to a real one | Low | The lesson says so in its first line: the conclusions are about **ratios**, not about absolute values | Contributor, before the tag |
+| Whether to add a fifth implementation | Open question | Default now: no — four are enough for both ends of the scale | Contributor, before the `stage-09` tag |
+| Whether to move the counter into `shared/` | Open question | Default now: it stays in stage 9 | Contributor, stage 10 |
+| Whether to measure time alongside tokens | Open question | Default now: no — on a fake, time measures the fake | Contributor, stage 10 |
+| Invisible lines: a number or an order of magnitude | Open question | Default now: a number, with the counting method and its limit named outright | Contributor, before the `stage-09` tag |
 
 ## 12. Glossary
 
-| Термін | Значення в цьому етапі |
+| Term | What it means in this stage |
 |---|---|
-| **Реалізація** | Один спосіб виконати контракт задачі. Їх чотири |
-| **Контракт задачі** | Вхід, інструменти, модель, умова зупинки, форма результату — спільні для всіх і **виконувані** |
-| **Мій рядок** | Виконуваний рядок, який написав і супроводжує автор реалізації |
-| **Невидимий рядок** | Виконуваний рядок пакета фреймворка, що **виконався** під час прогону |
-| **Токени запиту** | Те, що просив автор |
-| **Токени понад запит** | Різниця між тим, що пішло, і тим, що просив автор, — ціна риштувань |
-| **Явна координація** | Наступний крок видно в моєму коді |
-| **Неявна координація** | Наступний крок вирішує фреймворк за описами ролей |
-| **Базова лінія** | Реалізація без жодного фреймворка |
+| **Implementation** | One way of carrying out the task contract. There are four |
+| **Task contract** | Input, tools, model, stopping condition, result shape — shared by all and **executable** |
+| **My line** | An executable line the implementation's author wrote and maintains |
+| **Invisible line** | An executable line of the framework package that **executed** during the run |
+| **Request tokens** | What the author asked for |
+| **Tokens above the request** | The difference between what went out and what the author asked for — the price of the scaffolding |
+| **Explicit coordination** | The next step is visible in my code |
+| **Implicit coordination** | The framework decides the next step from role descriptions |
+| **Baseline** | An implementation with no framework at all |

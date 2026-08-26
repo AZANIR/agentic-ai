@@ -1,6 +1,6 @@
 ---
 id: T12
-title: "Терміни етапу в глосарій, статус у програму"
+title: "The stage's terms into the glossary, the status into the curriculum"
 layer: "docs"
 deps: ["T10"]
 acs: []
@@ -10,24 +10,24 @@ estimate: "S"
 status: "todo"
 ---
 
-# T12 — Терміни етапу в глосарій, статус у програму
+# T12 — The stage's terms into the glossary, the status into the curriculum
 
 ## Why
 
-Критерії завершеності №6 і №7 у [CURRICULUM.md](../../../../CURRICULUM.md).
+Completion criteria №6 and №7 in [CURRICULUM.md](../../../../CURRICULUM.md).
 
 ## What
 
-Перенести терміни з `sad.md` §12 у `GLOSSARY.md` (chunk, embedding, cosine similarity, top-k, relevance threshold, grounding, provenance, access level). Оновити статус етапу 2 і числа в обох README.
+Move the terms from `sad.md` §12 into `GLOSSARY.md` (chunk, embedding, cosine similarity, top-k, relevance threshold, grounding, provenance, access level). Update the status of stage 2 and the numbers in both READMEs.
 
 ## Definition of Done
 
-- [ ] Кожен виділений термін уроку має визначення в глосарії
-- [ ] Статус етапу 2 оновлено в CURRICULUM.md і обох README
-- [ ] Усі посилання резолвляться
+- [ ] Every highlighted term of the lesson has a glossary definition
+- [ ] The status of stage 2 is updated in CURRICULUM.md and in both READMEs
+- [ ] All links resolve
 
 ## Notes
 
-Остання задача етапу.
+The stage's last task.
 
-Блокується: T10
+Blocked by: T10

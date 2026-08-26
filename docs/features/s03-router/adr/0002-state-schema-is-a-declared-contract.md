@@ -1,6 +1,6 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "S"
@@ -8,7 +8,7 @@ ticket: "n/a"
 ---
 
 
-# 0002 — Схема стану — оголошений контракт, не вільний словник
+# 0002 — The state schema is a declared contract, not a free-form dictionary
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -16,45 +16,47 @@ ticket: "n/a"
 
 ## Context
 
-Стан графа читають і пишуть усі вузли. Найпростіше зробити його словником: додати поле —
-один рядок, ніхто нічого не оголошує. Саме так виглядає більшість прикладів.
+Every node reads and writes the graph state. The easiest thing is to make it a dictionary:
+adding a field is one line, nobody declares anything. That is what most examples look like.
 
-Мета §2 спеки — щоб читач побачив **схему стану як рішення**, а не як структуру даних, і
-зрозумів, чому додати туди поле через півроку дорожче за все інше в графі.
+The goal of §2 of the spec is for the reader to see the **state schema as a decision** rather
+than as a data structure, and to understand why adding a field to it six months later costs
+more than anything else in the graph.
 
 ## Considered options
 
-1. **Оголошений контракт:** фіксований набір полів; читання невідомого поля — помилка.
-2. **Вільний словник:** будь-який вузол пише будь-що.
-3. **Словник із перевіркою на виході** — вільний під час роботи, звіряється наприкінці.
+1. **A declared contract:** a fixed set of fields; reading an unknown field is an error.
+2. **A free-form dictionary:** any node writes anything.
+3. **A dictionary with a check on the way out** — free-form at runtime, reconciled at the end.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Вільний словник не просто ризикований — він **ховає саме те, заради чого етап існує**. Коли
-додати поле коштує один рядок, читач не має жодного приводу замислитись, скільки коштує це
-поле насправді: його доведеться прочитати кожному вузлу, який на нього спирається, і жоден
-із них не скаже, що воно з'явилось.
+A free-form dictionary is not merely risky — it **hides the very thing this stage exists for**.
+When adding a field costs one line, the reader has no reason at all to stop and think about what
+that field really costs: every node that relies on it will have to read it, and none of them
+will say that it appeared.
 
-Обраний варіант робить вартість видимою в момент дії: щоб додати поле, треба відкрити схему,
-тобто побачити всіх, хто її читає.
+The chosen option makes the cost visible at the moment of the act: to add a field you have to
+open the schema, which means seeing everyone who reads it.
 
-Друга причина — рівень доступу (ADR-0003). Він живе у стані, і в словнику `state.get("access")`
-поверне `None` там, де поле забули передати. Це рівно та вада, яку етап 2 виправляв у метаданих
-документа: невпізнане значення не має мовчки ставати дефолтом.
+The second reason is the access level (ADR-0003). It lives in the state, and in a dictionary
+`state.get("access")` returns `None` wherever the field was forgotten. That is exactly the flaw
+stage 2 fixed in document metadata: an unrecognised value must not silently become the default.
 
-Option 3 відпадає: перевірка наприкінці ловить факт, коли рішення вже ухвалене на підставі
-`None`.
+Option 3 is out: a check at the end catches the fact once the decision has already been made on
+the basis of a `None`.
 
 ## Consequences
 
 **Positive**
-- Вартість зміни схеми видима в момент зміни.
-- `state.access` не може мовчки стати `None` — ADR-0003 спирається на це.
-- Перелік полів читається як опис того, що граф узагалі знає про задачу.
+- The cost of changing the schema is visible at the moment of the change.
+- `state.access` cannot silently become `None` — ADR-0003 relies on that.
+- The list of fields reads as a description of what the graph knows about the task at all.
 
 **Negative**
-- Додати поле дорожче, ніж у словнику. Це не побічний ефект, а мета.
-- Потрібна власна перевірка на читання невідомого поля (AC-02b) — у словника її не потрібно,
-  бо там це не помилка.
+- Adding a field is more expensive than in a dictionary. That is not a side effect, it is the
+  point.
+- A check of our own is needed for reading an unknown field (AC-02b) — a dictionary needs none,
+  because there it is not an error.

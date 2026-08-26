@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-24"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0005 — Prefetch показується з обома числами — купленим і змарнованим
+# 0005 — Prefetch is shown with both numbers — what it buys and what it wastes
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -15,49 +15,49 @@ ticket: "n/a"
 
 ## Context
 
-Повільний інструмент у голосі коштує дорого: людина чекає мовчки. Очевидна відповідь —
-покликати його **раніше**, ще доки модель формулює відповідь.
+A slow tool costs a lot in voice: the person waits in silence. The obvious answer is to call it
+**earlier**, while the model is still formulating the answer.
 
-Так само очевидно, що це стаття про prefetch закінчилась би на слові «швидше».
+Just as obviously, this is where an article about prefetch would end — on the word "faster".
 
-Prefetch виконує виклик, який **може не знадобитись**. Це не безкоштовно: це запит до
-чужої системи, місце в черзі, іноді гроші.
+Prefetch performs a call that **may turn out not to be needed**. That is not free: it is a
+request into someone else's system, a place in a queue, sometimes money.
 
 ## Decision drivers
 
-- Курс уже має правило: кожне прискорення спершу міряється.
-- Показати лише виграш означає агітувати, а не вчити.
-- Частка запитів, яким інструмент не потрібен, — головне число рішення, і воно
-  залежить від домену, а не від коду.
+- The course already has a rule: every speed-up is measured first.
+- Showing only the gain means campaigning, not teaching.
+- The share of requests that do not need the tool is the decision's main number, and it depends
+  on the domain, not on the code.
 
 ## Considered options
 
-1. **Обидва числа: скільки купує і скільки марної роботи створює.**
-2. **Показати лише виграш.**
-3. **Не робити prefetch** — надто складно для уроку.
+1. **Both numbers: how much it buys and how much wasted work it creates.**
+2. **Show only the gain.**
+3. **No prefetch at all** — too complicated for a lesson.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Option 2 — найпоширеніша форма технічної статті й найгірша: вона дає читачеві
-оптимізацію без умов її застосування.
+Option 2 is the commonest form of technical article and the worst: it hands the reader an
+optimisation without the conditions for applying it.
 
-Option 3 відкидає найцікавіше в голосовому конвеєрі: тут затримка інструмента видима
-вухом, а не в графіку.
+Option 3 throws away the most interesting thing in a voice pipeline: here a tool's latency is
+visible to the ear, not on a chart.
 
-**AC-06b — не додаток, а половина рішення.** Запит, якому інструмент не потрібен,
-має показати відкинутий результат і назвати його **марною роботою** у трейсі. Без
-цього критерію етап продає prefetch, а не пояснює його.
+**AC-06b is not an appendix but half of the decision.** A request that does not need the tool has
+to show the discarded result and name it **wasted work** in the trace. Without that criterion the
+stage sells prefetch instead of explaining it.
 
 ## Consequences
 
 **Positive**
-- Читач отримує обидва числа й вирішує сам.
-- Марна робота названа у трейсі, тобто її можна порахувати на реальному трафіку.
-- Prefetch лишається одним інструментом: показати ціну досить на одному.
+- The reader gets both numbers and decides for themselves.
+- Wasted work is named in the trace, so it can be counted on real traffic.
+- Prefetch stays a single tool: one is enough to show the price.
 
 **Negative**
-- Конвеєр ускладнюється: зʼявляється результат, який може бути відкинутий.
-- Відкинутий виклик у справжній системі може мати побічний ефект. Тут інструмент
-  свідомо read-only, і це названо — інакше prefetch став би пасткою.
+- The pipeline gets more complicated: a result appears that may be discarded.
+- A discarded call in a real system can have a side effect. Here the tool is deliberately
+  read-only, and that is named — otherwise prefetch would turn into a trap.

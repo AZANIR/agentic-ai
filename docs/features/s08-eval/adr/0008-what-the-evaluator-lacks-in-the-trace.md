@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "M"
 ticket: "n/a"
 ---
 
-# 0008 — Чого оцінювачеві бракує у трейсі: виміряна відповідь
+# 0008 — What the evaluator lacks in the trace: a measured answer
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,124 +15,127 @@ ticket: "n/a"
 
 ## Context
 
-Етап 6 двічі відклав рішення на цей етап, і обидва рази з тією самою причиною:
+Stage 6 deferred a decision to this stage twice, and both times for the same reason:
 
-> `adr/0005`: «Етап 8 будує оцінювання **на трейсах** і скаже, чого йому справді бракує…
-> Протягувати трейсер під здогад — це проєктувати інтерфейс під уявного споживача».
+> `adr/0005`: "Stage 8 builds evaluation **on traces** and will say what it actually lacks…
+> Threading a tracer through on a guess means designing an interface for an imaginary consumer".
 
-Тепер споживач існує. Обіцянка настала.
+Now the consumer exists. The promise has come due.
 
-Правило тут просте й діє в обидва боки: **вимогу формулює той, хто читає**, і формулює її
-**виміряно**. ADR, який каже «додайте трасування в етапи 2 і 5», не кращий за той здогад, який
-етап 6 відхилив, — доки не сказано, що саме оцінювач не може зробити без цього.
+The rule here is simple and cuts both ways: **the requirement is stated by whoever reads**, and it
+is stated **from measurement**. An ADR that says "add tracing to stages 2 and 5" is no better than
+the guess stage 6 rejected — until it says what exactly the evaluator cannot do without it.
 
-## Виміряно
+## Measured
 
-Усі сім етапів прогнано з трейсом у тимчасовий файл, траєкторії витягнуто одним кодом:
+All seven stages were run with the trace going to a temporary file, and the trajectories were
+extracted by one piece of code:
 
 ```
-02_rag       траєкторій   1   access, answer, chunking, search, threshold
-03_router    траєкторій   1   judge, llm_call, revision, revision_limit, route, specialist_failed
-s01          траєкторій   4   llm_call, run_limit, step_blocked, tool_call, tool_rejected
-s04_mcp      траєкторій   1   mcp_call
-s05_memory   траєкторій   1   memory
-s06          траєкторій  15   done, guard, intent, memory, received, remember
-s07_voice    траєкторій   1   first_audio, prefetch, speak, stt, think, total
+02_rag       trajectories   1   access, answer, chunking, search, threshold
+03_router    trajectories   1   judge, llm_call, revision, revision_limit, route, specialist_failed
+s01          trajectories   4   llm_call, run_limit, step_blocked, tool_call, tool_rejected
+s04_mcp      trajectories   1   mcp_call
+s05_memory   trajectories   1   memory
+s06          trajectories  15   done, guard, intent, memory, received, remember
+s07_voice    trajectories   1   first_audio, prefetch, speak, stt, think, total
 ```
 
-Три висновки, і жоден із них не той, якого чекали.
+Three conclusions, and not one of them is the one expected.
 
-**1. Бракує не кроків. Бракує ключа прогону.**
+**1. What is missing is not steps. What is missing is the run key.**
 
-Етапи 2, 3, 4, 5 і 7 пишуть **одну** траєкторію на весь демо-прогін: усі сцени всередині
-однієї. Оцінювач бачить один довгий прогін замість шести коротких і не може приписати
-вердикт сцені.
+Stages 2, 3, 4, 5 and 7 write **one** trajectory for the entire demo run: every scene inside a
+single one. The evaluator sees one long run instead of six short ones and cannot attribute a
+verdict to a scene.
 
-Дискримінатор сцени в даних **є** — але називається щоразу інакше:
+The scene discriminator **is** in the data — but it is called something different every time:
 
-| Етап | Поле, що каже «який це прогін» |
+| Stage | The field that says "which run this is" |
 |---|---|
 | 1 | `scenario` |
 | 5 | `scene` |
 | 6 | `trace_ref` |
-| 2, 3, 4, 7 | **немає** |
+| 2, 3, 4, 7 | **none** |
 
-Три імені для однієї речі й чотири прогалини. Це **єдине**, що заважає оцінювачеві працювати
-з усіма етапами однаково.
+Three names for one thing and four gaps. This is the **only** thing keeping the evaluator from
+working with every stage the same way.
 
-**Перша редакція цієї таблиці була неправильною, і саме тому перелік тепер обчислюється.**
-Вона називала чотири поля й дві прогалини: зараховувала `phase` етапу 4 за ключ прогону й
-пропускала етап 7, хоча блок вимірів вище перелічує його кроки — `first_audio`, `prefetch`,
-`speak`, `stt`, `think`, `total`, — і жоден із них прогону не називає.
+**The first version of this table was wrong, and that is exactly why the list is now computed.**
+It named four fields and two gaps: it counted stage 4's `phase` as a run key and skipped stage 7,
+even though the measurement block above lists its steps — `first_audio`, `prefetch`, `speak`,
+`stt`, `think`, `total` — and not one of them names a run.
 
-`phase` етапу 4 — це фаза **відмови** (`startup`, `parse`), яку ставить `describe_failure`;
-на щасливому шляху вона `None`. Поле, що зʼявляється лише коли щось зламалось, не може
-розрізняти прогони — воно розрізняє поломки.
+Stage 4's `phase` is the phase of a **failure** (`startup`, `parse`), set by `describe_failure`;
+on the happy path it is `None`. A field that appears only when something broke cannot tell runs
+apart — it tells breakages apart.
 
-Урок ширший за таблицю: ADR, який називає число, мусить назвати й **спосіб його отримати**.
-Тут спосіб є — `trajectory.survey_run_keys()` розбирає виклики трасувальника в джерелах, а
-перевірка етапу звіряє його результат із прозою уроку. Число, що описує брак вимірювання, не
-сміє саме бути здогадом.
+The lesson is wider than the table: an ADR that names a number must also name **the way to get
+it**. Here the way exists — `trajectory.survey_run_keys()` parses the tracer calls in the sources,
+and the stage check compares its result against the lesson's prose. A number describing a lack of
+measurement must not itself be a guess.
 
-**2. Сервіс етапу 6 записує рішення, але не роботу.**
+**2. The stage 6 service records decisions but not work.**
 
-Траєкторія запиту — `received · guard · intent · memory · done · remember`. Виклику моделі у
-трейсі **немає жодного**. Оцінювач бачить, яку гілку обрано й що взято з памʼяті, і не бачить,
-скільки коштував виклик, скільки токенів витрачено й чи він узагалі стався.
+A request's trajectory is `received · guard · intent · memory · done · remember`. There is **not a
+single** model call in the trace. The evaluator sees which branch was taken and what was taken
+from memory, and does not see what the call cost, how many tokens it spent, or whether it happened
+at all.
 
-Компонентний рівень на цих трейсах структурно сліпий щодо моделі — і саме тому AC-03d
-вимагає стану **«не оцінено»**, а не «пройдено»: відсутність даних не є успіхом.
+On these traces the component level is structurally blind to the model — and that is exactly why
+AC-03d requires the **"unscored"** state rather than "passed": missing data is not a success.
 
-**3. Кроки етапів 2 і 5 **є** — просто не там, де їх шукали.**
+**3. The steps of stages 2 and 5 **are** there — just not where they were looked for.**
 
-`adr/0005` етапу 6 казав, що етапи 2 і 5 «не пишуть у трейс жодного кроку». Це правда для
-**сервісу**: у ньому пам'ять трасує сам сервіс (`memory`), а пошуку немає взагалі, бо гілки
-RAG у тому шляху немає. У **власних** демо обидва етапи трасують докладно: `search`,
-`threshold`, `chunking`, `grounded` у другого; `memory` з `taken`/`skipped`/`retired` у
-пʼятого.
+Stage 6's `adr/0005` said that stages 2 and 5 "write not a single step into the trace". That is
+true for the **service**: there memory is traced by the service itself (`memory`), and there is no
+search at all, because that path has no RAG branch. In their **own** demos both stages trace in
+detail: `search`, `threshold`, `chunking`, `grounded` for the second; `memory` with
+`taken`/`skipped`/`retired` for the fifth.
 
-Тобто протягувати трейсер усередину етапів 2 і 5 **не потрібно**. Потрібне інше.
+So threading a tracer into stages 2 and 5 is **not needed**. Something else is.
 
 ## Decision
 
-**Вимога оцінювача до трейсу — рівно одна:**
+**The evaluator has exactly one requirement of the trace:**
 
-> Кожен крок має нести **ключ прогону** — одне поле з одним іменем, що каже, до якої
-> траєкторії він належить. Не `scenario`, не `phase`, не `scene`, не `trace_ref`, а одне
-> спільне імʼя, яке проставляє `shared/trace.py`, а не кожен етап на свій смак.
+> Every step must carry a **run key** — one field with one name, saying which trajectory it
+> belongs to. Not `scenario`, not `phase`, not `scene`, not `trace_ref`, but one shared name set
+> by `shared/trace.py` rather than by each stage to its own taste.
 
-Друга вимога — **необовʼязкова, названа як бажана**: сервісу варто трасувати виклик моделі
-так само, як це робить етап 1 (`llm_call` із токенами). Без цього компонентний рівень на
-трейсах сервісу лишається в стані «не оцінено» — що чесно, але менш корисно.
+The second requirement is **optional, named as desirable**: the service ought to trace the model
+call the way stage 1 does (`llm_call` with tokens). Without it the component level on the
+service's traces stays in the "unscored" state — which is honest, but less useful.
 
-**Зміна робиться не тут.** Правка `shared/trace.py` зачіпає всі сім етапів і порушила б
-обмеження C-2 цього етапу. Вона належить етапу 10, який етапи й так перезбирає. Вимога
-записана, виміряна й адресована; питання стоїть у §8 специфікації з власником і терміном.
+**The change is not made here.** Editing `shared/trace.py` touches all seven stages and would
+break this stage's constraint C-2. It belongs to stage 10, which reassembles the stages anyway.
+The requirement is written down, measured and addressed; the question stands in §8 of the spec
+with an owner and a due date.
 
 ## Consequences
 
-**Добре.** Обіцянка, дана двічі, виконана з числами. Наступний, хто торкнеться
-`shared/trace.py`, знає **що саме** додати й **навіщо** — а не «оцінюванню щось потрібно».
+**Good.** A promise given twice is kept with numbers. The next person to touch `shared/trace.py`
+knows **what exactly** to add and **why** — rather than "evaluation needs something".
 
-**Ціна.** До етапу 10 оцінювач працює з чотирма ключами замість одного: `trajectory.py`
-приймає ключ параметром (ADR-0001). Це не обхід — це правильна форма, доки джерела
-розходяться, і вона лишиться корисною, коли зʼявиться восьме джерело.
+**The price.** Until stage 10 the evaluator works with four keys instead of one: `trajectory.py`
+takes the key as a parameter (ADR-0001). That is not a workaround — it is the right shape while
+the sources disagree, and it will stay useful when an eighth source appears.
 
-**Що НЕ вирішено.** Чи потрібен спільний словник **видів** кроків (`tool_call` проти
-`mcp_call`). Оцінювач із цим живе: компонентний рівень приймає перелік видів параметром. Якщо
-етап 10 виявить, що це заважає, він матиме власний вимір; вигадувати словник під уявну
-потребу — та сама помилка, від якої застерігав етап 6.
+**What is NOT decided.** Whether a shared vocabulary of step **kinds** is needed (`tool_call`
+against `mcp_call`). The evaluator lives with that: the component level takes the list of kinds as
+a parameter. If stage 10 finds that it gets in the way, it will have a measurement of its own;
+inventing a vocabulary for an imagined need is the same mistake stage 6 warned against.
 
-## Альтернативи
+## Alternatives considered
 
-**Протягнути `tracer=None` в етапи 2 і 5.** Саме те, що етап 6 відклав. Виміряно: **не
-потрібно** — обидва етапи трасують у своїх демо докладно, а в сервісі їхніх гілок немає.
-Правка додала б параметр без споживача.
+**Thread `tracer=None` into stages 2 and 5.** Exactly what stage 6 deferred. Measured: **not
+needed** — both stages trace in detail in their own demos, and the service has no branch of
+theirs. The edit would add a parameter with no consumer.
 
-**Мовчки жити з чотирма ключами.** Працює й лишає борг непроголошеним. Дві обіцянки згасли б
-тихо — рівно те, чого `adr/0008` етапу 6 просив не робити: «Обіцянки в коді треба або
-виконати, або перенести з назвою нового етапу».
+**Live with four keys in silence.** It works and leaves the debt unannounced. Two promises would
+fade out quietly — precisely what stage 6's `adr/0008` asked not to do: "A promise in the code
+must either be kept or moved with the name of the new stage".
 
-**Змінити `shared/trace.py` тут.** Порушує C-2 і зачіпає сім етапів заради восьмого. Крім
-того, зміна без споживача, який її вимагає, — це знову проєктування під уявного споживача,
-тільки з іншого боку.
+**Change `shared/trace.py` here.** Breaks C-2 and touches seven stages for the sake of an eighth.
+Besides, a change with no consumer demanding it is designing for an imaginary consumer again, only
+from the other side.

@@ -1,6 +1,6 @@
 ---
 id: T3
-title: "База знань NovaShop із метаданими рівня доступу"
+title: "The NovaShop knowledge base with access-level metadata"
 layer: "domain"
 deps: []
 acs: ["AC-01", "AC-05"]
@@ -10,26 +10,26 @@ estimate: "S"
 status: "todo"
 ---
 
-# T3 — База знань NovaShop із метаданими рівня доступу
+# T3 — The NovaShop knowledge base with access-level metadata
 
 ## Why
 
-Фікстура й предмет уроку одночасно: на ній видно і роботу пошуку, і те, чому фільтр доступу обов'язковий ([spec §6.1](../spec.md)).
+A fixture and a subject of the lesson at once: it shows both how the search works and why the access filter is mandatory ([spec §6.1](../spec.md)).
 
 ## What
 
-Файли політик і описів товарів NovaShop із познакою рівня доступу у власних метаданих. Обов'язково: документ про політику повернень (ціль AC-01), один **внутрішній** документ, змістовно близький до питання покупця (AC-05), один порожній і один надто короткий (AC-08b).
+NovaShop policy and product-description files with an access-level flag in their own metadata. Mandatory: a document about the returns policy (the target of AC-01), one **internal** document that is close in meaning to a shopper's question (AC-05), one empty and one too short (AC-08b).
 
 ## Definition of Done
 
-- [ ] Є документ про повернення, який має знайтися за дослівним питанням
-- [ ] Є внутрішній документ, найближчий за змістом до питання покупця
-- [ ] Є порожній і надто короткий файли для перевірки стійкості індексації
-- [ ] Кожен документ несе рівень доступу в метаданих
-- [ ] Жодних персональних даних (spec §6.1)
+- [ ] There is a returns document that has to be found by a literal question
+- [ ] There is an internal document that is the closest in meaning to a shopper's question
+- [ ] There are an empty and a too-short file for checking the robustness of indexing
+- [ ] Every document carries its access level in its metadata
+- [ ] No personal data at all (spec §6.1)
 
 ## Notes
 
-Внутрішній документ має бути справді найближчим — інакше AC-05 перевіряє випадковість, а не фільтр.
+The internal document has to be genuinely the closest — otherwise AC-05 checks a coincidence rather than the filter.
 
-Блокується: —
+Blocked by: —

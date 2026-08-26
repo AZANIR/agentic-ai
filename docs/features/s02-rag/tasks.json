@@ -3,33 +3,33 @@
   "tasks": [
     {
       "id": "T1",
-      "title": "Адаптер ембеддингів у спільному шарі: hash | fastembed | openai",
+      "title": "An embeddings adapter in the shared layer: hash | fastembed | openai",
       "layer": "infra",
       "deps": [],
       "acs": [
         "AC-06"
       ],
-      "dod": "Хеш-ембеддер детермінований: той самий текст дає той самий вектор між процесами",
+      "dod": "The hash embedder is deterministic: the same text gives the same vector across processes",
       "files_hint": [
         "shared/embeddings.py"
       ]
     },
     {
       "id": "T2",
-      "title": "Нарізка документів на фрагменти",
+      "title": "Chunking documents into fragments",
       "layer": "domain",
       "deps": [],
       "acs": [
         "AC-03"
       ],
-      "dod": "Фрагменти покривають увесь текст без втрат",
+      "dod": "The fragments cover the whole text with nothing lost",
       "files_hint": [
         "stages/s02_rag/chunk.py"
       ]
     },
     {
       "id": "T3",
-      "title": "База знань NovaShop із метаданими рівня доступу",
+      "title": "The NovaShop knowledge base with access-level metadata",
       "layer": "domain",
       "deps": [],
       "acs": [
@@ -38,14 +38,14 @@
         "AC-01b",
         "AC-05b"
       ],
-      "dod": "Є документ про повернення, який має знайтися за дослівним питанням",
+      "dod": "There is a document about returns that a literal question must find",
       "files_hint": [
         "stages/s02_rag/data/"
       ]
     },
     {
       "id": "T4",
-      "title": "Індекс, косинус, top-k, поріг і фільтр доступу",
+      "title": "The index, cosine, top-k, the threshold and the access filter",
       "layer": "app",
       "deps": [
         "T1",
@@ -58,14 +58,14 @@
         "AC-05",
         "AC-08b"
       ],
-      "dod": "Дослівне питання дає топ-1 = документ про повернення, з видимими оцінками",
+      "dod": "A literal question gives top-1 = the document about returns, with the scores visible",
       "files_hint": [
         "stages/s02_rag/store.py"
       ]
     },
     {
       "id": "T5",
-      "title": "Складання відповіді з джерелом, яке додає система",
+      "title": "Composing an answer with a source the system attaches",
       "layer": "app",
       "deps": [
         "T4"
@@ -75,14 +75,14 @@
         "AC-04",
         "AC-02b"
       ],
-      "dod": "Кожна видана відповідь несе джерело з переліку знайденого",
+      "dod": "Every answer given carries a source from the list of what was found",
       "files_hint": [
         "stages/s02_rag/answer.py"
       ]
     },
     {
       "id": "T6",
-      "title": "Інструмент пошуку для реєстру агента з етапу 1",
+      "title": "A search tool for the stage 1 agent's registry",
       "layer": "ports",
       "deps": [
         "T4",
@@ -91,14 +91,14 @@
       "acs": [
         "AC-09"
       ],
-      "dod": "Агент з етапу 1 сам обирає цей інструмент на питання про політику",
+      "dod": "The stage 1 agent chooses that tool itself on a question about the policy",
       "files_hint": [
         "stages/s02_rag/tools.py"
       ]
     },
     {
       "id": "T7",
-      "title": "Демо: пошук, поріг, нарізка й фільтр доступу поруч",
+      "title": "Demo: search, the threshold, chunking and the access filter side by side",
       "layer": "ports",
       "deps": [
         "T5",
@@ -110,14 +110,14 @@
         "AC-04",
         "AC-05"
       ],
-      "dod": "Запуск без ключа успішний, без мережевих звернень",
+      "dod": "A run with no key succeeds, with no network access",
       "files_hint": [
         "stages/s02_rag/run.py"
       ]
     },
     {
       "id": "T8",
-      "title": "Перевірки етапу за таблицею покриття",
+      "title": "Stage checks against the coverage table",
       "layer": "tests",
       "deps": [
         "T4",
@@ -136,27 +136,27 @@
         "AC-09",
         "AC-08b"
       ],
-      "dod": "Тринадцять перевірок відповідають тринадцяти рядкам таблиці покриття",
+      "dod": "Thirteen checks match the thirteen rows of the coverage table",
       "files_hint": [
         "stages/s02_rag/check.py"
       ]
     },
     {
       "id": "T9",
-      "title": "DECISION.md — чекліст «RAG чи fine-tuning»",
+      "title": "DECISION.md — the \"RAG or fine-tuning\" checklist",
       "layer": "docs",
       "deps": [],
       "acs": [
         "AC-07"
       ],
-      "dod": "Шість ситуацій, для кожної рівно одна відповідь",
+      "dod": "Six situations, exactly one answer for each",
       "files_hint": [
         "stages/s02_rag/DECISION.md"
       ]
     },
     {
       "id": "T10",
-      "title": "Урок етапу: канон, міст на NovaShop, межі",
+      "title": "The stage lesson: the canon, the bridge to NovaShop, the boundaries",
       "layer": "docs",
       "deps": [
         "T7",
@@ -167,7 +167,7 @@
         "AC-01",
         "AC-02"
       ],
-      "dod": "Урок ≤ 2500 слів (spec §6)",
+      "dod": "The lesson is ≤ 2500 words (spec §6)",
       "files_hint": [
         "stages/s02_rag/README.md",
         "stages/s02_rag/README.en.md"
@@ -175,7 +175,7 @@
     },
     {
       "id": "T11",
-      "title": "Вправи, еталонні розв'язки й чекліст",
+      "title": "Exercises, reference solutions and the checklist",
       "layer": "docs",
       "deps": [
         "T10"
@@ -185,7 +185,7 @@
         "AC-04",
         "AC-05"
       ],
-      "dod": "Чотири завдання з явним очікуваним результатом",
+      "dod": "Four exercises with an explicit expected result",
       "files_hint": [
         "stages/s02_rag/exercises.md",
         "stages/s02_rag/solutions/",
@@ -194,13 +194,13 @@
     },
     {
       "id": "T12",
-      "title": "Терміни етапу в глосарій, статус у програму",
+      "title": "The stage's terms into the glossary, the status into the curriculum",
       "layer": "docs",
       "deps": [
         "T10"
       ],
       "acs": [],
-      "dod": "Кожен виділений термін уроку має визначення в глосарії",
+      "dod": "Every term highlighted in the lesson has a definition in the glossary",
       "files_hint": [
         "GLOSSARY.md",
         "CURRICULUM.md",

@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-25"
 feature_size: "L"
 ticket: "n/a"
 ---
 
-# 0008 — Голос свідомо не ввімкнений, і це назване
+# 0008 — Voice is deliberately not wired in, and that is stated
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -15,43 +15,45 @@ ticket: "n/a"
 
 ## Context
 
-Етап 7 зробив голосовий конвеєр і живий режим. Дизайн-специфікація курсу називає голос
-«опційним адаптером» капстоуна.
+Stage 7 built a voice pipeline and a live mode. The course design specification calls voice an
+"optional adapter" of the capstone.
 
-Питання просте: вмикати чи ні. І в нього є третій варіант, гірший за обидва, — **не вмикати й
-не сказати про це**.
+The question is simple: wire it in or not. And it has a third answer, worse than either — **not
+wiring it in and not saying so**.
 
 ## Decision Drivers
 
-- Кожна частина в таблиці складання має давати ненульове число (ADR-0001). Голос, увімкнений
-  формально, дав би нуль і червонив би перевірку — правильно.
-- Реальне вмикання тягне гігабайти ваг і робить етап непрохідним на голій установці.
-- Пропуск без згадки виглядає як забутий етап.
+- Every part in the assembly table has to produce a non-zero number (ADR-0001). Voice wired in
+  formally would produce a zero and would redden the check — correctly.
+- Wiring it in for real drags in gigabytes of weights and makes the stage impassable on a bare
+  installation.
+- Skipping it without a word looks like a forgotten stage.
 
 ## Considered Options
 
-**А. Увімкнути по-справжньому.** Гігабайти залежностей заради висновку, якого етап 7 уже дійшов.
+**A. Wire it in for real.** Gigabytes of dependencies for a conclusion stage 7 has already reached.
 
-**Б. Увімкнути формально.** Нуль виконаних рядків — і чесна перевірка це червонить.
+**B. Wire it in formally.** Zero executed lines — and an honest check reddens that.
 
-**В. Не вмикати й **назвати** це рішенням із причиною.**
+**C. Do not wire it in, and **name** that as a decision with a reason.**
 
 ## Decision
 
-**В.** Голос стоїть у `ARCHITECTURE.md` в переліку **свідомо не ввімкнених** частин, із
-причиною: він не додає нового висновку, а додає залежність на гігабайти й робить етап
-непрохідним офлайн.
+**C.** Voice stands in `ARCHITECTURE.md` in the list of parts **deliberately not wired in**, with
+the reason: it adds no new conclusion, it adds a dependency of gigabytes, and it makes the stage
+impassable offline.
 
-Перелік «свідомо не ввімкнено» — окремий від переліку частин складання, і саме тому нуль
-виконаних рядків для голосу не є помилкою.
+The "deliberately not wired in" list is separate from the list of assembly parts, and that is
+exactly why zero executed lines for voice is not an error.
 
 ## Consequences
 
-**Добре.** Читач бачить різницю між «забули» і «вирішили не вмикати». Друге є архітектурним
-рішенням і має причину.
+**Good.** The reader sees the difference between "we forgot" and "we decided not to". The second is
+an architectural decision and it has a reason.
 
-**Ціна.** Капстоун збирає шість етапів із дев'яти: голос і MCP не ввімкнені за причинами
-вище, а етап 9 виявився приладом, а не частиною. Число менше за красиве — і чесне.
+**The price.** The capstone assembles six stages out of nine: voice and MCP are not wired in for
+the reasons above, and stage 9 turned out to be an instrument rather than a part. The number is
+smaller than a pretty one — and it is honest.
 
-**Межа.** Рішення діє для цього репозиторію й цієї установки. Читач із моделями на диску
-вмикає голос однією правкою, і перелік йому це прямо каже.
+**The limit.** The decision holds for this repository and this installation. A reader with the
+models on disk wires voice in with a single edit, and the list tells them so directly.

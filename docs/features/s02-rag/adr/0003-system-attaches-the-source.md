@@ -1,13 +1,13 @@
 ---
 status: Accepted
-owner: "Contributor (автор курсу)"
+owner: "Contributor (course author)"
 reviewers: ["Tech Lead"]
 updated_at: "2026-08-23"
 feature_size: "S"
 ticket: "n/a"
 ---
 
-# 0003 — Додавати джерело системою, а не просити цитувати модель
+# 0003 — Attach the source with the system rather than asking the model to cite
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -15,58 +15,60 @@ ticket: "n/a"
 
 ## Context
 
-AC-02 вимагає, щоб кожна видана відповідь називала документ, з якого зібрана. Питання не в
-тому, чи цитувати, а **хто це робить**: модель за інструкцією в промпті чи система з переліку
-фрагментів, які сама ж і знайшла.
+AC-02 requires every answer issued to name the document it was assembled from. The question is not
+whether to cite but **who does it**: the model, following an instruction in the prompt, or the
+system, from the list of fragments it found itself.
 
 ## Decision drivers
 
-- Квальгол №2: негрунтована відповідь не має існувати як стан, а не «має траплятися рідко».
-- Перевірка має стверджувати властивість, а не спостерігати частоту.
-- Патерн успадковує етап 10, де за відповіддю стоїть реальний клієнт.
+- Quality goal №2: an ungrounded answer must not exist as a state, not "must happen rarely".
+- The check has to assert a property, not observe a frequency.
+- The pattern is inherited by stage 10, where a real client stands behind the answer.
 
 ## Considered options
 
-1. **Система додає джерело** з переліку знайдених фрагментів після генерації.
-2. **Модель цитує за інструкцією** — у промпті сказано називати джерело.
-3. **Модель цитує, система перевіряє** — згенеровану цитату звіряють із переліком знайденого
-   й відхиляють відповідь, якщо не збігається.
+1. **The system attaches the source** from the list of fragments found, after generation.
+2. **The model cites on instruction** — the prompt tells it to name the source.
+3. **The model cites, the system verifies** — the generated citation is reconciled against the
+   list of what was found and the answer is rejected if it does not match.
 
 ## Decision outcome
 
 **Chosen:** Option 1.
 
-Варіант 2 відпадає з однієї причини: **вигадане посилання виглядає точно так само, як
-справжнє**. Модель, яку попросили цитувати, іноді назве документ, якого не було у видачі, —
-і система, що їй довіряє, видасть це користувачеві. Тобто цитата, введена саме для того,
-щоб відрізнити обґрунтовану відповідь від вигаданої, сама стає вигаданою.
+Option 2 falls for one reason: **an invented reference looks exactly like a real one**. A model
+asked to cite will sometimes name a document that was not in the results — and a system that
+trusts it will hand that to the user. That is, the citation introduced precisely to tell a
+grounded answer from an invented one itself becomes invented.
 
-Варіант 3 усуває цю ваду й коштує додаткового кола: коли звірка не збігається, відповідь
-треба перегенерувати. На етапі 2 це складність без нової науки. Він стає доречним там, де
-цитата має вказувати на конкретне речення, а не на документ — і це тема пізніше.
+Option 3 removes that flaw and costs an extra round trip: when the reconciliation does not match,
+the answer has to be regenerated. At stage 2 that is complexity with no new lesson in it. It
+becomes appropriate where the citation has to point at a specific sentence rather than at a
+document — and that is a topic for later.
 
-Наслідок варіанта 1 варто назвати прямо: **джерело гарантовано існує, але не гарантує, що
-відповідь справді з нього випливає.** Модель отримала фрагмент і могла відповісти повз нього.
-Урок мусить це сказати: етап 2 закриває «джерело є», а «відповідь відповідає джерелу» —
-задача вимірювання, тобто етап 8.
+The consequence of option 1 is worth naming outright: **the source is guaranteed to exist, but it
+does not guarantee that the answer actually follows from it.** The model received the fragment and
+could have answered right past it. The lesson has to say so: stage 2 closes "there is a source",
+while "the answer matches the source" is a question of measurement, that is, stage 8.
 
 ## Consequences
 
 **Positive**
-- 100% відповідей із джерелом **за побудовою**, а не за спостереженням.
-- Перевірка стверджує властивість трьома рядками, без LLM-судді.
-- Неможливо отримати посилання на документ, якого не було у видачі.
+- 100% of answers carry a source **by construction**, not by observation.
+- The check asserts the property in three lines, with no LLM judge.
+- It is impossible to get a reference to a document that was not in the results.
 
 **Negative**
-- Джерело може не відповідати змісту відповіді, якщо модель відповіла повз наданий фрагмент.
-  Це справжня межа, і урок називає її прямо.
-- Формат цитати фіксований системою — модель не може вбудувати посилання в текст природно.
+- The source may not match the content of the answer, if the model answered past the fragment it
+  was given. That is a real boundary, and the lesson names it outright.
+- The citation format is fixed by the system — the model cannot weave a reference into the text
+  naturally.
 
 **Neutral**
-- Перехід на варіант 3 — це додати звірку після генерації; інтерфейс не змінюється.
+- Moving to option 3 means adding a reconciliation after generation; the interface does not change.
 
 ## Links
 
-- Спека: [[../spec.md]] AC-02, AC-04, §7
+- Spec: [[../spec.md]] AC-02, AC-04, §7
 - SAD: [[../sad.md]] §4, §8, §11
-- Пов'язані ADR: [[0002-filter-by-access-level-before-top-k]]
+- Related ADRs: [[0002-filter-by-access-level-before-top-k]]
