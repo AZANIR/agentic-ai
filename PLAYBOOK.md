@@ -272,142 +272,148 @@ fired.
 permitted thing arrived". These are different claims, and covering one gives a false sense that
 both are covered.
 
-### Видимість дефекту може залежати від параметра, який до дефекту стосунку не має
+### Whether a defect is visible can depend on a parameter unrelated to it
 
-Та сама вада з фільтром **не проявляється взагалі** при `top_k=3`: правильна відповідь ще
-влазить у трійку разом із двома внутрішніми фрагментами, і обидва порядки дають однакову
-видачу. При `top_k=2` видача стає порожньою. Код зламаний однаково; змінюється лише те, чи це
-видно — і вирішує це параметр, який до контролю доступу не належить.
+That same filter defect **does not show at all** at `top_k=3`: the right answer still fits into
+the three alongside two internal fragments, and both orderings give the same result. At
+`top_k=2` the result becomes empty. The code is equally broken either way; only its visibility
+changes, and that is decided by a parameter that has nothing to do with access control.
 
-Перевірка, написана «як у продакшні» (з `top_k=3`), була б зеленою на зламаному коді.
+A check written "like production" (with `top_k=3`) would be green on broken code.
 
-**Правило:** параметр у перевірці, підібраний так, щоб властивість стала спостережною, — не
-штучність, а частина доказу. Записувати **чому саме це значення** там, де стоїть перевірка,
-інакше наступний рефакторинг «підправить під продакшн» і мовчки знеструмить її.
+**Rule:** a parameter chosen in a check so that the property becomes observable is not
+artificial — it is part of the proof. Write down **why that value** next to the check, or the
+next refactor will "align it with production" and silently switch it off.
 
-### Ассерт із правильним вердиктом і слабким твердженням
+### An assertion with the right verdict and a weak claim
 
-Перша версія перевірки форми інструмента писала `"query" in params["properties"]`. Мутація,
-що додає `access` у схему — тобто рівно те, від чого ця перевірка мала захищати, — проходила
-її наскрізь. Зелена перевірка, зламана властивість.
+The first version of the tool-shape check said `"query" in params["properties"]`. A mutation
+adding `access` to the schema — precisely what the check was meant to guard against — passed
+straight through it. A green check over a broken property.
 
-**Правило:** для властивості «рівно оце й нічого більше» ассерт має бути `list(...) == [...]`,
-а не `x in ...`. «Серед іншого є» і «тільки» — різні твердження.
+**Rule:** for a property of the form "exactly this and nothing else", the assertion is
+`list(...) == [...]`, not `x in ...`. "Is among them" and "is only" are different claims.
 
-### Мутаційний прогін може отруїти байткод-кеш
+### A mutation run can poison the bytecode cache
 
-Заміна `0.2` на `0.0` і повернення назад **за ту саму секунду** лишає чинним старий `.pyc`:
-Python звіряє час зміни з точністю до секунди й розмір файлу, а вони збіглися. Перевірка
-падала на вже поверненому коді, і хвилина пішла на пошук неіснуючого баґа.
+Replacing `0.2` with `0.0` and putting it back **within the same second** leaves the old `.pyc`
+valid: Python compares the modification time to one-second precision along with the file size,
+and both matched. The check failed on already-restored code, and a minute went into hunting a
+bug that did not exist.
 
-**Правило:** мутаційний харнес чистить `__pycache__` після відкату. Те саме попередження —
-у `exercises.md` кожного етапу, бо читач робить рівно ці мутації.
+**Rule:** the mutation harness clears `__pycache__` after a rollback. The same warning goes into
+every stage's `exercises.md`, because the reader performs exactly these mutations.
 
-### Ruff ловить несумісність із підлогою версій, якої локальний прогін не бачить
+### Ruff catches incompatibility with the version floor that a local run cannot see
 
-`f"...{list(params["properties"])}"` — вкладені однакові лапки в f-string дозволені з Python
-3.12. Локально стоїть 3.14, тому все працювало; підлога репозиторію `>=3.11`, і матриця CI
-містить 3.11. Впало б у CI, не в мене.
+`f"...{list(params["properties"])}"` — nested identical quotes inside an f-string are allowed
+from Python 3.12. Locally 3.14 is installed, so everything worked; the repository floor is
+`>=3.11` and the CI matrix includes 3.11. It would have failed in CI, not here.
 
-**Правило:** `ruff check` — не косметика й не про стиль. Ганяти його перед кожним комітом, а не
-перед пушем.
+**Rule:** `ruff check` is neither cosmetic nor about style. Run it before every commit, not
+before the push.
 
-### Мутаційний харнес мусить доводити, що набір узагалі запустився
+### A mutation harness has to prove the suite ran at all
 
-Етап 2. Мутація зламала синтаксис файлу — і харнес відрапортував **«0 червоних»** для всіх
-шести мутацій підряд. Він шукав рядки `FAIL` у виводі; коли модуль не імпортується, таких
-рядків немає жодного, і «нічого не впало» невідрізненне від «усе гаразд».
+Stage 2. A mutation broke the file's syntax — and the harness reported **"0 red"** for six
+mutations in a row. It was looking for `FAIL` lines in the output; when a module does not
+import there are none, and "nothing failed" is indistinguishable from "all is well".
 
-Тобто інструмент, яким перевіряють, чи не бреше перевірка, збрехав рівно тим самим способом.
+Which means the tool used to check whether a test lies had lied in exactly the same way.
 
-**Правило:** харнес рахує, **скільки перевірок виконалось**, і кричить, якщо їх менше, ніж
-має бути. Без цього «мутація не спіймана» і «мутація зламала збірку» — той самий вивід.
+**Rule:** the harness counts **how many checks executed** and shouts when there are fewer than
+there should be. Without that, "the mutation was not caught" and "the mutation broke the build"
+produce the same output.
 
-### Правка через `sed` із `\n` у заміні вставляє справжній перенос рядка
+### An edit through `sed` with `\n` in the replacement inserts a real newline
 
-Те саме тричі за етап: `\n` усередині Python-рядка, написаного всередині bash-рядка,
-обробляється двічі й доїжджає до файлу переносом. Найдорожчий випадок зламав f-string
-і запустив попередній урок.
+The same thing three times in one stage: `\n` inside a Python string written inside a bash
+string is processed twice and arrives in the file as a line break. The most expensive instance
+broke an f-string and took down the previous lesson.
 
-**Правило:** для правок коду, що містять `\n`, — редагування за індексом рядка або окремий
-файл у скретчпаді, ніколи не текстова заміна через дві оболонки.
+**Rule:** for code edits containing `\n`, edit by line index or write a separate file in the
+scratchpad — never a text substitution passing through two shells.
 
-### Перевірка на витік мусить спершу ствердити, що прогін відбувся
+### A leak check has to first assert that the run happened
 
-Етап 3, третій випадок тієї самої форми за три етапи. Перевірка «текст запиту не підвищує
-рівень доступу» була зеленою на мутації, яка **ламала спеціаліста**: він падав, `safely()`
-це ловив, прогін завершувався збоєм — і нічого не витекло, бо не сталося нічого взагалі.
+Stage 3, the third instance of the same shape in three stages. The check "request text does not
+raise the access level" was green against a mutation that **broke the specialist**: it crashed,
+`safely()` caught it, the run finished as a failure — and nothing leaked, because nothing
+happened at all.
 
-Форма загальна: **«погане не сталося» істинне й тоді, коли не сталося нічого.** Збій, порожня
-видача, виняток, обірваний маршрут — усе це проходить перевірку на витік.
+The shape is general: **"the bad thing did not happen" is true when nothing happened.** A crash,
+an empty result, an exception, an abandoned route — all of them pass a leak check.
 
-**Правило:** перевірка на заборонене починається з твердження, що дозволене відбулося —
-`finish_reason == "answered"`, видача непорожня, крок виконано. Лише після цього має сенс
-питати, чи не витекло. Інакше найнадійніший спосіб пройти перевірку безпеки — зламати код.
+**Rule:** a check for something forbidden starts by asserting that the permitted thing occurred
+— `finish_reason == "answered"`, a non-empty result, the step executed. Only then does asking
+whether anything leaked mean something. Otherwise the most reliable way to pass a security check
+is to break the code.
 
-### Перевірка, що охороняє константу, не має ітерувати цю ж константу
+### A check guarding a constant must not iterate that same constant
 
-Етап 3. Перевірка незмінності `access` була написана так:
+Stage 3. The immutability check for `access` was written like this:
 
 ```python
 for name in sorted(FROZEN):
-    ...assert setattr впав...
+    ...assert setattr raised...
 ```
 
-Спорожни `FROZEN` — і тіло циклу не виконається жодного разу. Набір лишається **повністю
-зеленим**, доки двері стоять відчинені. Гірше: урок наказував читачеві саме цю мутацію
-(«прибери `FROZEN`»), а `exercises.md` — іншу (`if name in FROZEN:` → `if False:`), і та
-давала червоне. **Дві інструкції на ту саму вправу з протилежним результатом.**
+Empty `FROZEN` and the loop body never runs. The suite stays **entirely green** while the door
+stands open. Worse: the lesson told the reader to make exactly that mutation ("remove `FROZEN`")
+while `exercises.md` named a different one (`if name in FROZEN:` → `if False:`), and that one
+did go red. **Two instructions for the same exercise with opposite outcomes.**
 
-**Правило:** перевірка стверджує склад константи явно (`assert FROZEN == {...}`), а поведінку
-— за іменем поля, не через ітерацію того, що перевіряє. Інакше мутація «список порожній»
-проходить крізь перевірку, яка існує саме проти неї.
+**Rule:** the check asserts the constant's contents explicitly (`assert FROZEN == {...}`) and
+the behaviour by field name, not by iterating the very thing under test. Otherwise the mutation
+"the list is empty" passes through the check that exists against it.
 
-### «НЕ ПЕРЕВІРЕНО» мусить бути окремим станом, інакше зелений набір бреше
+### "NOT EVALUATED" has to be its own state, or a green suite lies
 
-Перевірка порівняння двох реалізацій робила `return`, коли необовʼязкова бібліотека не
-встановлена, — і мала вердикт `ok`. Тобто «збіглося» і «не перевіряли» друкувалися однаково.
-У CI бібліотека не ставилась ніколи, тож єдиний запобіжник проти розходження двох реалізацій
-не виконувався ніде, а пайплайн був зелений.
+The check comparing two implementations did a `return` when an optional library was missing —
+and reported `ok`. So "they matched" and "we did not look" printed identically. In CI the
+library was never installed, so the only guard against the two implementations diverging ran
+nowhere, and the pipeline was green.
 
-**Правило:** третій стан у раннері (`NotVerified`), окремий лічильник у підсумку — і окрема
-робота в CI, яка ставить extras і **падає**, якщо хоч щось лишилось невиконаним. Без другої
-половини перший стан просто задокументує, що нічого не перевіряється.
+**Rule:** a third state in the runner (`NotVerified`), its own counter in the summary — and a
+separate CI job that installs the extras and **fails** if anything is still unexecuted. Without
+the second half, the first state merely documents that nothing is being checked.
 
-### Мутація, що не компілюється, дає найпереконливіші хибні числа
+### A mutation that does not compile produces the most convincing false numbers
 
-Замір «вправа 3 → дев'ять червоних перевірок» був неправильний: мутація писала `access=PUBLIC`
-у модуль, де `PUBLIC` не імпортований. `NameError` ловився `safely()`, кожен запит ставав
-`specialist_failed`, і червоніло дев'ять перевірок замість трьох. Число виглядало солідно,
-розбір під ним пояснював зовсім інший механізм — і суперечив сам собі за два абзаци.
+The measurement "exercise 3 → nine red checks" was wrong: the mutation wrote `access=PUBLIC`
+into a module where `PUBLIC` was not imported. The `NameError` was caught by `safely()`, every
+request became `specialist_failed`, and nine checks went red instead of three. The number looked
+solid, and the explanation beneath it described an entirely different mechanism — contradicting
+itself two paragraphs later.
 
-**Правило:** мутаційний харнес перевіряє, що змінений файл **імпортується**, перш ніж рахувати
-червоне. Заміри для вправ робляться рівно тим текстом, який написано у вправі, і копіюються
-з прогону, а не переказуються.
+**Rule:** the mutation harness checks that the modified file **imports** before counting red.
+Measurements for exercises are taken with exactly the text written in the exercise, and copied
+from the run rather than paraphrased.
 
-### Мутаційний харнес — інструмент репозиторію, а не три рядки на місці
+### The mutation harness is a repository tool, not three lines written on the spot
 
-Ті три рядки писалися шість разів і підвели тричі, щоразу мовчки: старий `.pyc` після
-відкату за ту саму секунду; убитий прогін, що лишив файл зламаним; замір на мутації, яка
-не компілювалась. Тепер це `scripts/mutate.py` із відкотом у `finally`, маркером на диску
-й лічильником виконаних перевірок.
+Those three lines were written six times and failed three, silently each time: a stale `.pyc`
+after a rollback within the same second; a killed run that left the file broken; a measurement
+on a mutation that did not compile. It is now `scripts/mutate.py`, with the rollback in a
+`finally`, a marker on disk and a counter of executed checks.
 
-Головне в ньому — не зручність, а `--expect`: числа, обіцяні у вправах, лежать у
-`stages/<етап>/mutations.json`, і прогін **падає**, коли проза розійшлася з фактом.
+Its point is not convenience but `--expect`: the numbers promised in the exercises live in
+`stages/<stage>/mutations.json`, and the run **fails** when the prose and the fact have parted
+company.
 
-**Правило:** жодне число «стільки-то перевірок почервоніє» не пишеться в урок руками.
-Воно копіюється з прогону й закріплюється в `mutations.json`.
+**Rule:** no number of the form "this many checks will go red" is typed into a lesson by hand.
+It is copied from a run and pinned in `mutations.json`.
 
-### Лінтер може зробити інструкцію у вправі невиконуваною
+### A linter can make an exercise's instruction impossible to follow
 
-Вправа 3 наказувала написати `access=PUBLIC` — а `ruff --fix` прибрав цей імпорт як
-невикористаний, бо ним ніщо не користувалось. Читач, який виконав інструкцію дослівно,
-отримував `NameError`, який ловився `safely()`, і бачив десять червоних перевірок замість
-трьох — усі з неправильної причини.
+Exercise 3 told the reader to write `access=PUBLIC` — and `ruff --fix` removed that import as
+unused, because nothing was using it. A reader who followed the instruction literally got a
+`NameError`, which `safely()` caught, and saw ten red checks instead of three — all for the
+wrong reason.
 
-**Правило:** мутація у вправі не має потребувати нічого, чого немає у файлі. Літерал
-(`access="public"`) замість константи; і `--expect` це ловить, бо міряє рівно той текст,
-який написано у вправі.
+**Rule:** a mutation in an exercise must not need anything the file does not already have. A
+literal (`access="public"`) instead of a constant; and `--expect` catches this, because it
+measures exactly the text written in the exercise.
 
 ### Локальний venv — не CI, і різниця не видна доти, доки не запушиш
 
