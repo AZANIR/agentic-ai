@@ -1,98 +1,103 @@
-# Playbook — як робиться етап
+# Playbook — how a stage gets made
 
-Робочий документ. Тут зафіксовано **як саме** будується етап курсу: послідовність, гейти,
-критерії й уроки, які вже коштували нам помилок. Мета проста — щоб етап 2 не довелося
-винаходити заново, а етап 7 не повторив помилок етапу 1.
+A working document. It records **exactly how** a stage of the course is built: the sequence,
+the gates, the criteria, and the lessons that have already cost us mistakes. The goal is
+simple — so that stage 2 does not have to be reinvented, and stage 7 does not repeat stage 1's
+mistakes.
 
-[CONVENTIONS.md](CONVENTIONS.md) каже, **як писати код**. Цей файл каже, **як довести етап до
-готовності**.
+[CONVENTIONS.md](CONVENTIONS.md) says **how to write the code**. This file says **how to drive
+a stage to done**.
 
-> Джерело чисел: етап 1, пройдений повністю, включно з незалежним рев'ю.
-> Протокол: [`_review/review-2026-08-23.md`](docs/features/s01-agent-loop/_review/review-2026-08-23.md).
+> Where the numbers come from: stage 1, taken all the way through, independent review included.
+> The record: [`_review/review-2026-08-23.md`](docs/features/s01-agent-loop/_review/review-2026-08-23.md).
 
 ---
 
-## 1. Конвеєр етапу
+## 1. The stage pipeline
 
-Дев'ять кроків. Пропускати можна тільки те, що явно позначене як пропускне.
+Nine steps. Only the ones explicitly marked skippable may be skipped.
 
-| # | Крок | Команда | Артефакт |
+| # | Step | Command | Artefact |
 |---|---|---|---|
-| 1 | Специфікація | `/sdd:specify sNN-slug` | `spec.md`, `.size`, `.route` |
-| 2 | Прояснення | `/sdd:clarify sNN-slug` | оновлений `spec.md` |
-| 3 | Архітектура | `/sdd:design sNN-slug --depth=easy` | `sad.md`, `adr/*.md` |
-| 4 | План тестів | `/sdd:plan-tests sNN-slug` | `## Test plan` інлайн у `spec.md` |
-| 5 | Задачі | `/sdd:tasks sNN-slug` | `tasks.json`, `tasks/`, `tracker.md` |
-| 6 | Реалізація | `/sdd:implement sNN-slug` | код + перевірки + коміти |
-| 7 | **Рев'ю** | `/sdd:review sNN-slug` | `_review/review-YYYY-MM-DD.md` |
-| 8 | Виправлення | — | закриті MAJOR, відкладені MINOR у §8 |
-| 9 | Тег + стаття | `git tag stage-NN` | тег, `sources/artstroy/{slug}/index.mdx` |
+| 1 | Specification | `/sdd:specify sNN-slug` | `spec.md`, `.size`, `.route` |
+| 2 | Clarification | `/sdd:clarify sNN-slug` | an updated `spec.md` |
+| 3 | Architecture | `/sdd:design sNN-slug --depth=easy` | `sad.md`, `adr/*.md` |
+| 4 | Test plan | `/sdd:plan-tests sNN-slug` | `## Test plan` inline in `spec.md` |
+| 5 | Tasks | `/sdd:tasks sNN-slug` | `tasks.json`, `tasks/`, `tracker.md` |
+| 6 | Implementation | `/sdd:implement sNN-slug` | code + checks + commits |
+| 7 | **Review** | `/sdd:review sNN-slug` | `_review/review-YYYY-MM-DD.md` |
+| 8 | Fixes | — | MAJORs closed, MINORs deferred into §8 |
+| 9 | Tag + article | `git tag stage-NN` | the tag, `sources/artstroy/{slug}/index.mdx` |
 
-**Авто-пропуск на маршруті `quick`** (розмір XS/S) із зазначенням причини:
-`sequences` — якщо §6 SAD уже несе критичні потоки · `data-model` — якщо схема БД не
-змінюється · `api` — якщо контракту немає · `screens` — якщо в `target_surfaces` немає UI.
+**Auto-skips on the `quick` route** (size XS/S), each with its reason stated:
+`sequences` — when SAD §6 already carries the critical flows · `data-model` — when the schema
+does not change · `api` — when there is no contract · `screens` — when `target_surfaces` names
+no UI.
 
-**Що пропускати не можна ніколи:** крок 7. Причина — у §4.
+**What may never be skipped:** step 7. The reason is in §4.
 
-## 2. Реалістичний бюджет
+## 2. A realistic budget
 
-Заміряно на етапі 1 (розмір S).
+Measured on stage 1 (size S).
 
-| Фаза | Частка |
+| Phase | Share |
 |---|---|
-| Документи (кроки 1–5) | ~35% |
-| Код і перевірки (крок 6) | ~30% |
-| **Рев'ю і виправлення (7–8)** | **~25%** |
-| Стаття (крок 9) | ~10% |
+| Documents (steps 1–5) | ~35% |
+| Code and checks (step 6) | ~30% |
+| **Review and fixes (7–8)** | **~25%** |
+| Article (step 9) | ~10% |
 
-Планувати треба з розрахунку, що **код і тести — це приблизно половина роботи**. Друга
-половина — довести, що вони роблять те, що ти думаєш. На етапі 1 рев'ю знайшло 7 MAJOR **після**
-того, як усе було зелене й оголошене готовим.
+Plan on the basis that **code and tests are about half the work**. The other half is proving
+they do what you think they do. On stage 1 the review found seven MAJORs **after** everything
+was green and declared finished.
 
 ## 3. Definition of Done
 
-Етап завершено, коли виконано **всі** пункти. Не «код працює».
+A stage is finished when **every** item holds. Not "the code works".
 
-1. `README.md` (UA): що зможеш після етапу → канон зі статті-джерела → міст на NovaShop → що зламати.
-2. `README.md` — один екран.
-3. `python -m stages.sNN_slug.run` працює **без API-ключа**.
-4. `python -m stages.sNN_slug.check` зелений офлайн; серед перевірок ≥1 на **режим відмови**.
-5. `exercises.md` (3–5 завдань з очікуваним результатом) + `solutions/` + `CHECKLIST.md`.
-6. Нові терміни в [GLOSSARY.md](GLOSSARY.md).
-7. Статус оновлено в [CURRICULUM.md](CURRICULUM.md) і обох README.
-8. **Рев'ю пройдено, усі MAJOR закриті**, MINOR відкладені з власником і терміном.
-9. Тег `stage-NN` створено й запушено; стаття написана й посилається на тег.
+1. `README.md`: what you will be able to do after the stage → the canonical idea → the bridge
+   to NovaShop → what to break.
+2. `README.md` opens with an orientation block that fits one screen.
+3. `python -m stages.sNN_slug.run` works **with no API key**.
+4. `python -m stages.sNN_slug.check` is green offline; at least one check covers a **failure
+   mode**.
+5. `exercises.md` (3–5 tasks with expected results) + `solutions/` + `CHECKLIST.md`.
+6. New terms added to [GLOSSARY.md](GLOSSARY.md).
+7. Status updated in [CURRICULUM.md](CURRICULUM.md) and in the root README.
+8. **Review passed, every MAJOR closed**, MINORs deferred with an owner and a due date.
+9. Tag `stage-NN` created and pushed; the article written and linking to the tag.
 
-Етапи 6 і 10 додатково: `deploy/smoke.sh` проходить проти реального HTTPS-URL.
+Stages 6 and 10 additionally: `deploy/smoke.sh` passes against a real HTTPS URL.
 
-## 4. Гейт рев'ю — обов'язковий
+## 4. The review gate is mandatory
 
-**Два незалежні рев'юери в чистому контексті, паралельно.** Не один, і не той, хто писав код.
+**Two independent reviewers in clean context, in parallel.** Not one, and not whoever wrote the
+code.
 
-| Стадія | Що шукає |
+| Stage | What it looks for |
 |---|---|
-| 1 | Трасування US → AC → `file:line` коду → функція перевірки. Окремо: AC, **не заявлені** трейлерами `SDD-AC`. Перерахунок числових NFR власноруч |
-| 2 | Конвенції буквально, крайні випадки, безпека, чи є в тестів зуби, чи не суперечать навчальні тексти коду |
+| 1 | Tracing US → AC → `file:line` of code → the check function. Separately: ACs **not claimed** by the `SDD-AC` trailers. Recomputing every numeric NFR by hand |
+| 2 | Conventions taken literally, edge cases, security, whether the tests have teeth, whether the teaching text contradicts the code |
 
-### Чому саме двоє і чому не автор
+### Why two, and why not the author
 
-Автор перевіряє код проти **власної моделі того, що код має робити**. Якщо неправильний сам
-задум, зсередини це невидиме: тести писала та сама голова, і вони узгоджуються з кодом. Обидва
-неправильні разом.
+An author checks the code against **their own model of what the code should do**. If the idea
+itself is wrong, that is invisible from the inside: the tests were written by the same head and
+they agree with the code. Both are wrong together.
 
-На етапі 1 гейт підтвердження працював точно так, як я задумав — поколово. Що поколовий гейт
-перетворює підтвердження на бланкетний дозвіл, побачив лише чистий контекст.
+On stage 1 the confirmation gate worked exactly as designed — per generation. That a
+per-generation gate turns confirmation into blanket permission was seen only by a clean context.
 
-Розділення на дві стадії теж не формальність. Стадія 1 іде **від специфікації до коду** й
-знаходить **відсутнє** — вимогу, якої ніхто не реалізував; її неможливо побачити, дивлячись на
-код, бо її там немає. Стадія 2 іде **від коду до наслідків** і знаходить те, що є, але ламається
-на краю. Один рев'юер майже завжди зісковзує у другий прохід: код конкретний, а відсутня вимога
-мовчить.
+The split into two stages is not a formality either. Stage 1 runs **from spec to code** and
+finds what is **missing** — a requirement nobody implemented; it cannot be seen by looking at
+the code, because it is not there. Stage 2 runs **from code to consequences** and finds what is
+there but breaks at the edge. A single reviewer almost always slides into the second pass: code
+is concrete, and a missing requirement is silent.
 
-### Резолюція знахідок
+### Resolving findings
 
-Кожна — **Виправити** / **Відкласти** (власник + термін у §8 специфікації) / **Не проблема**
-(із причиною). Відкритих знахідок стадії 1 не шипимо.
+Each one is **Fix** / **Defer** (owner plus due date in §8 of the spec) / **Not an issue**
+(with the reason). No open stage-1 finding ships.
 
 ## 5. Уроки, які вже коштували помилок
 
@@ -1025,116 +1030,129 @@ assert "service_completed_successfully" in compose
 **Правило:** твердження про число мусить мати обидві половини — і «не більше», і «не менше»; або
 бути **поведінковим**: прибери вхід — число мусить змінитись.
 
-## 6. Теги й навігація читача
+## 6. Tags and the reader's navigation
 
-**Папки для навігації, теги для посилань.**
+**Directories for navigation, tags for links.**
 
-- `stages/sNN_slug/` — усі етапи видно одразу, кожен самодостатній.
-- `git tag -a stage-NN` — **після** проходження рев'ю, на комміті, який описує стаття.
-- Стаття посилається **на тег**: `github.com/AZANIR/agentic-ai/blob/stage-NN/...`
-- Читач для вправ робить власну гілку.
+- `stages/sNN_slug/` — every stage visible at once, each self-contained.
+- `git tag -a stage-NN` — **after** the review passes, on the commit the article describes.
+- The article links **to the tag**: `github.com/AZANIR/agentic-ai/blob/stage-NN/...`
+- A reader doing the exercises makes their own branch.
 
-Чому не гілка на етап: наші етапи — окремі теки, а не версії одного коду. Кумулятивні гілки
-означали б форвард-порт кожного виправлення в дев'ять гілок; етап 1 ми правили двічі за день.
+Why not a branch per stage: our stages are separate directories, not versions of one codebase.
+Cumulative branches would mean forward-porting every fix into nine branches; stage 1 was fixed
+twice in one day.
 
-Чому не посилання на `main`: ADR-0003 прямо каже, що валідація з етапу 1 переїде в `shared/` на
-етапі 3. Читач, який прийде за статтею 1 через півроку, побачив би код, якого стаття не описує.
+Why not links to `main`: ADR-0003 says outright that the validation from stage 1 moves into
+`shared/` at stage 3. A reader arriving from article 1 six months later would see code the
+article does not describe.
 
-## 7. Стаття — після етапу, ніколи раніше
+## 7. The article comes after the stage, never before
 
-Стаття про ненаписаний етап описувала б код, якого немає, — рівно та вада, проти якої
-побудований курс.
+An article about an unwritten stage would describe code that does not exist — exactly the
+defect this course is built against.
 
-### Дві теки
+### Two directories
 
-| Тека | Що там | Публікується |
+| Directory | What is in it | Published |
 |---|---|---|
-| `sources/docs/` | Робоча довідка автора — у репозиторій не йде | ні |
-| `sources/artstroy/{slug}/` | **Наші** статті у форматі Astro | так, у [artstroy](https://github.com/AZANIR/artstroy) |
+| `sources/docs/` | The author's working reference — never enters the repository | no |
+| `sources/artstroy/{slug}/` | **Our** articles in Astro format | yes, in [artstroy](https://github.com/AZANIR/artstroy) |
 
-Уся `sources/` — у `.gitignore`.
+All of `sources/` is gitignored.
 
-### Формат artstroy (перевірено проти їхньої zod-схеми)
+### The artstroy format (checked against their zod schema)
 
 ```yaml
-isDraft: true                          # false лише після схвалення
-title: "…"                             # ≤80 символів
-description: "…"                       # ≤180 символів
-cover: "./imgs/cover.webp"             # ОБОВ'ЯЗКОВО — без файлу astro check падає
-covert_alt: "…"                        # саме covert_alt, друк у схемі справжній
-category: ai-coding                    # лише: ai-coding devops documentation pentesting programming technology
+isDraft: true                          # false only after approval
+title: "…"                             # ≤80 characters
+description: "…"                       # ≤180 characters
+cover: "./imgs/cover.webp"             # REQUIRED — without the file astro check fails
+covert_alt: "…"                        # covert_alt indeed; the typo is real, and it is theirs
+category: ai-coding                    # only: ai-coding devops documentation pentesting programming technology
 authors: ["leonid-m"]
 publishedTime: "YYYY-MM-DDT00:00:00.000Z"
 ```
 
-Тека: `{slug_snake_case}/index.mdx` + `imgs/`.
-Гілка: `article/{slug-kebab}`. Коміт: `content(article): add {опис}`.
+Directory: `{slug_snake_case}/index.mdx` plus `imgs/`.
+Branch: `article/{slug-kebab}`. Commit: `content(article): add {description}`.
 
-### Стилістичні правила сайту
+### The site's style rules
 
-- **Без `# H1` у тілі** — заголовок бере layout.
-- Відкриття — конкретна сцена, не визначення. Далі часто «рефлекс каже X, і рефлекс помиляється».
-- Підсумкова таблиця з колонкою **wrong fix** — їхній фірмовий прийом.
-- Числа завжди з джерелом; внутрішні посилання `/articles/{slug}`.
-- **```` ```mermaid ```` рендериться як БЛОК КОДУ, не діаграма** — mermaid підключений лише в
-  одному інтерактивному компоненті. Схеми робити ASCII або таблицями.
-- Обкладинку генерує їхня стадія 3 (`nano-banana-pro`) за текстом `covert_alt`.
+- **No `# H1` in the body** — the layout supplies the title.
+- Open with a concrete scene, not a definition. Often followed by "the reflex says X, and the
+  reflex is wrong".
+- A closing table with a **wrong fix** column — their signature device.
+- Numbers always carry their source; internal links are `/articles/{slug}`.
+- **```` ```mermaid ```` renders as a CODE BLOCK, not a diagram** — mermaid is wired into one
+  interactive component only. Use ASCII or tables for diagrams.
+- The cover is produced by their stage 3 (`nano-banana-pro`) from the `covert_alt` text.
 
-### Кут статті
+### The angle
 
-Найцінніше, чого немає в туторіалах, — **що зламалося і як це знайшли**. Стаття 1 побудована
-навколо семи знахідок рев'ю, а не навколо «як зробити агента».
+What tutorials never have is **what broke and how it was found**. Article 1 is built around the
+seven review findings rather than around "how to make an agent".
 
-## 8. Звірка статті з кодом
+## 8. Checking an article against the code
 
 ```bash
-python scripts/article_check.py                # усі статті
-python scripts/article_check.py three_guards   # одна
-python scripts/article_check.py --facts s03    # що взагалі можна звірити для етапу
+python scripts/article_check.py                # every article
+python scripts/article_check.py three_guards   # one
+python scripts/article_check.py --facts s03    # what can be verified for a stage
 ```
 
-Раніше тут стояв **шаблон**, і кожна стаття звірялася скриптом, написаним наново й лишеним у
-скретчпаді сесії. Наслідок не в незручності: дві статті, звірені різними наборами тверджень,
-не можна порівняти між собою, а звірка, яку не можна повторити, — це спогад про звірку.
+A **template** used to stand here, and every article was verified by a script written from
+scratch and left in a session scratchpad. The consequence is not inconvenience: two articles
+verified by different sets of assertions cannot be compared, and a verification that cannot be
+repeated is a memory of one.
 
-Усе читається **з теґа**, на який посилається стаття, а не з поточного коду. Число, обчислене
-на `main`, описувало б не ту статтю: код рухається далі, стаття лишається на місці.
+Everything is read **from the tag** the article links to, not from the current code. A number
+computed on `main` would describe a different article: the code moves on, the article stays
+where it was published.
 
-П'ять вимірів:
+Five dimensions:
 
-    frontmatter   обов'язкові поля й межі схеми блога
-    attribution   жодних згадок асистента
-    links         посилання ведуть на теґ, теґ існує, файл існує НА ТОМУ теґу
-    snippets      фрагменти присутні у справжньому файлі того ж теґа
-    claims        числа мають назване джерело, і воно перераховується
+    frontmatter   required fields and the blog schema's bounds
+    attribution   no mention of an assistant
+    links         links point at a tag, the tag exists, the path exists AT that tag
+    snippets      fragments appear in a real file of the same tag
+    claims        numbers name their source, and the source is recomputed
 
-**Числа — головний вимір, і єдиний необов'язковий.** Поруч зі статтею лежить `claims.json`:
-перелік `{що, скільки, звідки}`, де `звідки` — це обчислення (`checks`, `failure_modes`,
-`executable_lines`, `mutations`, `mutation_red`, `exercises`). Без файлу вимір каже
-`НЕ ПЕРЕВІРЕНО`, а не зелено: «числа не звірялись» і «числа збіглися» — різні стани.
+**Numbers are the point, and the only optional dimension.** A `claims.json` sits beside the
+article: a list of `{what, how much, from where}`, where "from where" is a computation
+(`checks`, `failure_modes`, `executable_lines`, `mutations`, `mutation_red`, `exercises`).
+Without the file the dimension reports `NOT EVALUATED` rather than green: "not verified" and
+"matched" are different states.
 
-**Спрощення дозволені, але названі.** Фрагмент, що ілюструє форму замість цитувати файл,
-оголошується в `claims.json` разом із причиною — та сама вимога, що до рішень в
-`ARCHITECTURE.md` етапу 10: або джерело, або названа причина, чому джерела немає. Оголошення
-без причини є вадою, інакше виняток перетворив би звірку на прикрасу.
+The check has three sides, not two: the number must appear in the article's own prose, match
+what the computation returns at the tag, and name the source. Taking both halves from the tag
+would prove only that two copies agree — the tautology this repository has caught at stages 8,
+9 and 10, and then made again in the tool built to catch it.
 
-Скрипт **не входить** у `check_all.py`: статті лежать поза репозиторієм (`sources/` у
-`.gitignore`), і для будь-кого іншого прогін був би `НЕ ПЕРЕВІРЕНО` завжди.
+**Simplifications are allowed but named.** A fragment illustrating a shape rather than quoting a
+file is declared in `claims.json` together with its reason — the same requirement stage 10 puts
+on decisions with no source stage: either a source, or a stated reason why there is none. A
+declaration with no reason is a defect; a silent exemption would turn the check into decoration.
 
-## 9. Чеклист перед стартом етапу
+The script is **not** part of `check_all.py`: the articles live outside the repository
+(`sources/` is gitignored), so for anyone else the run would always be `NOT EVALUATED`.
 
-- [ ] Перечитав §5 — уроки, що вже коштували помилок
-- [ ] Попередній етап має тег і статтю
-- [ ] `python scripts/check_all.py` зелений
-- [ ] Якщо етап переписує щось із попереднього (як `shared/` на етапі 3) — це записано в ADR
-- [ ] Резервна копія зроблена, якщо планується щось руйнівне
+## 9. Checklist before starting a stage
 
-## 10. Чеклист перед закриттям етапу
+- [ ] Re-read §5 — the lessons already paid for
+- [ ] The previous stage has its tag and its article
+- [ ] `python scripts/check_all.py` is green
+- [ ] If this stage rewrites something from an earlier one (as `shared/` at stage 3), it is
+      recorded in an ADR
+- [ ] A backup exists, if anything destructive is planned
 
-- [ ] Дев'ять пунктів §3
-- [ ] Рев'ю двома чистими контекстами, усі MAJOR закриті
-- [ ] Мутація ключового захисту дає `AssertionError` з осмисленим текстом, **не** службову помилку
-- [ ] Числа NFR переміряні, не переписані з попереднього етапу
-- [ ] Тег створено й запушено
-- [ ] Стаття звірена скриптом (§8), `isDraft: true` до схвалення
-- [ ] CI зелений на обох версіях Python
+## 10. Checklist before closing a stage
+
+- [ ] All nine items of §3
+- [ ] Reviewed by two clean contexts, every MAJOR closed
+- [ ] Mutating a key guard produces an `AssertionError` with meaningful text, **not** an
+      infrastructure error
+- [ ] NFR numbers re-measured, not copied from the previous stage
+- [ ] Tag created and pushed
+- [ ] Article checked by the script (§8), `isDraft: true` until approved
+- [ ] CI green on both Python versions
