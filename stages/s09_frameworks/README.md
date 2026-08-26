@@ -99,6 +99,14 @@ a violation: bounding it would declare a framework broken for being a framework.
 | Google ADK     |        43 |  NOT EVALUATED |        — |      — |           — |     1 |
 ```
 
+**Every number here was measured on Python 3.14.** The invisible-line count is not a property of
+LangGraph alone — the same version executes a different number of lines on 3.13, because the
+interpreter decides which lines run. A number without its conditions is not a measurement, and
+this stage even names this particular condition: the interpreter constraint. It applies here too.
+
+The check reads that version out of this sentence and compares it against the interpreter it runs
+on. Matching, it asserts the exact figures; differing, it reports `NOT EVALUATED` naming both.
+
 Note that **"my lines" and "prose places" are filled in for the rows that never ran.** Both are
 measured from source, and an interpreter constraint does not make code unreadable. A dash in
 their place would have discarded the only honest numbers that can be stated about CrewAI at all.

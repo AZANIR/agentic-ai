@@ -15,6 +15,7 @@ from __future__ import annotations
 import ast
 import os
 import re
+import sys
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -745,8 +746,26 @@ def check_the_lesson_numbers_match_the_bench() -> None:
         # звіряти нема з чим — це третій стан, а не розходження прози з кодом.
         if any(row.unverified for row in rows if row.module == "via_langgraph.py"):
             raise NotVerified(
-                "langgraph не встановлено — таблиця уроку описує повну установку, "
-                'постав `pip install -e ".[s09]"`'
+                "langgraph is not installed — the lesson's table describes a full install; "
+                'run `pip install -e ".[s09]"`'
+            )
+
+        # Число невидимих рядків залежить від інтерпретатора: та сама версія langgraph
+        # виконує на 3.13 і на 3.14 різну кількість рядків. Тому урок називає, на чому
+        # міряли, а перевірка звіряє це з тим, на чому біжить.
+        #
+        # Умова живе В УРОЦІ й читається звідти. Копія в коді розійшлася б із прозою
+        # мовчки — а саме проти цього класу вад побудований весь етап.
+        declared = re.search(r"measured on Python (\d+\.\d+)", lesson)
+        assert declared, (
+            "the lesson quotes an executed-line count without naming the interpreter it was "
+            "measured on — a number without its conditions is not a measurement (stage 7)"
+        )
+        running = f"{sys.version_info.major}.{sys.version_info.minor}"
+        if declared.group(1) != running:
+            raise NotVerified(
+                f"the lesson's numbers were measured on Python {declared.group(1)}, this run "
+                f"is Python {running}; executed-line counts differ between interpreters"
             )
         for row in rows:
             cells = row.cells()
