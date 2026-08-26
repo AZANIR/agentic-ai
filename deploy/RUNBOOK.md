@@ -1,132 +1,134 @@
-# RUNBOOK — етап 6
+# RUNBOOK — stage 6
 
-Що робити, коли впало. Написано **після** чотирьох справжніх поломок під час першого
-розгортання, а не з уяви.
+What to do when it breaks. Written **after** four real failures during the first deployment,
+not from imagination.
 
-## Підняти
+## Bring it up
 
 ```bash
-cp deploy/.env.prod.example deploy/.env.prod   # і заповнити
+cp deploy/.env.prod.example deploy/.env.prod   # and fill it in
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
-API_KEY=<ключ> ./deploy/smoke.sh https://localhost
+API_KEY=<key> ./deploy/smoke.sh https://localhost
 ```
 
-Порядок не довільний: `migrate` виконується **до** `api` (`service_completed_successfully`),
-бо сервіс без таблиці не просто не працює — він лишається мертвим після її появи.
+The order is not arbitrary: `migrate` runs **before** `api` (`service_completed_successfully`),
+because a service without its table does not merely fail — it stays dead after the table appears.
 
-## Прочитати стан
+## Read the state
 
 ```bash
 curl -k https://localhost/healthz | python -m json.tool
 ```
 
-| Поле | Що означає |
+| Field | What it means |
 |---|---|
-| `status` | `up` лише коли **всі** залежності живі |
-| `dependencies.<імʼя>.status` | кожна окремо; `reason` — **тип** помилки, не її текст |
-| `provider` | `real` або `fake`. `fake` у проді — це ALLOW_FAKE_LLM=1 (ADR-0009) |
+| `status` | `up` only when **every** dependency is alive |
+| `dependencies.<name>.status` | each one separately; `reason` is the error **type**, not its text |
+| `provider` | `real` or `fake`. `fake` in production means ALLOW_FAKE_LLM=1 (ADR-0009) |
 
-**`provider: fake` на справжньому домені означає, що користувачі отримують вигадки.**
-Це видно без ключа навмисно.
+**`provider: fake` on a real domain means users are being given invented answers.**
+It is visible without a key on purpose.
 
-## Що ламалось насправді
+## What actually broke
 
-### `502` від проксі, у логах `PermissionError: /data/traces/...`
+### `502` from the proxy, `PermissionError: /data/traces/...` in the logs
 
-Том належить root, процес — непривілейованому користувачу. Каталог має створюватись **в
-образі** з правильним власником: Docker переносить права образу у свіжий іменований том лише
-при першому монтуванні.
+The volume belongs to root, the process to an unprivileged user. The directory has to be created
+**in the image** with the right owner: Docker copies the image's permissions into a fresh named
+volume only on the first mount.
 
 ```bash
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod down -v
 ```
 
-`-v` обовʼязковий: том із неправильними правами переживе перезбірку образу.
+The `-v` is mandatory: a volume with the wrong permissions survives an image rebuild.
 
-### `503`, у стані `store: InFailedSqlTransaction`
+### `503`, with `store: InFailedSqlTransaction` in the state
 
-Невдалий запит лишив транзакцію в аварійному стані. Наступні падають **навіть коли причина
-зникла**. Причина зазвичай одна: міграції не застосувались.
+A failed query left the transaction in an aborted state. Every subsequent one fails **even after
+the cause is gone**. The cause is usually one thing: the migrations did not apply.
 
 ```bash
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod logs migrate
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod restart api
 ```
 
-Код відкочує транзакцію сам — але зʼєднання, взяте до виправлення, лишиться зіпсованим до
-перезапуску.
+The code rolls the transaction back itself — but a connection taken before the fix stays poisoned
+until the restart.
 
-### Сервіс не стартує: `профіль prod налаштований небезпечно`
+### The service will not start: "the prod profile is configured unsafely"
 
-Сторож робить свою роботу. Прочитай перелік — він називає кожну проблему окремо. Якщо
-бракує лише провайдера, а ти піднімаєш збірку **для перевірки**, постав `ALLOW_FAKE_LLM=1`
-і памʼятай, що стан це показує.
+The guard is doing its job. Read the list — it names each problem separately. If only the provider
+is missing and you are bringing the build up **to check something**, set `ALLOW_FAKE_LLM=1` and
+remember that the state shows it.
 
-### Планувальник перезапускається
+### The scheduler keeps restarting
 
-Він падає з тих самих причин, що й `api`, але його ніхто не смикає ззовні, тож помітити можна
-лише через `ps` або лог.
+It fails for the same reasons as `api`, but nothing pokes it from outside, so it can only be
+noticed through `ps` or the log.
 
 ```bash
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod ps
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod logs scheduler
 ```
 
-**Планувальник, що впав, не видно за метриками сервісу** — це названо в ADR-0003 як ціна
-винесення в окремий процес.
+**A dead scheduler is invisible in the service's metrics** — named in ADR-0003 as the price of
+moving it into its own process.
 
-### Ліміт пропускає більше, ніж написано
+### The rate limit lets more through than it says
 
-Перевір `APP_PROFILE`. У `local` лічильники **навмисно** процесо-локальні, тож із двома
-воркерами ліміт подвоюється — це вправа етапу, а не вада. У `prod` лічильники спільні:
+Check `APP_PROFILE`. In `local` the counters are process-local **deliberately**, so with two
+workers the limit doubles — that is the stage's exercise, not a defect. In `prod` the counters are
+shared:
 
 ```bash
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod exec redis \
 	redis-cli --scan --pattern 's06:*'
 ```
 
-Порожній список у `prod` під навантаженням означає, що сервіс насправді в `local`.
+An empty list in `prod` under load means the service is actually in `local`.
 
-## Відкликати ключ
+## Revoke a key
 
-Ключі читаються при старті. Прибери зі списку `API_KEYS` і перезапусти `api` та `scheduler`.
-Відкликання без перезапуску не працює — це названа ціна ADR-0006.
+Keys are read at startup. Remove it from `API_KEYS` and restart `api` and `scheduler`. Revoking
+without a restart does not work — the named price of ADR-0006.
 
-## Другий деплой — зібраний сервіс етапу 10
+## The second deploy — stage 10's assembled service
 
-Капстоун **не має власного HTTP-шару**: він підставляє зібраний сервіс у застосунок етапу 6.
-Тому й піднімається він тією самою командою, лише з іншим модулем:
+The capstone **has no HTTP layer of its own**: it substitutes the assembled service into stage
+6's application. So it comes up with the same command and a different module:
 
 ```bash
 uvicorn stages.s10_capstone.serve:app --host 0.0.0.0 --port 8000
 ```
 
-Змінні ті самі, що в етапу 6, плюс дві власні:
+The variables are stage 6's, plus two of its own:
 
-| Змінна | Що робить | Типово |
+| Variable | What it does | Default |
 |---|---|---|
-| `TRACE_DIR` | Куди писати трейси | `traces/` |
-| `MEMORY_PATH` | Файл фактів пам'яті | `capstone-memory.jsonl` |
+| `TRACE_DIR` | Where traces are written | `traces/` |
+| `MEMORY_PATH` | The memory facts file | `capstone-memory.jsonl` |
 
-**Старт довший за етап 6, і це не збій.** База знань індексується один раз, на старті;
-поки індекс не готовий, `/healthz` віддає `knowledge: false`. Оркестраторові тут потрібен
-запас часу перед першою пробою — інакше він перезапустить сервіс, який просто читає документи.
+**Startup takes longer than stage 6, and that is not a fault.** The knowledge base is indexed
+once, at startup; until the index is ready `/healthz` reports `knowledge: false`. An orchestrator
+needs slack before its first probe here, or it will restart a service that is merely reading
+documents.
 
-Перелік для живого сервісу той самий:
+The list for a live service is the same one:
 
 ```bash
 API_KEY=... ./deploy/smoke.sh https://agentic.example
 ```
 
-**`НЕ ПЕРЕВІРЕНО`:** прогін проти справжнього HTTPS-домену. Він потребує піднятої машини,
-тож офлайн його відтворити неможливо, і перевірка етапу каже це третім станом, а не зеленим.
-Локально (`https://localhost`) перелік проходить, але довіра до сертифіката лишається
-неперевіреною — так само, як на етапі 6.
+**`NOT EVALUATED`:** the run against a real HTTPS domain. It needs a live machine, so it cannot
+be reproduced offline, and the stage check says so as a third state rather than green. Locally
+(`https://localhost`) the list passes, but trust in the certificate stays unverified — exactly as
+at stage 6.
 
-## Забрати все
+## Tear it all down
 
 ```bash
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod down -v
 ```
 
-`-v` стирає **і факти, і трейси**. Резервна копія тому — у розділі вище.
+The `-v` erases **both the facts and the traces**. The volume backup is in the section above.
