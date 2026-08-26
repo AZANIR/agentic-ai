@@ -415,636 +415,666 @@ wrong reason.
 literal (`access="public"`) instead of a constant; and `--expect` catches this, because it
 measures exactly the text written in the exercise.
 
-### Локальний venv — не CI, і різниця не видна доти, доки не запушиш
+### A local venv is not CI, and the difference is invisible until you push
 
-`numpy` лежав у extras етапу 2, хоча `shared/embeddings.py` імпортує його **безумовно**, а
-`shared/check.py` — перевірки ядра — його виконують. CI ставить `[dev]`. Обидві роботи матриці
-впали на `ModuleNotFoundError` **до першої перевірки**, обидві версії Python однаково.
+`numpy` sat in stage 2's extras, even though `shared/embeddings.py` imports it
+**unconditionally** and `shared/check.py` — the core checks — execute it. CI installs `[dev]`.
+Both matrix jobs died on `ModuleNotFoundError` **before the first check**, on both Python
+versions alike.
 
-Локально нічого не було видно: numpy стояв у venv, бо його притягнув етап 2. До моменту, коли
-причину назвали, етап 3 уже тягнув numpy транзитивно — наступний пуш дав би три упалі модулі
-замість двох.
+Locally nothing showed: numpy was in the venv because stage 2 had pulled it in. By the time the
+cause was named, stage 3 was already pulling numpy transitively — the next push would have given
+three broken modules instead of two.
 
-**Правило:** пакет, який спільний шар імпортує на рівні модуля, є залежністю **ядра**, хоч би
-що казала таблиця extras. Перед пушем — `python scripts/clean_install.py`: блокатор імпортів
-у `sys.meta_path` через `sitecustomize.py`, щоб він пережив підпроцеси. Двадцять рядків, і
-цей клас закритий цілком.
+**Rule:** a package that a shared layer imports at module level is a **core** dependency,
+whatever the extras table says. Before a push — `python scripts/clean_install.py`: an import
+blocker in `sys.meta_path` via `sitecustomize.py`, so that it survives subprocesses. Twenty
+lines, and the class is closed entirely.
 
-### «Не перевіряли» не має ховати «зламано»
+### "Not evaluated" must not hide "broken"
 
-Спокуса після попереднього уроку — навчити прогін рахувати будь-яку смерть на імпорті як
-`НЕ ПЕРЕВІРЕНО`. Це зробило б CI зеленим на тому самому баґу, який його червонив: зламана
-збірка читалась би як «етап просто не запускали».
+The temptation after the previous lesson is to teach the run to count any death on import as
+`NOT EVALUATED`. That would turn CI green on the very bug that had turned it red: a broken
+build would read as "the stage simply was not run".
 
-**Правило:** опційність визначається за `pyproject.toml`, а не за фактом відсутності. Немає
-`langgraph` (є в extras) — «НЕ ПЕРЕВІРЕНО». Немає `numpy` (у ядрі) — `FAIL`, код виходу 1.
-У трейсбеку вони виглядають однаково, і розрізняє їх лише таблиця залежностей.
+**Rule:** optionality is decided by `pyproject.toml`, not by the fact of absence. No `langgraph`
+(it is in extras) — `NOT EVALUATED`. No `numpy` (it is core) — `FAIL`, exit code 1. In a
+traceback they look identical, and only the dependency table tells them apart.
 
-### Крок CI, що шукає слово у виводі, мусить мати це слово у виводі
+### A CI step that searches the output for a word must have that word in the output
 
-`check_all.py` друкував вивід модуля лише в гілці «впало». Модуль, що завершився успішно,
-свої рядки `НЕ ПЕРЕВІРЕНО` втрачав — тож `grep -q` у CI промахувався **завжди**, і робота
-лишалась зеленою незалежно ні від чого. Правило формально було; воно було сліпе.
+`check_all.py` printed a module's output only in the "it failed" branch. A module that finished
+successfully lost its `NOT EVALUATED` lines — so `grep -q` in CI missed **every time**, and the
+job stayed green regardless of anything. The rule was formally there; it was blind.
 
-**Правило:** написавши крок, який щось шукає, перевір руками, що шукане взагалі з'являється
-у виводі. Найдешевше — прогнати той самий `grep` локально й побачити ненульовий результат
-хоча б раз.
+**Rule:** having written a step that searches for something, check by hand that the thing
+searched for appears in the output at all. The cheapest way is to run that same `grep` locally
+and see a non-empty result at least once.
 
-### Перевірка, що читає історію git, у CI читає іншу історію
+### A check that reads git history reads a different history in CI
 
-`actions/checkout` робить **неглибокий клон без теґів**. Перевірки «нижній етап не змінено»
-звіряються з теґом попереднього етапу — і в CI падали з `fatal: bad revision 'stage-02'`,
-хоча локально працювали бездоганно.
+`actions/checkout` makes a **shallow clone with no tags**. The "the stage below has not changed"
+checks compare against the previous stage's tag — and in CI they failed with
+`fatal: bad revision 'stage-02'`, while locally they worked flawlessly.
 
-Це той самий клас, що й невстановлений пакет: перевірка не має вхідного матеріалу. І ліки
-ті самі, обидві половини:
+This is the same class as the uninstalled package: the check has no input material. And the cure
+is the same, both halves:
 
-    fetch-depth: 0    щоб у CI вона справді виконувалась
-    NotVerified       щоб у свіжому клоні без теґів вона не червоніла
+    fetch-depth: 0    so that in CI it actually executes
+    NotVerified       so that in a fresh clone without tags it does not go red
 
-Друга половина сама по собі недостатня — без першої перевірка не виконається ніколи й ніде.
+The second half alone is not enough — without the first the check never executes anywhere.
 
-**Правило:** усе, що перевірка бере ззовні файлової системи етапу — теґи, змінні оточення,
-мережу, час — у CI виглядає інакше. Перевір явно, а не припускай.
+**Rule:** everything a check takes from outside the stage's own filesystem — tags, environment
+variables, the network, the clock — looks different in CI. Check it explicitly, do not assume.
 
-### Перевірка «нижній етап не змінено» мусить називати, що саме не має мінятись
+### A "the stage below has not changed" check must name what exactly must not change
 
-Та сама правка `require_tag`, спільна для всього репозиторію, проходить крізь `check.py`
-**кожного** етапу — і перевірка «етапи 1 і 2 не змінено» на неї червоніла. Формально
-правильно; по суті ні: теза уроку — що не змінився **цикл**, а не що нижні етапи більше
-ніколи не отримають рядка.
+That same `require_tag` edit, shared across the whole repository, passes through **every**
+stage's `check.py` — and the "stages 1 and 2 have not changed" check went red on it. Formally
+correct; in substance not: the lesson's claim is that **the loop** did not change, not that the
+stages below will never receive another line.
 
-**Правило:** такий страж обмежується файлами реалізації (`:(exclude)…/check.py`), і причина
-пишеться поруч. Інакше перший же інфраструктурний рефакторинг поставить вибір: зламати
-перевірку або не робити рефакторинг.
+**Rule:** such a guard is limited to the implementation files (`:(exclude)…/check.py`), and the
+reason is written next to it. Otherwise the first infrastructure refactor poses a choice: break
+the check or skip the refactor.
 
-### Self-check специфікації мусить перевіряти обидва напрямки
+### A spec self-check has to check both directions
 
-Перша версія скрипта звіряла «кожен критерій має рядок у плані тестів». Зворотний напрямок —
-«кожен рядок плану має критерій» — не перевірявся, і в специфікації етапу 3 виявилось три
-рядки, що посилались на критерії, яких у §5 не існувало.
+The first version of the script verified "every criterion has a row in the test plan". The
+reverse direction — "every row of the plan has a criterion" — was not checked, and stage 3's
+spec turned out to hold three rows referring to criteria that did not exist in §5.
 
-Коли скрипт нарешті став двонапрямним, він одразу знайшов **ту саму діру в етапі 2**, де вона
-прожила два тижні й пережила незалежне рецензування.
+When the script finally became bidirectional, it immediately found **the same hole in stage 2**,
+where it had lived for two weeks and survived an independent review.
 
-**Правило:** будь-яка звірка двох переліків робиться в обидва боки. Односторонньої досить
-рівно доти, доки помилка не в тому боці, який ти не перевіряєш. Скрипт —
-`scripts/spec_check.py`, прогонити на кожній специфікації перед комітом.
+**Rule:** any reconciliation of two lists is done in both directions. A one-way one suffices
+exactly until the mistake is on the side you are not checking. The script is
+`scripts/spec_check.py`; run it on every spec before a commit.
 
-### Апостроф в українському слові закриває bash-рядок
+### An apostrophe in a Ukrainian word closes the bash string
 
-Третій раз за сесію: `рев'ю`, `з'явилось`, `об'єм` містять ASCII-апостроф, і всередині
-`python -c '...'` він закриває рядок оболонки. Далі bash намагається виконати українську
-прозу як команди.
+The third time in one session: words like *rev'yu*, *z'yavylos*, *ob'yem* carry an ASCII
+apostrophe, and inside `python -c '...'` it closes the shell string. Bash then tries to execute
+Ukrainian prose as commands.
 
-**Правило:** будь-яка правка з українським текстом — через файл у скретчпаді, а не через
-`-c` з однією парою лапок. Це не питання охайності: помилка щоразу виглядає як синтаксична
-помилка Python, і хвилина йде на пошук не там.
+**Rule:** any edit carrying Ukrainian text goes through a file in the scratchpad, never through
+`-c` with a single pair of quotes. This is not a matter of tidiness: the error looks like a
+Python syntax error every single time, and a minute goes into looking in the wrong place.
 
-### Ризик у реєстрі може вгадати подію й помилитись у ліках
+### A risk in the register can guess the event and miss on the cure
 
-Етап 4, ще до першого рядка коду. У SAD §11 стояв ризик «API бібліотеки MCP зміниться» з
-мітигацією «extra з підлогою, не пін». Установка за підлогою `mcp>=1.2` дала **2.0.0**, у якій
-зник модуль із точки входу статті-джерела й перейменувалися всі поля відповіді.
+Stage 4, before the first line of code. SAD §11 carried the risk "the MCP library's API will
+change" with the mitigation "an extra with a floor, not a pin". Installing by the floor
+`mcp>=1.2` produced **2.0.0**, in which the module holding the source article's entry point was
+gone and every response field had been renamed.
 
-Тобто мітигація була не просто слабка — вона **називала причиною те, що й спричинило подію**.
+So the mitigation was not merely weak — **what it prescribed is what caused the event**.
 
-Це третій етап поспіль, де ризик збувається, і третій раз мітигація вгадала подію й
-промахнулась у ліках: на етапі 2 вона передбачила, що ліміт рядків упреться, і назвала не той
-модуль для виносу; на етапі 3 те саме.
+This is the third stage running where a risk comes true, and the third time the mitigation
+guessed the event and missed on the cure: on stage 2 it predicted that the line budget would be
+hit and named the wrong module to extract; on stage 3, the same.
 
-**Правило:** мітигація в реєстрі формулюється як **дія, яку можна виконати сьогодні**, і
-перевіряється питанням «якщо ризик спрацює завтра, це справді допоможе?». «Підлога, не пін»
-проти зміни мажорної версії відповіді не дає — вона її дозволяє.
+**Rule:** a mitigation in the register is phrased as **an action that can be taken today**, and
+is tested by the question "if the risk fires tomorrow, will this actually help?". "A floor, not
+a pin" is no answer to a major version changing the response — it is what permits it.
 
-### Число в NFR, вигадане до заміру, — це не вимога, а побажання
+### A number in an NFR invented before the measurement is a wish, not a requirement
 
-Етап 4. У NFR стояло «перевірки ≤ 8 с». Заміряно після реалізації: **11.96 с**, і вісім було
-недосяжне **за побудовою** — одне підняття підпроцесу коштує 0.85–1.7 с, а сценаріїв шість.
+Stage 4. The NFR said "checks ≤ 8 s". Measured after implementation: **11.96 s**, and eight was
+unreachable **by construction** — one subprocess start-up costs 0.85–1.7 s, and there are six
+scenarios.
 
-Спокуса в такий момент одна: підігнати реалізацію під число. Тут це означало б підняти один
-сервер на весь набір — і купити секунди за властивість, заради якої перевірки й пишуть
-(падіння одного сценарію не має пояснюватись станом іншого).
+The temptation at such a moment is a single one: bend the implementation to fit the number. Here
+that would have meant one server for the whole suite — buying seconds with the very property the
+checks are written for (one scenario's failure must not be explained by another one's state).
 
-**Правило:** NFR із числом, якого ще ніхто не міряв, позначається як оцінка й **виправляється
-за першим заміром**, а не захищається. Виправлення записується з причиною: наступний читач
-має бачити, що число заміряне, а не що воно завжди було таким.
+**Rule:** an NFR with a number nobody has measured yet is marked as an estimate and **corrected
+on the first measurement**, not defended. The correction is recorded with its reason: the next
+reader has to see that the number was measured, not that it was always this.
 
-**Що при цьому оптимізувати можна.** Ізоляція потрібна між **сценаріями**, не між твердженнями:
-два ассерти про одну й ту саму відповідь — це один сценарій, і другий процес купує там нічого.
-Різниця тонка, і саме вона відрізняє чесну оптимізацію від здачі властивості.
+**What can still be optimised.** Isolation is needed between **scenarios**, not between
+assertions: two asserts about one and the same response are one scenario, and a second process
+buys nothing there. The difference is thin, and it is exactly what separates honest optimisation
+from surrendering the property.
 
-### Профіль дешевший за здогад про те, що повільне
+### A profile is cheaper than a guess about what is slow
 
-Етап 4. Набір перевірок виріс до 21.6 с. Дві «очевидні» оптимізації — прибрати зайве
-підняття процесу в демо й скоротити тайм-аут — дали разом **0.3 с**.
+Stage 4. The check suite had grown to 21.6 s. Two "obvious" optimisations — removing a redundant
+process start-up in the demo and shortening the timeout — gave **0.3 s** between them.
 
-Профіль показав справжнє: перевірка «жодна причина відмови не порожня» піднімала **ті самі
-два сервери**, що й перевірка фаз відмови. Три секунди за нуль нової інформації. Об'єднання
-дало **5.7 с**, тобто вдвадцятеро більше за обидва здогади.
+The profile showed the real thing: the check "no failure reason is empty" started **the same two
+servers** as the failure-phase check. Three seconds for zero new information. Merging them gave
+**5.7 s** — twenty times more than both guesses together.
 
-**Правило:** перед скороченням часу — профіль, навіть якщо здається, що й так видно, де
-дорого. Один рядок `sort -rn` по мілісекундах із виводу набору коштує хвилину.
+**Rule:** before cutting time, profile — even when it seems obvious where the cost is. One
+`sort -rn` line over the milliseconds in the suite's output costs a minute.
 
-**І та сама межа, що й раніше:** об'єднувати можна те, що є **одним сценарієм**. Дві
-перевірки про ту саму пару відмов — один сценарій. Дві перевірки про різні сервери —
-не один, скільки б секунд це не коштувало.
+**And the same boundary as before:** what may be merged is what is **one scenario**. Two checks
+about the same pair of failures — one scenario. Two checks about different servers — not one,
+however many seconds it costs.
 
-### Скорочення часу може мовчки послабити перевірку, яка цей час охороняє
+### Cutting time can silently weaken the check that guards that time
 
-Етап 4. Перевірка тайм-ауту писала `assert took < 10`, і при тайм-ауті 1.5 с мутація
-«удесятеро довший» давала 15 с і чесно червоніла. Потім тайм-аут зменшили до 0.6 с заради
-швидкості набору — і та сама мутація стала давати 6 с, тобто **проходити**.
+Stage 4. The timeout check said `assert took < 10`, and with a timeout of 1.5 s the mutation
+"ten times longer" gave 15 s and honestly went red. Then the timeout was reduced to 0.6 s for
+the sake of suite speed — and the same mutation started giving 6 s, that is, **passing**.
 
-Ніхто нічого не ламав. Константна межа просто перестала відповідати параметру, який
-зменшили в іншому місці й з іншої причини.
+Nobody broke anything. The constant bound simply stopped matching a parameter that was reduced
+elsewhere and for another reason.
 
-**Правило:** межа в перевірці, що стосується величини, робиться **похідною** від цієї
-величини (`1.5 + asked * 3`), а не константою. Константа правильна рівно доти, доки ніхто
-не змінить те, з чим її колись звіряли.
+**Rule:** a bound in a check that concerns a quantity is made **derived** from that quantity
+(`1.5 + asked * 3`), not a constant. A constant is right exactly until somebody changes the
+thing it was once matched against.
 
-### Одна група винятків може спричинити три різні дефекти в одному модулі
+### One exception group can produce three different defects in one module
 
-Етап 4. `anyio` загортає виняток із задачі у `BaseExceptionGroup`, і це дало **три** окремі
-вади в тому самому клієнті:
+Stage 4. `anyio` wraps a task's exception in a `BaseExceptionGroup`, and that gave **three**
+separate defects in the same client:
 
-    порожня причина       str(TimeoutError()) — порожній рядок
-    безглузда причина     str(ExceptionGroup) — «unhandled errors in a TaskGroup»
-    неправильна фаза      except ServerRefused не бачив загорнутого винятку
+    empty reason        str(TimeoutError()) — an empty string
+    nonsense reason     str(ExceptionGroup) — "unhandled errors in a TaskGroup"
+    wrong phase         except ServerRefused did not see the wrapped exception
 
-Третя найгірша: живий, справний сервер, який відповів «немає такого інструмента»,
-діагностувався як «процес не піднявся» — тобто саме та підміна, проти якої написаний увесь
-модуль. І виправляти її треба було не в тому місці, де вона виглядала: не в `except`, а в
-розгортанні причини.
+The third is the worst: a live, healthy server that answered "no such tool" was diagnosed as
+"the process did not start" — precisely the substitution the whole module is written against.
+And it had to be fixed somewhere other than where it showed: not in the `except`, but in the
+unwrapping of the cause.
 
-**Правило:** у коді з асинхронними бібліотеками і **тип**, і **текст** причини беруться з
-розгорнутого винятку, ніколи з того, що прилетіло назовні. Один хелпер, один виклик.
+**Rule:** in code that uses async libraries, both the **type** and the **text** of the cause are
+taken from the unwrapped exception, never from what arrived at the outside. One helper, one
+call.
 
-### Два Accepted ADR одного етапу можуть суперечити один одному
+### Two Accepted ADRs of one stage can contradict each other
 
-ADR-0003 писав «MCP рівня доступу не бачить узагалі». ADR-0004 того самого етапу ухвалював,
-що рівень доступу їде **в payload**, сервер його читає й фільтрує видачу — і перевірка
-доводила саме це. Формулювання розійшлося по чотирьох файлах, і жодна перевірка його не
-тримала.
+ADR-0003 said "MCP does not see the access level at all". ADR-0004 of the same stage decided
+that the access level travels **in the payload**, that the server reads it and filters the
+result — and a check proved exactly that. The wording had spread across four files, and no check
+was holding it.
 
-Правильне твердження було вужчим: його не бачить **модель**, бо клієнт прибирає поле зі схеми.
+The correct claim was narrower: **the model** does not see it, because the client strips the
+field from the schema.
 
-**Правило:** формулювання, яке звучить як гасло («X його не бачить узагалі»), перевіряється
-питанням «хто саме не бачить і на якому кроці». Якщо відповідь довша за гасло — у документ
-іде відповідь.
+**Rule:** a wording that sounds like a slogan ("X does not see it at all") is tested by the
+question "who exactly does not see it, and at which step". If the answer is longer than the
+slogan, the answer is what goes into the document.
 
-### Чужа структура даних приходить неваlidованою, хоч би що казала типізація
+### A foreign data structure arrives unvalidated, whatever the typing says
 
-`mcp.types.Tool.input_schema` оголошений як `dict[str, Any]` — і це все, що бібліотека
-обіцяє. Перевірено по дроту проти саморобного сервера: `"properties": null` давало
-`AttributeError`, `"required": null` — `TypeError`, `"properties": ["query"]` — знову
-`AttributeError`. Тобто чужий сервер валив складання реєстру цілком.
+`mcp.types.Tool.input_schema` is declared as `dict[str, Any]` — and that is everything the
+library promises. Checked over the wire against a hand-made server: `"properties": null` gave an
+`AttributeError`, `"required": null` a `TypeError`, `"properties": ["query"]` an
+`AttributeError` again. A foreign server brought down the registry build entirely.
 
-**Правило:** усе, що перетнуло межу процесу, розбирається з припущенням «тут може бути будь-що
-потрібного типу-контейнера». `schema.get("properties") or {}` недостатньо — потрібен
-`isinstance`. І окрема перевірка з дослівно тими формами, які вже ламали.
+**Rule:** everything that has crossed a process boundary is parsed on the assumption "whatever
+should be a container here may be anything at all". `schema.get("properties") or {}` is not
+enough — `isinstance` is required. Plus a separate check using verbatim the shapes that already
+broke it.
 
-### Виправив ваду — напиши перевірку, інакше вада повернеться мовчки
+### Fixed a defect — write the check, or the defect comes back silently
 
-Етап 4. Рев'ю знайшло, що чужа схема валить складання реєстру, а дубльоване імʼя тихо
-затінює дозволений інструмент. Я виправив обидва, перевірив руками в консолі — і **не
-написав жодної перевірки**.
+Stage 4. The review found that a foreign schema brings down the registry build, and that a
+duplicated name silently shadows a permitted tool. I fixed both, verified by hand in the console
+— and **wrote no check at all**.
 
-Мутаційний прогін показав це негайно: обидві мутації, що повертають старе поводження, дали
-**0 червоних**. Тобто код був полагоджений рівно до наступного рефакторингу.
+The mutation run showed it immediately: both mutations restoring the old behaviour gave **0
+red**. The code was repaired exactly until the next refactor.
 
-Перевірка руками доводить, що зараз працює. Перевірка в наборі доводить, що працюватиме далі.
+Checking by hand proves that it works now. A check in the suite proves that it will keep
+working.
 
-**Правило:** кожна знахідка рев'ю закривається **парою** — правка коду й мутація в
-`mutations.json`, яка цю правку відкочує. Прогін мутацій після виправлень обов'язковий: він
-показує не «чи я полагодив», а «чи я захистив».
+**Rule:** every review finding is closed by a **pair** — the code fix and a mutation in
+`mutations.json` that reverts that fix. A mutation run after the fixes is mandatory: it shows
+not "did I repair it" but "did I protect it".
 
-### Спостереження стає твердженням лише тоді, коли має перевірку
+### An observation becomes a claim only once it has a check
 
-Етап 4 писав у NFR: «час перевірок ≤ 25 с (заміряно 15.9)». Чесне число, заміряне своїми
-руками. Через дві задачі етап отримав другу e2e-перевірку — ту, що проганяє ті самі шість
-сцен через межу процесу, — і набір став коштувати 32 с. Число в прозі лишилось старим.
-Помітили випадково, місяцем пізніше, коли час кинувся в очі в чужому прогоні.
+Stage 4 wrote in its NFRs: "check time ≤ 25 s (measured 15.9)". An honest number, measured by
+hand. Two tasks later the stage gained a second e2e check — the one that drives those same six
+scenes across a process boundary — and the suite came to cost 32 s. The number in the prose
+stayed old. It was noticed by accident, a month later, when the time caught the eye in somebody
+else's run.
 
-**Це третій випадок того самого класу на одному етапі.** Кількість перевірок розійшлася
-з прозою — закрили лічильником. Кількість рядків розійшлася — закрили підрахунком через
-AST. Час розійшовся — і не закрили нічим, бо він **виглядав як спостереження, а не як
-вимога**. Різниці між ними немає жодної, окрім наявності перевірки.
+**This is the third case of the same class on one stage.** The number of checks drifted from the
+prose — closed with a counter. The line count drifted — closed with a count through the AST. The
+time drifted — and was closed with nothing, because it **looked like an observation, not like a
+requirement**. There is no difference between the two beyond whether a check exists.
 
-**Правило:** число, що потрапило в документ, уже є твердженням. Або поруч стоїть те, що
-його тримає, або в документі пишеться не число, а «заміряно одноразово, не тримається».
+**Rule:** a number that has made it into a document is already a claim. Either the thing that
+holds it stands next to it, or what goes into the document is not a number but "measured once,
+not held".
 
-**Де ставити сторожа — там, куди сходяться всі.** Спокуса була написати перевірку часу
-всередині етапу 4. Але етапів шість, і кожен наступний повторив би її своїми руками.
-Стеля оголошується в модулі одним рядком (`BUDGET_SECONDS`), а тримає її раннер —
-один механізм на всіх, і новий етап отримує його безкоштовно.
+**Where to put the guard — where everybody converges.** The temptation was to write the time
+check inside stage 4. But there are six stages, and each next one would have rewritten it by
+hand. The ceiling is declared in the module in one line (`BUDGET_SECONDS`), and the runner holds
+it — one mechanism for all, and a new stage gets it for free.
 
-**Стеля — не ціль.** 90 при заміряних 32: сторож має ловити подорожчання вдесятеро, а не
-на відсоток. Тісна межа на повільнішому раннері CI дає мигтіння, а межу, що мигтить,
-піднімають не думаючи — і вона перестає означати будь-що. Механізм перевірено навмисним
-псуванням: стеля 0.01 с робить модуль червоним.
+**A ceiling is not a target.** 90 against a measured 32: the guard has to catch a tenfold
+slowdown, not a one-percent one. A tight bound on a slower CI runner flickers, and a bound that
+flickers gets raised without thinking — after which it stops meaning anything at all. The
+mechanism was verified by deliberate breakage: a ceiling of 0.01 s turns the module red.
 
-### Питання, яке знаходить найбільше: «що має зламатись, щоб ця перевірка почервоніла?»
+### The question that finds the most: "what has to break for this check to go red?"
 
-Етап 5, гейт рев'ю. Двадцять сім знахідок, і найдорожча не коштувала жодного рядка коду —
-рев'юер просто спитав про кожну перевірку, **що саме** має зламатись, щоб вона впала.
-Чотири рази відповідь була «нічого».
+Stage 5, the review gate. Twenty-seven findings, and the most expensive one cost not a single
+line of code — the reviewer simply asked of every check **what exactly** has to break for it to
+fail. Four times the answer was "nothing".
 
-Найгірша з чотирьох стверджувала, що чужий факт не потрапляє у контекст. Фікстура клала
-текст «Доставляти на Банков**у** 11», а обидва твердження шукали підрядок «Банков**а**».
-Називного відмінка в тексті немає ніколи, тож `not any(...)` було істинним **завжди** —
-включно з пам'яттю зовсім без фільтра власника.
+The worst of the four claimed that somebody else's fact does not reach the context. The fixture
+stored the text "Deliver to *Bankovu* 11" — the street name inflected, as the sentence requires
+— while both assertions searched for the substring *Bankova*, its dictionary form. The
+nominative never appears in the text, so `not any(...)` was **always** true — including against
+a memory with no owner filter at all.
 
-**Це третій випадок тієї самої пастки з відмінюванням** («Київ»/«Києві» на етапі 1,
-«Володимирська»/«Володимирську» на етапі 5). Перші два зробили перевірку **червоною** й
-знайшлись за хвилини. Цей зробив її **зеленою назавжди** — і саме тому прожив до рев'ю.
+**This is the third instance of the same inflection trap** (*Kyiv*/*Kyievi* on stage 1,
+*Volodymyrska*/*Volodymyrsku* on stage 5). The first two turned a check **red** and were found
+in minutes. This one turned it **green forever** — and that is exactly why it lived until the
+review.
 
-**Правило:** перевірка, яка стверджує заперечення (`not in`, `assert not any`), спершу
-має довести, що фікстура взагалі здатна дати збіг. Один рядок:
+**Rule:** a check that asserts a negative (`not in`, `assert not any`) must first prove that the
+fixture is capable of matching at all. One line:
 
 ```python
-assert any("Банков" in f.text for f in stored), "фікстура не містить чужого факту"
-assert not any("Банков" in t for t in texts), texts
+assert any("Bankov" in f.text for f in stored), "the fixture holds no foreign fact"
+assert not any("Bankov" in t for t in texts), texts
 ```
 
-Без першого рядка друге твердження доводить лише те, що автор двічі написав те саме слово
-по-різному.
+Without the first line, the second assertion proves only that the author wrote the same word two
+different ways.
 
-**Практично:** прогрепай набір за `assert not`, `not in`, `assertNotIn` і для кожного
-спитай, що функція має повернути, щоб твердження пройшло на зламаному коді. Найчастіша
-відповідь — «порожньо», і «порожньо» майже завжди досяжне.
+**In practice:** grep the suite for `assert not`, `not in`, `assertNotIn` and for each one ask
+what the function has to return for the assertion to pass on broken code. The most frequent
+answer is "empty", and "empty" is almost always reachable.
 
-### Демонстрація вади буває чутливішою за перевірку вади
+### A demonstration of a defect can be more sensitive than a check for it
 
-Той самий етап. Дзеркальна перевірка ізоляції проходила й ловила свою мутацію — але з
-неправильної причини: чужі й власний факт мали **однакову оцінку**, і власний виживав лише
-тому, що `sorted()` стабільний, а додали його останнім. Перестав два рядки у фікстурі — і
-перевірка зеленіє на зламаному коді, не змінивши жодного ассерту.
+The same stage. The mirror isolation check passed and caught its own mutation — but for the
+wrong reason: the foreign facts and one's own had **the same score**, and one's own survived
+only because `sorted()` is stable and it had been added last. Swap two lines in the fixture and
+the check goes green on broken code without a single assert changing.
 
-Знайшлось це не з червоного. Я писав розв'язок для читача — три реалізації пам'яті поруч
-на однакових даних, — і середня надрукувала «1 факт» там, де мала надрукувати «порожньо».
+It was not found from a red run. I was writing the solution for the reader — three memory
+implementations side by side on the same data — and the middle one printed "1 fact" where it
+should have printed "empty".
 
-Причина проста: **демонстрація, яка нічого не показує, видимо марна, а перевірка, яка
-нічого не доводить, виглядає точно як перевірка, що доводить.** У демонстрації немає
-запасу, у перевірки він є.
+The reason is simple: **a demonstration that shows nothing is visibly useless, while a check
+that proves nothing looks exactly like a check that proves something.** A demonstration has no
+slack; a check has plenty.
 
-**Правило:** якщо етап має розв'язок або демо, що показує ваду поруч із виправленням, —
-пиши його **до** того, як вважати перевірку готовою. Він коштує двадцять рядків і ловить
-те, на що перевірка сліпа.
+**Rule:** if a stage has a solution or a demo that shows the defect beside its fix, write it
+**before** considering the check finished. It costs twenty lines and catches what the check is
+blind to.
 
-### Реєстр ризиків варто перечитувати, коли ризик спрацював
+### The risk register is worth re-reading at the moment a risk fires
 
-SAD етапу 5 містив рядок: «ліміт рядків `long_term` затісний… виносити треба буде **не**
-вибірку (вона вже окремо), а витяг фактів — він єдиний потребує моделі».
+Stage 5's SAD carried the line: "`long_term`'s line budget is too tight… what will have to be
+extracted is **not** retrieval (that is already separate) but fact extraction — it is the only
+part that needs a model".
 
-Виправлення знахідок рев'ю довело модуль до **90 із 90**. Спокуса була підняти бюджет.
-Замість цього я відкрив реєстр і побачив, що місце винесення вже названо — і названо
-правильно. Витяг став `extraction.py`, модуль повернувся до 79.
+Fixing the review findings brought the module to **90 out of 90**. The temptation was to raise
+the budget. Instead I opened the register and saw that the place to extract had already been
+named — and named correctly. Extraction became `extraction.py`, and the module went back to 79.
 
-Мітигація, написана наперед, зазвичай вгадує **факт** («буде затісно») і не вгадує **місце**
-(«що саме виносити»). Цього разу вгадала обидва — і це видно лише тому, що реєстр
-перечитали в момент спрацювання, а не перед етапом.
+A mitigation written in advance usually guesses the **fact** ("it will get tight") and misses
+the **place** ("what exactly to extract"). This time it guessed both — and that is visible only
+because the register was re-read at the moment it fired, not before the stage.
 
-### Курс може вчити правилу й порушувати його у власному коді
+### A course can teach a rule and break it in its own code
 
-Етап 5 дав чекліст «що запам'ятовувати»: шість питань, перше — «це секрет?», четверте —
-«прямо просив запам'ятати?». Порядок навмисний, і про це є абзац: «запам'ятай мій пароль»
-задовольняє обидва, тож відповідь залежить винятково від того, яке питання раніше.
+Stage 5 gave a "what to remember" checklist: six questions, the first being "is this a secret?",
+the fourth "was it explicitly asked to be remembered?". The order is deliberate, and there is a
+paragraph about it: "remember my password" satisfies both, so the answer depends entirely on
+which question comes first.
 
-Через тиждень етап 6 зшивав сервіс, і в ньому з'явився рядок:
+A week later stage 6 was wiring the service together, and this line appeared in it:
 
 ```python
-if question.lower().startswith(("запамʼятай", "запам'ятай")):
+if question.lower().startswith(("remember", "note down")):
     self.store.remember(...)
 ```
 
-Одне правило з шести. Четверте. Сервіс зберігав паролі **й клав їх у трейс** разом із
-причиною відкидання — на етапі, чия теза дослівно: «ключ у трейсі це ключ у файлі, який
-читає той, хто налагоджує».
+One rule out of six. The fourth. The service stored passwords **and put them into the trace**
+along with the rejection reason — on a stage whose claim reads literally: "a key in a trace is a
+key in a file read by whoever is debugging".
 
-**Механізм помилки варто назвати точно.** Я не забув про чекліст — я його написав. Я не
-проігнорував правило — я його сформулював. Просто в момент написання `_remember` думав
-про зшивання, а не про памʼять, і `decision.py` не спав на думку жодного разу.
+**The mechanism of the mistake is worth naming precisely.** I did not forget the checklist — I
+wrote it. I did not ignore the rule — I formulated it. At the moment of writing `_remember` I
+was simply thinking about wiring, not about memory, and `decision.py` never once came to mind.
 
-**Правило:** коли етап **використовує** механізм попереднього етапу, перевірка має
-стверджувати, що використовує **цілком**, а не частково. Найдешевша форма — виклик
-чужої функції замість власного `if`: `decide(...)` неможливо виконати наполовину.
+**Rule:** when a stage **uses** a previous stage's mechanism, a check has to assert that it uses
+it **whole**, not in part. The cheapest form is a call to the other module's function instead of
+one's own `if`: `decide(...)` cannot be executed halfway.
 
-Знайшов це чистий контекст, і не міг знайти ніхто інший: усередині голови, що писала
-обидва етапи, вони узгоджені за побудовою.
+A clean context found this, and nobody else could have: inside the head that wrote both stages,
+they are consistent by construction.
 
-### Перевірка, що шукає підрядок у конфігурації, доводить наявність підрядка
+### A check that searches a config for a substring proves that a substring exists
 
-Дві перевірки етапу 6 мали префікс `FAILURE ·`, правильне твердження й нуль зубів:
+Two of stage 6's checks had the `FAILURE ·` prefix, the right claim, and no teeth:
 
 ```python
 assert "migrate:" in compose
 assert "service_completed_successfully" in compose
 ```
 
-Перенеси залежність із `api` у `caddy` — сервіс стартує до міграцій, тобто настає рівно
-та поломка, яку перевірка називає. Обидва підрядки на місці; перевірка зелена.
+Move the dependency from `api` to `caddy` and the service starts before the migrations — that
+is, exactly the breakage the check names sets in. Both substrings are in place; the check is
+green.
 
-Друга шукала `$BASE` у смоук-скрипті й рахувала входження. Гілка «локально перевіряємо
-менше» проходила всі твердження — тобто робила саме те, що перевірка забороняє.
+The second searched for `$BASE` in the smoke script and counted occurrences. The "locally we
+check less" branch passed every assertion — that is, did precisely what the check forbids.
 
-**Правило:** конфігурацію треба **розбирати**, а не грепати. YAML має парсер, і
-твердження про структуру (`services["api"]["depends_on"]["migrate"]`) червоніє там,
-де твердження про текст лишається зеленим. Ціна — одна залежність у `dev`.
+**Rule:** a config has to be **parsed**, not grepped. YAML has a parser, and a claim about
+structure (`services["api"]["depends_on"]["migrate"]`) goes red where a claim about text stays
+green. The price is one dependency in `dev`.
 
-Той самий принцип уже двічі застосовано до коду (розбір AST замість пошуку в тексті).
-Конфігурація нічим не відрізняється: це теж структура, яку читає машина.
+The same principle has already been applied twice to code (AST parsing instead of a text
+search). A config is no different: it too is a structure read by a machine.
 
-### Демо не має друкувати числа, якого не отримало
+### A demo must not print a number it did not obtain
 
-Сцена «дзеркальні половини» друкувала:
+The "mirror halves" scene printed:
 
 ```
-  смоук:  ./deploy/smoke.sh https://localhost -> 10 пройдено, 0 збоїв
+  smoke:  ./deploy/smoke.sh https://localhost -> 10 passed, 0 failures
 ```
 
-Скрипт не запускався. Число взяте з памʼяті автора. І воно ще й **викидало третій стан**
-(«1 не перевірено»), який сам скрипт викидати забороняє — тобто демо суперечило тому,
-що показувало поруч.
+The script was never run. The number came from the author's memory. And it also **dropped the
+third state** ("1 not evaluated"), which the script itself forbids dropping — so the demo
+contradicted the very thing it was showing next to it.
 
-**Правило:** демо друкує лише те, що щойно обчислило. Число, яке демо не може отримати
-саме, замінюється командою, яку читач запустить. Проза, що переказує результат, — це
-та сама вада, що число в NFR без заміру, лише гучніша: її бачить кожен читач.
+**Rule:** a demo prints only what it has just computed. A number the demo cannot obtain by
+itself is replaced by the command the reader will run. Prose that retells a result is the same
+defect as an unmeasured number in an NFR, only louder: every reader sees it.
 
-### Розгортання знаходить клас вад, який недосяжний для юніт-тестів
+### Deployment finds a class of defects unreachable by unit tests
 
-Чотири вади з першого справжнього деплою, і три з них невидимі для тестів **за
-побудовою**, а не через недбалість:
+Four defects from the first real deployment, and three of them invisible to tests **by
+construction**, not through negligence:
 
-    том належав root          права існують між процесом і ОС; тести працюють від тебе
-    міграції ніхто не застосував   порядок існує між контейнерами; у тестів їх немає
-    невдалий запит отруїв зʼєднання   стан існує в ЧАСІ; у тестів немає минулого
+    volume belonged to root               permissions live between process and OS; tests run as you
+    nobody applied the migrations         order lives between containers; tests have none
+    failed query poisoned the connection  state lives in TIME; tests have no past
 
-Третя найповчальніша: `InFailedSqlTransaction` означає, що сервіс лишався зламаним
-**після того, як причина зникла**. Таблиця зʼявилась, а зʼєднання далі падало.
+The third is the most instructive: `InFailedSqlTransaction` means the service stayed broken
+**after the cause was gone**. The table appeared, and the connection kept failing.
 
-**Клас ширший за бази даних:** закешована негативна відповідь DNS, запобіжник без
-напіввідкритого стану, клієнт, що позначив вузол мертвим і не переперевіряє, прапорець,
-виставлений на першій помилці й ніколи не знятий. Форма одна: **виправ причину —
-симптом лишиться**.
+**The class is wider than databases:** a cached negative DNS answer, a circuit breaker with no
+half-open state, a client that marked a node dead and never re-checks, a flag set on the first
+error and never cleared. The shape is one: **fix the cause — the symptom stays**.
 
-**Правило:** перед тим, як вважати сервіс готовим, спитай про кожен довгоживучий обʼєкт:
-**у який стан його може назавжди лишити одна відмова?** Це питання знаходить такі вади
-за хвилину, без розгортання. Але ніщо не спонукає його поставити, доки не обпечешся.
+**Rule:** before considering a service ready, ask of every long-lived object: **what state can
+one failure leave it in forever?** That question finds such defects in a minute, with no
+deployment at all. But nothing prompts you to ask it until you have been burned.
 
-### Перевірка, що порівнює одне джерело саме з собою, — це тотожність
+### A check that compares one source with itself is an identity
 
-Етап 8 писав оцінювач. Його рівень e2e судив `case.answer` — **опис** кейса, — тоді як
-`trajectory.answer()` існував і не викликався жодним рівнем. Перевірка «та сама відповідь,
-різні шляхи» порівнювала:
+Stage 8 was writing the evaluator. Its e2e level judged `case.answer` — the case's
+**description** — while `trajectory.answer()` existed and was called by no level at all. The
+check "the same answer, different paths" compared:
 
     straight.by_level(E2E).state == lucky.by_level(E2E).state
 
-Обидва кейси несуть однаковий рядок і йдуть крізь одного детермінованого суддю. Ассерт
-неможливо порушити — і він був зеленим, поки в трейсі відповіді не було взагалі.
+Both cases carry the same string and go through one deterministic judge. The assert cannot be
+violated — and it was green while the trace held no answer whatsoever.
 
-**Питання, що знаходить цей клас:** *звідки взялися два боки рівності?* Якщо з одного
-обʼєкта — це тотожність, і вона зійдеться навіть тоді, коли дані до неї не доїхали. Той
-самий етап робить це правильно поруч: `report.parse()` читає **записаний файл**, а не
-лічильники прогону.
+**The question that finds this class:** *where did the two sides of the equality come from?* If
+from one object, it is an identity, and it will hold even when the data never arrived. The same
+stage does it right next door: `report.parse()` reads **the written file**, not the run's
+counters.
 
-### Проза, яку ніхто не запускає, старіє мовчки
+### Prose that nobody runs goes stale silently
 
-Три вади етапу 8, знайдені рев'ю, — це один і той самий дефект у трьох місцях:
+Three of stage 8's defects, found by the review, are one and the same defect in three places:
 
-    ModelJudge          не було навіть у списку імпортів check.py
-    восьма сцена демо   шукала traces/s01.jsonl — назви, якої трасувальник не створює
-    повідомлення TRACE_SINK   посилалось на ADR, який рішення не ухвалював
+    ModelJudge                was not even in check.py's list of imports
+    the demo's eighth scene   looked for traces/s01.jsonl — a name the tracer never creates
+    the TRACE_SINK message    pointed at an ADR that decided no such thing
 
-У всіх трьох випадках код **читали** й нічого не помітили. Парсер бала, для якого «3 з 10»
-означало десятку, прожив би до першого прогону з ключем; сцена, що не виконувалась, друкувала
-відповідь на критерій приймання сталою прозою.
+In all three cases the code was **read** and nothing was noticed. A score parser for which "3
+out of 10" meant a ten would have lived until the first run with a key; a scene that never
+executed printed its answer to an acceptance criterion as fixed prose.
 
-**Правило:** якщо гілку неможливо виконати в наборі — підміни її транспорт і виконай. Суддя,
-що ходить у мережу, перевіряється підміною `_ask`; сцена, що читає диск, — тимчасовим
-каталогом. «Без ключа не перевіряється» — це `НЕ ПЕРЕВІРЕНО` для **мережевої** частини, а не
-для парсера, який до мережі не має стосунку.
+**Rule:** if a branch cannot be executed in the suite, substitute its transport and execute it.
+A judge that goes to the network is checked by substituting `_ask`; a scene that reads the disk,
+by a temporary directory. "Not checkable without a key" is `NOT EVALUATED` for the **network**
+part, not for a parser that has nothing to do with the network.
 
-### Число про брак вимірювання не сміє саме бути здогадом
+### A number about a missing measurement must not itself be a guess
 
-Етап 8 мав закрити обіцянку етапу 6: сказати, чого оцінювачеві бракує у трейсах. Він сказав —
-і **помилився двічі**: зарахував фазу відмови етапу 4 (`None` на щасливому шляху) за ключ
-прогону й забув про етап 7. Цифра стояла у пʼяти місцях, включно з чеклістом, де читача
-просили її переказати.
+Stage 8 was to close stage 6's promise: to say what the evaluator lacks in the traces. It said
+so — and **got it wrong twice**: it counted stage 4's failure phase (`None` on the happy path)
+as a run key and forgot stage 7. The figure stood in five places, including a checklist where
+the reader was asked to repeat it.
 
-Найгірше, що ADR суперечив сам собі: його блок вимірів перелічував кроки етапу 7, а
-підсумкова таблиця нижче цей етап пропускала.
+Worst of all, the ADR contradicted itself: its measurement block listed stage 7's steps while
+the summary table below skipped that stage.
 
-**Правило:** ADR, який називає число, мусить назвати **спосіб його отримати**, а набір —
-звірити прозу з цим способом. Тут перелік тепер розбирає виклики трасувальника в джерелах.
-І розбирає **AST**, а не грепом: `whole(run=run)` етапу 7 — параметр функції, і греп читав
-його як поле трейсу, тобто помилявся тим самим способом, що й людина.
+**Rule:** an ADR that names a number must name **the way to obtain it**, and the suite must
+reconcile the prose against that way. Here the inventory now parses the tracer calls in the
+sources. And it parses the **AST**, not a grep: stage 7's `whole(run=run)` is a function
+parameter, and the grep read it as a trace field — that is, it erred in exactly the same way a
+human did.
 
-### Ассерт-заперечення істинний за побудовою частіше, ніж здається
+### A negative assert is true by construction more often than it seems
 
-Перевірка приватності етапу 8 шукала текст користувача в обʼєкті `Watch`, який складається з
-лічильників і сталих літералів. Жодна мутація коду не змогла б занести туди рядок — ассерт
-був зеленим **за побудовою**. Справжній шлях витоку при цьому існував: компонентний рівень
-копіював вільне поле `reason` просто в причину вердикта, а звіт її друкував.
+Stage 8's privacy check looked for the user's text in a `Watch` object made of counters and
+fixed literals. No code mutation could have got a string in there — the assert was green **by
+construction**. A real leak path existed all the while: the component level copied the free-form
+`reason` field straight into the verdict's reason, and the report printed it.
 
-**Питання:** *яку правдоподібну поломку цей ассерт спіймає?* Якщо жодної — він не перевірка,
-а коментар із ключовим словом `assert`. Заперечення про **код** пишеться через
-`code_mentions` (AST, не бачить docstring), тотожність обʼєкта — через `is`, а не через
-підрядок з іменем імпорту.
+**The question:** *what plausible breakage will this assert catch?* If none, it is not a check
+but a comment with the keyword `assert`. A negative about **code** is written through
+`code_mentions` (AST, blind to docstrings); object identity through `is`, not through a
+substring holding an import's name.
 
-### Мутаційний прогін — найдешевший рев'юер, і він іде до людей
+### The mutation run is the cheapest reviewer, and it goes before the humans
 
-На етапі 8 мутації знайшли три дефекти **в щойно написаних перевірках**, перш ніж їх побачив
-хоч один рев'юер: дзеркальний випадок був вироджений (суддя мовчав повністю — обидві формули
-давали нуль), перевірка частки мигтіла (випадкові ідентифікатори, 10 % на 21 траєкторії — нуль
-приблизно раз на девʼять прогонів), а перевірка приватності була зчеплена з сусіднім модулем.
+On stage 8 the mutations found three defects **in freshly written checks** before a single
+reviewer had seen them: the mirror case was degenerate (the judge was silent altogether — both
+formulas gave zero), the share check flickered (random identifiers, 10 % over 21 trajectories —
+zero roughly once every nine runs), and the privacy check was coupled to a neighbouring module.
 
-Четверту знайшла сама вправа: мутація `gap > 1` нічого не глушила, бо обидва розриви в наборі
-дорівнюють двом. Вправа, що обіцяє червоне й дає зелене, вчить, що перевірки не мають зубів.
+The exercise itself found the fourth: the mutation `gap > 1` silenced nothing, because both gaps
+in the suite equal two. An exercise that promises red and delivers green teaches that checks
+have no teeth.
 
-**Правило:** прогін мутацій — **перед** тим, як кликати рев'юерів, а не після. Він коштує
-хвилини й знімає з них клас знахідок, на який вони витратять години.
+**Rule:** the mutation run comes **before** calling the reviewers, not after. It costs minutes
+and takes off their plate a class of findings they would spend hours on.
 
-### Фільтр, що відсіює саме порушників, робить ассерт про них тавтологією
+### A filter that removes exactly the violators makes an assert about them a tautology
 
-Етап 9 стверджував «усі реалізації виконують ту саму задачу» так:
+Stage 9 asserted "every implementation performs the same task" like this:
 
-    ran = _counted_rows(rows)      # лишає ті, у яких `not row.broken`
+    ran = _counted_rows(rows)      # keeps the ones where `not row.broken`
     for row in ran:
-        assert not row.broken      # ...і стверджує, що broken немає
+        assert not row.broken      # ...and asserts that there is no broken one
 
-Той самий помічник тримав ще дві перевірки. Обидві звітували `ok`, довівши властивість двома
-рядками з чотирьох — а читач має підстави думати, що доведено всі чотири.
+The same helper backed two more checks. Both reported `ok`, having proved the property on two
+rows out of four — while the reader has every reason to think all four were proved.
 
-**Питання, що знаходить цей клас:** *чи може предмет ассерта взагалі потрапити в те, по чому
-він ітерує?* Якщо колекцію відфільтровано за тією самою ознакою — ні. І окремо: **неповне
-покриття віддається третім станом**, а не зеленим. `НЕ ПЕРЕВІРЕНО` з переліком недоведених
-чесне; `ok` на двох із чотирьох — ні.
+**The question that finds this class:** *can the subject of the assert get into the thing it
+iterates over at all?* If the collection was filtered on that same property — no. And
+separately: **incomplete coverage is reported as the third state**, not as green. `NOT
+EVALUATED` with a list of what was not proved is honest; `ok` on two out of four is not.
 
-### Твердження уроку перевіряється тією командою, яку урок радить читачеві
+### A lesson's claim is checked with the command the lesson recommends to the reader
 
-Етап 9 відкривався заголовною знахідкою: «жодна версія CrewAI не підтримує Python 3.14». Чекліст
-того ж етапу наказував читачеві перевірити це власноруч. Одна команда — `pip download crewai` —
-віддає 0.11.2 і спростовує урок.
+Stage 9 opened on its headline finding: "no version of CrewAI supports Python 3.14". That same
+stage's checklist told the reader to verify it themselves. One command — `pip download crewai` —
+returns 0.11.2 and refutes the lesson.
 
-Точне формулювання виявилось **сильнішим** за неточне: жодна версія **від 0.14.0**, тобто жодна,
-у якій існує потрібна точка розширення. Вибір між «ставиться й нема чим підключити» та «є API,
-але не ставиться» змістовніший за просте «не ставиться».
+The precise wording turned out **stronger** than the imprecise one: no version **from 0.14.0
+on**, that is, none in which the required extension point exists. The choice between "it
+installs and there is nothing to hook into" and "the API is there but it does not install" says
+more than a plain "it does not install".
 
-**Правило:** перед тим як написати «жодна», «завжди» чи «ніколи», виконай ту команду, якою це
-перевірятиме читач. Урок, чия перша теза спростовується першою ж вправою, втрачає не тезу, а
-довіру до решти.
+**Rule:** before writing "none", "always" or "never", run the command the reader will check it
+with. A lesson whose first claim is refuted by its own first exercise loses not the claim but
+the trust in everything else.
 
-### Літерал у банері — це тавтологія, яку перевірка не побачить
+### A literal in a banner is a tautology the check will not see
 
-Двічі поспіль, на етапах 8 і 9: демо друкує сталий рядок «модель підроблена», а перевірка
-стверджує `output.startswith("[FakeLLM]")`. Обидві половини походять з одного літерала, тож
-ассерт істинний завжди — включно з прогоном читача, у якого налаштовано ключ.
+Twice in a row, on stages 8 and 9: the demo prints the fixed string "the model is fake", and the
+check asserts `output.startswith("[FakeLLM]")`. Both halves come from one literal, so the assert
+is always true — including in the run of a reader who has a key configured.
 
-**Правило:** банер приходить із **фабрики**, а не з константи етапу, і перевірка звіряє його з
-тим, що фабрика поверне зараз. Той самий клас, що й «інваріант із двох доданків»: рівність,
-обидва боки якої з одного джерела, не є перевіркою.
+**Rule:** the banner comes from the **factory**, not from a stage constant, and the check
+compares it against what the factory returns right now. The same class as "an invariant with two
+terms": an equality whose two sides come from one source is not a check.
 
-### Захардкоджене імʼя моделі ламає етап рівно для того, хто зробив усе правильно
+### A hard-coded model name breaks the stage for exactly the reader who did everything right
 
-`create(model="fake", …)` працює доти, доки читач не налаштував ключ. Після цього `get_client()`
-віддає справжнього клієнта, провайдер відповідає відмовою на неіснуючу модель, і етап падає на
-першій же сцені — у того, хто пройшов етап 1 і виконав інструкцію.
+`create(model="fake", …)` works right up until the reader configures a key. After that
+`get_client()` returns the real client, the provider refuses a non-existent model, and the stage
+fails on its very first scene — for the person who completed stage 1 and followed the
+instruction.
 
-Той самий рід помилки, що й «інструкція, що карає за послух», лише зсередини коду. Поруч
-знайшовся другий випадок: прапорець `S09_ADK=1`, задокументований у власному докстрінгу модуля,
-валив сімнадцять перевірок із двадцяти восьми, вимагаючи креденшелів, яких реалізація навмисно
-не використовує.
+The same kind of mistake as "an instruction that punishes obedience", only from inside the code.
+A second instance turned up beside it: the flag `S09_ADK=1`, documented in the module's own
+docstring, took down seventeen checks out of twenty-eight by demanding credentials the
+implementation deliberately does not use.
 
-**Правило:** перед тегом прогони етап **обома** способами — з ключем і без. Гілка «з ключем»
-зазвичай не має жодної перевірки, бо перевірки офлайнові; отже вона перевіряється руками, або
-не перевіряється взагалі.
+**Rule:** before the tag, run the stage **both** ways — with a key and without. The "with a key"
+branch usually has no check at all, because the checks are offline; so it is checked by hand, or
+it is not checked at all.
 
-### Прогрів, стеля, поріг: усе, що тримає число, мусить мати перевірку
+### Warm-up, ceiling, threshold: everything that holds a number must have a check
 
-Колонка невидимих рядків етапу 9 мигтіла між процесами, бо перший прогін трасує ще й імпорт.
-Прогрів це виправив — і **жодна перевірка не помітила б його зникнення**: усі двадцять прогонів
-перевірки детермінізму йдуть в одному процесі, де імпорт уже стався.
+Stage 9's invisible-lines column flickered from process to process, because the first run traces
+the import as well. A warm-up fixed that — and **no check would have noticed the warm-up
+disappearing**: all twenty runs of the determinism check happen in one process, where the import
+has already occurred.
 
-Число виявилось гіршим за очікуване: холодний старт дає 13992 виконані рядки проти 1895 теплого,
-всемеро.
+The number turned out worse than expected: a cold start gives 13992 executed lines against 1895
+warm — sevenfold.
 
-**Правило:** перевірка детермінізму, яка живе в одному процесі, бачить лише мигтіння **всередині**
-процесу. Один відбиток має братися в підпроцесі — інакше цілий клас нестабільності невидимий за
-побудовою. І ширше: якщо число тримає якийсь механізм (прогрів, сортування, кеш), спитай, яка
-саме перевірка почервоніє від його зникнення. Немає такої — механізму фактично немає.
+**Rule:** a determinism check that lives in one process sees only the flicker **inside** that
+process. One fingerprint has to be taken in a subprocess — otherwise a whole class of
+instability is invisible by construction. And more broadly: if some mechanism holds a number (a
+warm-up, a sort, a cache), ask which check exactly goes red when it disappears. If there is
+none, the mechanism effectively does not exist.
 
-### Порівняння, у якому один учасник ділиться кодом з іншим, несиметричне
+### A comparison in which one participant shares code with another is asymmetric
 
-Реалізація на фреймворку імпортувала пʼять рядків у базової лінії — і колонка «мої рядки»
-показала різницю в дванадцять замість сімнадцяти. Помилка йшла в бік «фреймворк дешевший», тобто
-в бік висновку, якого хочеться.
+The framework implementation imported five lines from the baseline — and the "my lines" column
+showed a difference of twelve instead of seventeen. The error leaned towards "the framework is
+cheaper", that is, towards the conclusion one wants.
 
-**Правило:** у порівнянні кожен учасник платить за все, що виконує. Дублювання коду між
-учасниками порівняння — не недбалість, а умова коректності виміру.
+**Rule:** in a comparison every participant pays for everything it executes. Duplicating code
+between the participants of a comparison is not negligence but a condition for the measurement
+to be correct.
 
-### «Імпортує» — не те саме, що «використовує»
+### "Imports" is not the same as "uses"
 
-Теза етапу 10 у першій редакції звучала «капстоун імпортує зріле з етапів 1–9». Читання
-`stages/s06_platform/app.py` її вбило: етап 6 **уже** імпортує чотири етапи, і написати це
-означало б описати те, що сталося чотири етапи тому.
+Stage 10's claim in its first draft read "the capstone imports what is mature from stages 1–9".
+Reading `stages/s06_platform/app.py` killed it: stage 6 **already** imports four stages, and
+writing that would have meant describing something that happened four stages ago.
 
-Але в тому самому рядку лежала справжня теза. З етапу 2 імпортується **одне ім'я** — константа
-рівня доступу, яка їде далі як аргумент. Пошук, ембеддинги, фільтр доступу — усе, заради чого
-етап 2 існує, — не виконується **ніколи**.
+But the real claim lay in that same line. From stage 2 **one name** is imported — the
+access-level constant, which travels on as an argument. Search, embeddings, the access filter —
+everything stage 2 exists for — is executed **never**.
 
-Перелік імпортів це ховає. Доказ повторного використання має форму **виконаних рядків**, а не
-рядків `import`. Питання «скільки з цієї частини справді працює» має відповідь числом, і
-відповідь регулярно виявляється нулем.
+A list of imports hides this. The proof of reuse has the form of **executed lines**, not
+`import` lines. The question "how much of this part actually runs" has a number for an answer,
+and the answer regularly turns out to be zero.
 
-### Число, яке рахується, і число, яке нізвідки не береться
+### A number that is computed, and a number that comes from nowhere
 
-Дві діри етапу 10 знайшов **мутаційний прогін**, а не автор і не рев'ю. Обидві одного роду:
-число рахувалось, але ніщо не стверджувало, **звідки** воно.
+Two of stage 10's holes were found by the **mutation run**, not by the author and not by the
+review. Both of one kind: the number was being computed, but nothing asserted **where it came
+from**.
 
-Ціна перехідників не залежала від реєстру `ADAPTERS` — можна було порахувати всі функції
-модуля, і перевірка «ціна менша за весь модуль» лишалась істиною. Прогрів перед виміром не мав
-жодного свідка: у наборі перевірок він на той момент уже нічого не міняв, бо попередні
-перевірки все поімпортували.
+The adapters' cost did not depend on the `ADAPTERS` registry — you could count every function in
+the module and the check "the cost is less than the whole module" stayed true. The warm-up
+before the measurement had no witness at all: by that point in the check suite it changed
+nothing any more, because the preceding checks had imported everything.
 
-Латка для першої навмисно **поведінкова**: прибери один перехідник із реєстру — число мусить
-упасти. Переписати той самий підрахунок у перевірці означало б довести, що дві копії однакові.
-Це той самий клас, що ловився на етапах 8 і 9: **рівність, обидві половини якої з одного
-джерела**.
+The patch for the first one is deliberately **behavioural**: remove one adapter from the
+registry and the number must drop. Rewriting that same count inside the check would have meant
+proving that two copies are identical. The same class that was caught on stages 8 and 9: **an
+equality whose two halves come from one source**.
 
-### Набір перевірок ховає ефект власним порядком прогону
+### The check suite hides the effect by its own run order
 
-Мутація «прибрати прогрів» червонила нуль. Перевірка була чесна; умови, у яких вона працювала, —
-ні: до неї вже відпрацювало двадцять інших перевірок, і `sys.modules` віддавав готове.
+The mutation "remove the warm-up" turned nothing red. The check was honest; the conditions it
+ran in were not: twenty other checks had already worked before it, and `sys.modules` handed back
+ready-made modules.
 
-Вимір у **свіжому процесі** дав 234 рядки проти 166 — сорок один відсоток зайвого, і весь у бік
-«складання дороге».
+A measurement in a **fresh process** gave 234 lines against 166 — forty-one percent of excess,
+and all of it towards "assembly is expensive".
 
-Урок ширший за прогрів: якщо ефект залежить від стану процесу, набір перевірок його **не
-побачить**, бо сам цей стан і створює. Такі речі міряються підпроцесом, і це не надмірність.
+The lesson is wider than warm-ups: if an effect depends on process state, the check suite will
+**not see it**, because the suite is what creates that state. Such things are measured in a
+subprocess, and that is not excess.
 
-### Однакова функція ще не означає однакових умов
+### The same function does not yet mean the same conditions
 
-Демо друкувало 166, перевірка міряла 165. Обидва числа вже йшли через **один** виклик — спільну
-функцію виміру. Різниця сиділа у **вході**: у демо файл трейсу вже містив прогін сценаріїв, тож
-оцінювач виконував гілку розбору; у перевірці файл був порожній, і та гілка не виконувалась.
+The demo printed 166, the check measured 165. Both numbers already went through **one** call —
+the shared measurement function. The difference sat in the **input**: in the demo the trace file
+already held a scenario run, so the evaluator executed the parsing branch; in the check the file
+was empty and that branch never ran.
 
-Вимір виконаних рядків залежить від **даних**, а не лише від коду. Спільна функція прибирає одну
-причину розбіжності з двох; другу — однакові умови — доводиться забезпечувати окремо.
+A measurement of executed lines depends on the **data**, not only on the code. A shared function
+removes one of the two causes of divergence; the second — identical conditions — has to be
+arranged separately.
 
-### Невідповідність іде в перехідник, ніколи в частину
+### A mismatch goes into the adapter, never into the part
 
-Під час складання неминуче знаходиться частина, яку однією правкою можна зробити зручнішою.
-Правка дешевша за перехідник, чистіша на вигляд і покращує сам етап.
+During assembly there is inevitably a part that one edit would make more convenient. The edit is
+cheaper than an adapter, cleaner to look at, and improves the stage itself.
 
-І вона заборонена. Частина, яку довелося змінити, спростовує тезу «частини були зрілі», а зміна
-зачіпає ще й урок, перевірки, тег і статтю того етапу. Кожна невідповідність іде в перехідник і
-потрапляє в **число**; потреба в правці — у звіт, з назвою етапу.
+And it is forbidden. A part that had to be changed refutes the claim "the parts were mature",
+and the change also touches that stage's lesson, checks, tag and article. Every mismatch goes
+into an adapter and into **the number**; the need for the edit goes into the report, with the
+stage named.
 
-Тому ж перехідник **не вирішує**. Той, що вирішує, є частиною, і їй місце в етапі — з уроком і
-перевірками.
+For the same reason an adapter **decides nothing**. One that decides is a part, and a part
+belongs in a stage — with a lesson and checks.
 
-### Порожній розділ «що виявилось» — найпідозріліший результат
+### An empty "what turned up" section is the most suspicious result
 
-Дев'ять модулів, спроєктованих незалежно, не стикуються ідеально. Звіт, який каже інакше,
-звітує не про складання, а про бажання автора.
+Nine modules designed independently do not fit together perfectly. A report that says otherwise
+reports not on the assembly but on the author's wishes.
 
-Тому розділ «що складання виявило» перевіряється **числом**, а не наявністю заголовка, і кожен
-його пункт називає етап. Сім пунктів етапу 10 — це не самокритика, а найчесніший підсумок:
-парадний фінал довів би менше.
+So the "what the assembly revealed" section is checked by a **number**, not by the presence of a
+heading, and every item in it names a stage. Stage 10's seven items are not self-criticism but
+the most honest summary available: a triumphant finale would have proved less.
 
-### Прилад, який міряє сам себе, рапортує це як роботу
+### An instrument that measures itself reports that as work
 
-Етап 9 стояв серед частин складання й давав ненульове число — рівно **одиницю**. Виглядало
-скромно й правдоподібно. Прогін `measure(lambda: None)` на **порожній роботі** показав ту саму
-одиницю: єдиний виконаний рядок етапу 9 — це вимикання трасування у `finally` його ж лічильника.
+Stage 9 stood among the assembly's parts and gave a non-zero number — exactly **one**. That
+looked modest and plausible. Running `measure(lambda: None)` on **empty work** showed the same
+one: stage 9's single executed line is the disabling of tracing in the `finally` of its own
+counter.
 
-«Міряє» — не те саме, що «використовує», і різниця між ними точно така сама, як між «імпортує»
-й «використовує». Знайшло це рев'ю, а не автор, і найдешевша проба виявилась однорядковою:
-**прогнати вимір на порожній роботі й подивитись, що він покаже**.
+"Measures" is not the same as "uses", and the difference between them is exactly the same as
+between "imports" and "uses". The review found it, not the author, and the cheapest probe turned
+out to be one line: **run the measurement on empty work and see what it reports**.
 
-### Чотири документи можуть обіцяти те, чого не питає жоден критерій
+### Four documents can promise what no criterion asks for
 
-Специфікація §1, `sad.md` двічі, `CURRICULUM.md` — усі казали «другий деплой». ASGI-поверхні не
-існувало, і §5 не мав про неї **жодного** критерію приймання. Обіцянка жила в прозі й не доїхала
-до того місця, де її хтось перевіряє.
+The spec's §1, `sad.md` twice, `CURRICULUM.md` — all of them said "a second deployment". No ASGI
+surface existed, and §5 had **not one** acceptance criterion about it. The promise lived in prose
+and never reached the place where somebody checks it.
 
-Рев'ю, що йде «специфікація → код», ловить це першим питанням: **який AC це доводить?** Якщо
-відповіді немає, обіцянка не є вимогою — вона є прикрасою.
+A review that goes "spec → code" catches this with its first question: **which AC proves this?**
+If there is no answer, the promise is not a requirement — it is decoration.
 
-Виявилось, до речі, що поверхня коштувала нуль перехідників: `create_app` етапу 6 приймає
-зібраний сервіс, бо етапи домовлені **формою, а не іменем**.
+Incidentally, it turned out that the surface cost zero adapters: stage 6's `create_app` accepts
+an assembled service, because the stages agree **by shape, not by name**.
 
-### Одна половина твердження задовольняється тим, щоб не робити нічого
+### One half of a claim is satisfied by doing nothing at all
 
-Перевірка «один запит рахується рівно раз» була зелена й неповна: її задовольняв і код, що не
-рахував **взагалі нічого**. Мутація, яка прибирала успішний облік, проходила повз неї.
+The check "one request is counted exactly once" was green and incomplete: code that counted
+**nothing at all** satisfied it too. A mutation that removed the successful accounting sailed
+straight past it.
 
-Те саме з ціною: «ціна менша за весь модуль» лишалась істиною й після того, як ціна переставала
-залежати від реєстру перехідників.
+The same with the cost: "the cost is less than the whole module" stayed true even after the cost
+stopped depending on the adapter registry.
 
-**Правило:** твердження про число мусить мати обидві половини — і «не більше», і «не менше»; або
-бути **поведінковим**: прибери вхід — число мусить змінитись.
+**Rule:** a claim about a number must have both halves — "no more" and "no less"; or else be
+**behavioural**: remove an input and the number must change.
 
 ## 6. Tags and the reader's navigation
 
