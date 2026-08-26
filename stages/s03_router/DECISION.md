@@ -1,51 +1,51 @@
-# Чи потрібен тут supervisor
+# Do you need a supervisor here
 
-Найчастіша відповідь — **не потрібен**, і саме тому цей чекліст існує.
+The most common answer is **no**, and that is exactly why this checklist exists.
 
-Граф із трьох агентів виглядає як архітектура, а один агент із трьома інструментами — як
-щось недороблене. На цьому відчутті будуються системи, у яких кожна відповідь коштує трьох
-викликів моделі замість одного, а помилка маршруту стає новим класом інцидентів.
+A graph of three agents looks like architecture, while one agent with three tools looks
+unfinished. Systems in which every answer costs three model calls instead of one — and where a
+routing mistake becomes a new class of incident — are built on that feeling.
 
-## Три вердикти, а не два
+## Three verdicts, not two
 
-    ОДИН АГЕНТ     інструменти в одному реєстрі, один виклик моделі на відповідь
-    КЛАСИФІКАТОР   дешевий вибір гілки без циклу ревізій
-    SUPERVISOR     повний граф із передачами й ревізіями
+    ОДИН АГЕНТ     tools in one registry, one model call per answer
+    КЛАСИФІКАТОР   a cheap branch choice with no revision loop
+    SUPERVISOR     the full graph, with handoffs and revisions
 
-**Середній вердикт найважливіший.** Більшість систем, які будують як supervisor, насправді
-потребують саме його: маршрут потрібен, а цикл ревізій — ні. Питання «нам треба supervisor чи
-ні» поставлене неправильно рівно тому, що між «ні» і «так» є третій варіант, дешевший за
-обидва крайні у своїх умовах.
+**The middle verdict is the most important.** Most systems built as supervisors actually need
+that one: the route is needed, the revision loop is not. The question "do we need a supervisor or
+not" is posed wrongly precisely because between "no" and "yes" there is a third option, cheaper
+than either extreme under its own conditions.
 
-## Чекліст
+## The checklist
 
-Правила перевіряються згори вниз, спрацьовує перше. Порядок — теж рішення:
+Rules are checked top to bottom and the first one to fire wins. The order is a decision too:
 
-| Черга | Що перевіряємо | Чому саме тут |
+| Position | What we check | Why here |
 |---|---|---|
-| 1–3 | **Структурні обмеження** | Їх не обходить жодна економія: якщо відповідь має вичитувати інший агент, дешевшого способу немає |
-| 4–5 | **Вартість** | Затримка й ціна виклику — реальні, але торгуються |
-| 6 | **Розмір** | Найслабший аргумент, який звучить найчастіше |
+| 1–3 | **Structural constraints** | No economy gets around them: if an answer has to be reviewed by another agent, there is no cheaper way |
+| 4–5 | **Cost** | Latency and the price of a call are real, but they are negotiable |
+| 6 | **Size** | The weakest argument, and the one heard most often |
 
-| # | Сигнал | Відповідь |
+| # | Signal | Answer |
 |---|---|---|
-| 1 | Відповідь одного має перевірятися іншим | **SUPERVISOR** |
-| 2 | Частинами володіють різні команди | **SUPERVISOR** |
-| 3 | Частинам потрібні різні моделі або налаштування | **SUPERVISOR** |
-| 4 | Описи інструментів конфліктують між собою | **КЛАСИФІКАТОР** |
-| 5 | Кожна зайва передача коштує помітної затримки | **КЛАСИФІКАТОР** |
-| 6 | Інструментів більше, ніж модель тримає в голові | **КЛАСИФІКАТОР** |
-| — | Жоден сигнал не спрацював | **ОДИН АГЕНТ** |
+| 1 | One agent's answer must be reviewed by another | **SUPERVISOR** |
+| 2 | Different teams own different parts | **SUPERVISOR** |
+| 3 | The parts need different models or settings | **SUPERVISOR** |
+| 4 | The tool descriptions conflict with one another | **КЛАСИФІКАТОР** |
+| 5 | Every extra handoff costs noticeable latency | **КЛАСИФІКАТОР** |
+| 6 | There are more tools than the model holds in its head | **КЛАСИФІКАТОР** |
+| — | No signal fired | **ОДИН АГЕНТ** |
 
-Чекліст існує не лише як текст: ті самі правила лежать кодом у `decision.py`, а перевірки
-стверджують, що кожна ситуація має одну відповідь **і кожне правило має ситуацію**. Текст і
-код не можуть розійтися непомітно.
+The checklist does not exist only as text: the same rules sit in code in `decision.py`, and
+checks assert that every situation has one answer **and that every rule has a situation**. Text
+and code cannot drift apart unnoticed.
 
 ```
 python -m stages.s03_router.decision
 ```
 
-## Сім ситуацій
+## Seven situations
 
 | Ситуація | Відповідь | Чому |
 |---|---|---|
@@ -57,15 +57,15 @@ python -m stages.s03_router.decision
 | Сорок інструментів в одному реєстрі | **КЛАСИФІКАТОР** | Вибір розмивається задовго до сорока. Групувати треба, розділяти агентів — ні. |
 | П'ять інструментів, одна предметна область | **ОДИН АГЕНТ** | Найчастіший випадок і найчастіша помилка: граф там, де вистачає реєстру. |
 
-## Чого чекліст не вирішує
+## What the checklist does not decide
 
-**Він не забороняє починати з одного агента й розділити потім.** Навпаки: це найдешевший
-шлях, якщо межа проходить там, де ти думаєш. Дорого коштує зворотне — злити трьох агентів в
-одного, коли з'ясувалось, що межі не було.
+**It does not forbid starting with one agent and splitting later.** Quite the opposite: that is
+the cheapest path, provided the boundary runs where you think it does. What is expensive is the
+reverse — merging three agents into one after it turns out there was no boundary.
 
-**Він не рахує грошей.** Кожна передача — виклик моделі; скільки це в місяць, залежить від
-трафіку, який ти ще не знаєш. Порахувати доведеться самому, і на етапі 6 для цього з'явиться
-бюджетний сторож.
+**It does not count money.** Every handoff is a model call; what that comes to per month depends
+on traffic you do not know yet. You will have to do that arithmetic yourself, and in stage 6 a
+budget guard appears for it.
 
-**Останній рядок таблиці — найважливіший.** П'ять інструментів в одній предметній області не
-потребують нічого, крім реєстру з етапу 1. Це найчастіший випадок і найчастіша помилка.
+**The last row of the table is the most important one.** Five tools in one domain need nothing
+beyond stage 1's registry. That is the most common case and the most common mistake.

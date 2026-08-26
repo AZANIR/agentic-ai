@@ -1,84 +1,91 @@
-# Чекліст: що міряти в голосовому конвеєрі
+# Checklist: what to measure in a voice pipeline
 
-Не «які метрики зібрати». Кожен пункт тут відповідає на питання, яке хтось поставить після
-першої скарги «воно гальмує».
+Not "which metrics to collect". Every item here answers a question somebody will ask after the
+first complaint that "it lags".
 
-## 1. Час до першого звуку — а не загальний
+## 1. Time to the first sound — not the total
 
-**Питання:** через скільки мілісекунд після паузи людина розуміє, що її почули?
+**The question:** how many milliseconds after the pause does the person understand they were
+heard?
 
-Загальна тривалість описує роботу системи. Час до першого звуку описує **паузу в розмові**, і
-саме її людина називає гальмуванням.
+Total duration describes the system's work. Time to the first sound describes the **pause in
+the conversation**, and that is what a person calls lagging.
 
-Оптимізація, що зменшує загальний час і не чіпає перший звук, у голосі не відчувається взагалі.
+An optimisation that reduces total time and leaves the first sound alone is not felt in voice
+at all.
 
-## 2. Розклад по кроках — а не одне число
+## 2. A breakdown by step — not one number
 
-**Питання:** який крок найдорожчий?
+**The question:** which step is the most expensive?
 
-Одне число каже, що погано. Розклад каже, **де** погано. Без нього оптимізують найпомітніший
-крок замість найдорожчого — а помітність і вартість збігаються рідко.
+One number says that things are bad. A breakdown says **where** they are bad. Without it,
+people optimise the most visible step instead of the most expensive one — and visibility and
+cost rarely coincide.
 
-І окремо: **розклад має сходитися повністю**. Не «сума кроків дорівнює загальному числу» — це
-правда лише там, де конвеєр володіє часом одноосібно. Щойно зʼявляється споживач, який
-забирає фрагменти у своєму темпі, інваріант пишеться з трьома доданками:
+And separately: **the breakdown has to reconcile in full**. Not "the sum of the steps equals
+the total" — that is only true where the pipeline owns the time on its own. The moment a
+consumer appears that takes the chunks at its own pace, the invariant is written with three
+terms:
 
 ```
-сума кроків + віддача споживачеві + не приписане нікому = загальний час
+sum of steps + handover to the consumer + attributed to nobody = total time
 ```
 
-і третій має бути нулем. Коротка форма не просто неповна — вона **мовчки приписує чужий час
-своєму кроку**: споживач, що думає секунду між фрагментами, робить найдорожчим той крок,
-після якого він думав. Сума при цьому сходиться, і розклад виглядає бездоганно.
+and the third has to be zero. The short form is not merely incomplete — it **silently bills
+somebody else's time to your step**: a consumer that thinks for a second between chunks makes
+the most expensive step the one it happened to think after. The sum still reconciles, and the
+breakdown looks flawless.
 
-Розклад, що не сходиться, гірший за його відсутність, бо йому вірять. Розклад, що сходиться
-неправильно, гірший удвічі.
+A breakdown that does not reconcile is worse than no breakdown, because it gets believed. A
+breakdown that reconciles wrongly is twice as bad.
 
-## 3. p95 — а не середнє
+## 3. p95 — not the mean
 
-**Питання:** що відчуває той двадцятий користувач?
+**The question:** what does that twentieth user feel?
 
-Середнє — число для звіту. Якщо кожен двадцятий прогін учетверо повільніший, середнє цього
-майже не помітить, а людина помітить одразу й піде.
+The mean is a number for a report. If every twentieth run is four times slower, the mean will
+barely notice, and the person will notice immediately and leave.
 
-**І p95 має бути справжнім прогоном**, а не інтерполяцією: показувати затримку, якої ніхто не
-відчув, — дивна форма чесності.
+**And p95 has to be a real run**, not an interpolation: showing a latency nobody experienced is
+a strange form of honesty.
 
-## 4. Обидві половини виграшу — окремо
+## 4. Both halves of the gain — separately
 
-**Питання:** що саме стало швидшим?
+**The question:** what exactly got faster?
 
-«Перекриття» й «раніша віддача» — різні речі з різною поведінкою. Перша масштабується з
-довжиною репліки, друга дає фіксований виграш. Змішавши їх, отримаєш прогноз, який не
-справдиться на довших репліках.
+"Overlap" and "earlier delivery" are different things with different behaviour. The first
+scales with utterance length, the second gives a fixed gain. Mix them and you get a forecast
+that will not hold on longer utterances.
 
-## 5. Ціна оптимізації — поруч із виграшем
+## 5. The price of the optimisation — next to its gain
 
-**Питання:** скільки разів ми зробили роботу, яка не знадобилась?
+**The question:** how many times did we do work that turned out not to be needed?
 
-Prefetch, кеш, спекулятивний виклик — усі троє купують час за марну роботу. Число марної
-роботи має бути **у трейсі**, інакше його неможливо порахувати на справжньому трафіку.
+Prefetch, cache, speculative call — all three buy time with wasted work. The number for the
+wasted work has to be **in the trace**, otherwise it cannot be counted on real traffic.
 
-## 6. Мигтіння вимірювання — окремо від якості системи
+## 6. Flicker in the measurement — separately from the system's quality
 
-**Питання:** чи дає той самий вхід те саме число?
+**The question:** does the same input give the same number?
 
-Перевірка часу, що падає раз на десять прогонів, буде вимкнена. Не «може бути» — **буде**, і
-швидко. Тому джерело часу має бути підмінним, а детермінізм — перевірятись окремо.
+A timing check that fails one run in ten will be disabled. Not "might be" — it **will be**, and
+quickly. So the time source has to be substitutable, and determinism has to be checked
+separately.
 
-## 7. Що відбувається на мовчанні
+## 7. What happens on silence
 
-**Питання:** скільки коштує кашель у мікрофон?
+**The question:** how much does a cough into the microphone cost?
 
-Порожнє розпізнавання, яке йде далі в модель, — це токени й секунди за нуль користі. Мовчання
-має зупиняти конвеєр **до** дорогого кроку, а не після.
+Empty recognition that goes on into the model is tokens and seconds for zero benefit. Silence
+has to stop the pipeline **before** the expensive step, not after it.
 
-## Чого в цьому чеклісті свідомо немає
+## What this checklist deliberately leaves out
 
-**Якості розпізнавання.** Вона вимірюється інакше (WER на розміченому наборі) й належить до
-іншої дисципліни. Плутати швидкість із точністю — найдешевший спосіб оптимізувати не те.
+**Recognition quality.** It is measured differently (WER on a labelled set) and belongs to a
+different discipline. Confusing speed with accuracy is the cheapest way to optimise the wrong
+thing.
 
-**Якості відповіді.** Це етап 8, і він міряє її на трейсах, а не в гарячому шляху.
+**Answer quality.** That is stage 8, and it measures it on traces rather than in the hot path.
 
-**Навантаження.** Скільки одночасних розмов витримає сервіс — питання етапу 10, і воно має
-сенс лише після того, як відома затримка однієї.
+**Load.** How many simultaneous conversations the service withstands is a stage 10 question,
+and it only makes sense once the latency of one is known.

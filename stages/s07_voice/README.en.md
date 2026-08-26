@@ -1,6 +1,6 @@
 # Stage 7 — Voice: two numbers instead of one assumption
 
-The lesson itself is in Ukrainian ([`README.md`](README.md)). This page is the map.
+The lesson itself is in [`README.md`](README.md). This page is the map.
 
 ## What it is
 
@@ -105,7 +105,7 @@ at a hundred runs, one of the sizes where `round` and `ceil` agree.
   evidence, not a benchmark.
 - **The VAD is naive.** Two thresholds, no spectral analysis; sustained music will interrupt.
 - **Live mode is written but never run.** `real.py` exists and turns on with one flag, but the
-  author had neither model weights nor a microphone: AC-07 stays not-verified on purpose. This
+  author had neither model weights nor a microphone: AC-07 stays `NOT EVALUATED` on purpose. This
   is the stage's weakest point, and it is named rather than hidden.
 - **The page's numbers differ from the demo's** — the utterance is different. What must match
   is the shape of the breakdown, not the values, and the page says so.
@@ -121,4 +121,4 @@ fake clock starts really sleeping, the stopwatch stops adding up, the consumer's
 billed to the model, p95 rounds instead of ranking, and first-audio can be marked twice. All
 of them leave the code working and the numbers plausible.
 
-Walkthrough in [`exercises.md`](exercises.md), written in Ukrainian.
+Walkthrough in [`exercises.md`](exercises.md).

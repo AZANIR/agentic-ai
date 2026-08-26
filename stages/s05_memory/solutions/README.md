@@ -1,24 +1,26 @@
-# Розв'язки — етап 5
+# Solutions — stage 5
 
-Зазирай **після** власної спроби.
+Look **after** your own attempt.
 
-| Файл | Вправа | Що показує |
+| File | Exercise | What it shows |
 |---|---|---|
-| [`exercise_2_context_rot.py`](exercise_2_context_rot.py) | 2 | Три пам'яті на тих самих фактах. Друга — та, заради якої все це |
+| [`exercise_2_context_rot.py`](exercise_2_context_rot.py) | 2 | Three memories over the same facts. The second one is what all of it is for |
 
 ```bash
 python -m stages.s05_memory.solutions.exercise_2_context_rot
 ```
 
-## Чому розв'язок один
+## Why there is only one solution
 
-Решта вправ дають однозначно червону перевірку з читабельним повідомленням — вивід перевірки
-і є розбір. Окремий скрипт має сенс лише там, де **зелений результат гірший за червоний**.
+The rest of the exercises produce an unambiguously red check with a readable message — the
+check's output is the walkthrough. A separate script only makes sense where **a green result is
+worse than a red one**.
 
-Вправа 2 саме така. Пам'ять, яка зберігає все, не падає — вона просто кладе в промпт сім
-зайвих фактів. Пам'ять із фільтром після відбору теж не падає — вона повертає порожньо, і
-це виглядає як «агент забув».
+Exercise 2 is exactly that. Memory that stores everything does not crash — it simply puts seven
+superfluous facts into the prompt. Memory with the filter after the selection does not crash
+either — it returns nothing, and that looks like "the agent forgot".
 
-Червона перевірка каже «власний факт зник». Вона не показує проміжного стану: скільки саме
-зайвого приходить у наївній версії й чому обидві невдалі версії виглядають нормально в
-логах. Побачити це можна лише поставивши три реалізації поруч на однакових даних.
+The red check says "your own fact disappeared". It does not show the intermediate state: how much
+superfluous material the naive version actually brings in, and why both failing versions look
+normal in the logs. The only way to see that is to put the three implementations side by side on
+the same data.

@@ -1,101 +1,108 @@
-# Чекліст: як обирати фреймворк агентів
+# Checklist: how to choose an agent framework
 
-Не «який кращий». Кожен пункт тут відповідає на питання, яке хтось поставить через півроку —
-коли міняти рішення вже дорого.
+Not "which one is better". Every item here answers a question somebody will ask six months from
+now — when changing the decision is already expensive.
 
-## 1. Чи ставиться він на твій інтерпретатор
+## 1. Does it install on your interpreter
 
-**Питання:** чи є версія, яка підтримує Python, на якому ти працюєш?
+**The question:** is there a release that supports the Python you work on?
 
-Це найдешевша перевірка й найгостріше обмеження, і воно вирішує вибір **першим**. Жодне
-порівняння в блогах його не показує: усі вони написані на тій версії, де все встановилось.
+This is the cheapest check and the sharpest constraint, and it settles the choice **first**. No
+comparison in a blog post shows it: every one of them was written on the version where everything
+installed.
 
-Перевіряй **до** того, як напишеш рядок коду. Фреймворк, обраний за елегантністю й відкинутий
-через `Requires-Python`, коштує рівно стільки, скільки ти встиг написати.
+Check it **before** you write a line of code. A framework chosen for its elegance and discarded
+over `Requires-Python` costs exactly as much as you managed to write.
 
-Окремо: **маркуй залежність, а не сподівайся**. Extra без маркера падає цілком і забирає з
-собою те, що встановилось би чудово, — тобто карає читача за послух.
+Separately: **mark the dependency, do not hope**. An extra without a marker fails as a whole and
+takes down with it whatever would have installed perfectly — that is, it punishes the reader for
+obedience.
 
-## 2. Скільки коду працює за тебе — і скільки з нього ти прочитаєш під час інциденту
+## 2. How much code works on your behalf — and how much of it will you read during an incident
 
-**Питання:** де живе код, якого ти не писав, і чи зможеш ти його відкрити о третій ночі?
+**The question:** where does the code you did not write live, and will you be able to open it at
+three in the morning?
 
-«Менше коду» — половина аргументу. Друга половина: код нікуди не подівся, він переїхав туди,
-де його не видно, не можна прочитати й не можна виправити.
+"Less code" is half the argument. The other half: the code did not go away, it moved somewhere
+you cannot see it, cannot read it and cannot fix it.
 
-Міряй **виконане**, а не встановлене. Розмір пакета вражає й нічого не значить: він несе
-підтримку десятків інтеграцій, з яких на твоїй задачі не спрацює жодна.
+Measure what **executed**, not what is installed. Package size is impressive and means nothing:
+it carries support for dozens of integrations, none of which will run on your task.
 
-## 3. У якій валюті фреймворк бере плату
+## 3. Which currency the framework charges in
 
-**Питання:** він додає рядки чи токени?
+**The question:** does it add lines or tokens?
 
-Це різні валюти, і платять ними різні люди в різний час.
+These are different currencies, and different people pay them at different times.
 
 ```
-оркестратор порядку      бере рядками, додає нуль токенів     ВИМІРЯНО
-фреймворк ролей          імовірно навпаки                     НЕ ВИМІРЯНО
+an order orchestrator     charges in lines, adds zero tokens     MEASURED
+a role framework          probably the other way round           NOT MEASURED
 ```
 
-Перший рядок — вимір етапу 9. Другий — очікування, і він навмисно позначений: етап, що вчить
-рахувати, не має права підсовувати здогад у тій самій таблиці.
+The first line is stage 9's measurement. The second is an expectation, and it is deliberately
+marked: a stage that teaches counting has no right to slip a guess into the same table.
 
-«Фреймворк дорожчий у токенах» — **не закон**, а властивість конкретного фреймворка. Порахуй,
-а не припусти: різниця в рахунку від провайдера з'явиться на продакшн-трафіку, а не на демо.
+"A framework costs more in tokens" is **not a law** but a property of a particular framework.
+Count it, do not assume: the difference in the provider's bill shows up on production traffic,
+not on a demo.
 
-І рахуй **на межі провайдера**. Лічильник усередині твого коду бачить лише те, що попросив ти,
-тобто саме надбавки й не бачить.
+And count it **at the provider boundary**. A counter inside your own code sees only what you
+asked for — which is precisely what misses the overhead.
 
-## 4. Чи зможеш ти відповісти «чому виконався цей крок»
+## 4. Will you be able to answer "why did this step run"
 
-**Питання:** скільки місць треба прочитати, щоб дізнатися причину?
+**The question:** how many places must be read to learn the reason?
 
-Явна координація: наступний крок вирішує код, і відповідь в одному місці. Неявна: наступний
-крок вирішує текст, який прочитала модель, і відповідь треба **реконструювати** з описів.
+Explicit coordination: the next step is decided by code, and the answer is in one place. Implicit:
+the next step is decided by text the model read, and the answer has to be **reconstructed** from
+descriptions.
 
-Обидва компроміси законні. Але другий стає дорогим саме тоді, коли він потрібен, — під час
-інциденту, коли треба не зрозуміти систему, а швидко назвати причину.
+Both trade-offs are legitimate. But the second becomes expensive exactly when you need it — during
+an incident, when the job is not to understand the system but to name the cause quickly.
 
-Це вимірюване: порахуй місця, де поведінка описана прозою.
+This is measurable: count the places where behaviour is described in prose.
 
-## 5. Чи пускає він тебе до клієнта провайдера
+## 5. Does it let you reach the provider's client
 
-**Питання:** чи можеш ти дати фреймворкові власний клієнт?
+**The question:** can you hand the framework your own client?
 
-Якщо ні — ти не зможеш ані порахувати токени, ані прогнати офлайн, ані підмінити провайдера,
-ані перевірити нічого без мережі й ключа.
+If not, you will not be able to count tokens, run offline, substitute the provider, or check
+anything without network and a key.
 
-Фреймворки люблять власних клієнтів, і найкоротший шлях — дати їм зробити по-своєму. Рядки,
-витрачені на те, щоб цього не дати, — це теж ціна риштувань, і вони мусять потрапляти в
-підрахунок чесно.
+Frameworks are fond of their own clients, and the shortest path is to let them have their way. The
+lines spent on not letting them are also a price of the scaffolding, and they have to land in the
+count honestly.
 
-## 6. Що станеться з наступною мінорною версією
+## 6. What happens with the next minor release
 
-**Питання:** який виклик зламається першим?
+**The question:** which call breaks first?
 
-Пін підлогою (`>=0.2`) віддасть тому, хто встановить етап через рік, зовсім інший пакет. Пін
-мінорною межею звужує вікно, але не закриває: розрив API ловить **смоук**, а не версія.
+A floor pin (`>=0.2`) will hand whoever installs the stage a year from now an entirely different
+package. A pin at the minor boundary narrows the window but does not close it: an API break is
+caught by a **smoke test**, not by a version.
 
-Смоук має **виконувати** реалізацію, а не імпортувати її. Імпорт переживе зникнення точки
-входу; виклик — ні.
+The smoke test has to **execute** the implementation, not import it. An import survives the
+disappearance of an entry point; a call does not.
 
-## 7. Чи потрібен він тут узагалі
+## 7. Is it needed here at all
 
-**Питання:** що показує рядок «без фреймворка» в тій самій таблиці?
+**The question:** what does the "no framework" row in the same table show?
 
-Без базової лінії порівняння відповідає на питання «який із них», а не на питання, яке ти
-насправді ставиш.
+Without a baseline, the comparison answers "which of them" rather than the question you are
+actually asking.
 
-На задачі з двох послідовних кроків риштування можуть коштувати дорожче за будівлю — і
-дізнатися це можна лише поставивши обидва числа поруч.
+On a task of two sequential steps the scaffolding may cost more than the building — and the only
+way to find that out is to put both numbers side by side.
 
-## Чого в цьому чеклісті свідомо немає
+## What this checklist deliberately leaves out
 
-**Розміру екосистеми.** Кількість інтеграцій, зірок і статей — не властивість коду, і жодна з
-них не допоможе о третій ночі.
+**Ecosystem size.** Integration counts, stars and articles are not properties of code, and none of
+them will help at three in the morning.
 
-**Швидкодії.** Затримку тут визначає модель, а не риштування. Міряти її на підробці означає
-міряти власну підробку.
+**Speed.** Latency here is set by the model, not by the scaffolding. Measuring it on a fake means
+measuring your own fake.
 
-**Зведеного бала.** Ваги обмежень — це думка про те, чиє обмеження важливіше. Твоє обмеження
-знаєш тільки ти, і саме тому висновок має форму «обмеження → інструмент».
+**A composite score.** Weights on constraints are an opinion about whose constraint matters more.
+Only you know your constraint, and that is exactly why the conclusion has the shape
+"constraint → tool".

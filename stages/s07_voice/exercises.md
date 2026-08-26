@@ -1,35 +1,35 @@
-# Вправи етапу 7 — зламай і подивись, що почервоніє
+# Stage 7 exercises — break it and watch what turns red
 
-Перед кожною вправою прогони набір і переконайся, що він зелений:
+Before every exercise, run the suite and make sure it is green:
 
 ```bash
 python -m stages.s07_voice.check
 ```
 
-Числа заміряні, не вгадані; звірка автоматична:
+The numbers are measured, not guessed; the reconciliation is automatic:
 
 ```bash
 python scripts/mutate.py s07 --expect
 ```
 
-**Читай не кількість, а назви.** Мутація, спіймана випадковою перевіркою, — це гірше, ніж
-спіймана тією, яка про неї стверджує.
+**Read the names, not the count.** A mutation caught by an incidental check is worse than one
+caught by the check that asserts about it.
 
-**Найважливіші стосуються не звуку, а вимірювання** — вправи 1, 2, 3, 13 і 14. Усі вони
-лишають код працездатним і дають числа, які виглядають правдоподібно.
+**The most important ones are not about sound but about measurement** — exercises 1, 2, 3, 13
+and 14. All of them leave the code working and give numbers that look plausible.
 
 ---
 
-## Вправа 1 · Підроблений годинник починає спати насправді
+## Exercise 1 · The fake clock starts really sleeping
 
 `stages/s07_voice/clock.py`:
 
 ```python
-# було
+# before
         self.waits.append(millis)
         self._now += millis
 
-# стало
+# after
         import time as _t
 
         self.waits.append(millis)
@@ -37,385 +37,388 @@ python scripts/mutate.py s07 --expect
         self._now += millis
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Підроблений годинник починає спати насправді — зовсім трохи, у сто разів менше за
-заявлене. Числа лишаються **правильними**; змінюється лише те, що прогін тепер коштує
-реального часу.
+The fake clock starts really sleeping — only a little, a hundred times less than declared. The
+numbers stay **correct**; the only thing that changes is that a run now costs real time.
 
-На двадцяти прогонах це ще непомітно. На двохстах — перевірка починає займати секунди,
-і хтось зменшить кількість прогонів. Далі мигтіння повертається, і його вимикають.
+At twenty runs this is still invisible. At two hundred the check starts taking seconds, and
+somebody will reduce the number of runs. Then the flicker comes back, and it gets disabled.
 
-Червоніє перевірка, що міряє **справжню** тривалість підробленого сну.
+What turns red is the check that measures the **real** duration of the fake sleep.
 
 ---
 
-## Вправа 2 · Перший звук можна позначити двічі
+## Exercise 2 · First audio can be marked twice
 
 `stages/s07_voice/measure.py`:
 
 ```python
-# було
+# before
         if self.timing.first_audio is not None:
 
-# стало
+# after
         if False:
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Сторожа зникає, і перший звук можна позначити двічі. Друге позначення затирає перше,
-тож головне число етапу стає часом **другого** фрагмента.
+The guard disappears, and first audio can be marked twice. The second marking overwrites the
+first, so the stage's headline number becomes the time of the **second** chunk.
 
-Найковарніше тут те, що число лишається правдоподібним: воно більше за справжнє, але
-менше за батчеве. Графік виглядає нормально.
+The nastiest part is that the number stays plausible: it is larger than the real one but
+smaller than the batch one. The chart looks fine.
 
 ---
 
-## Вправа 3 · Кроки секундоміра перекриваються
+## Exercise 3 · The stopwatch's steps start overlapping
 
 `stages/s07_voice/measure.py`:
 
 ```python
-# було
+# before
         cost = now - self._mark
         self._mark = now
 
-# стало
+# after
         cost = now - self._started
 ```
 
-**Червоних: 4.**
+**Red: 4.**
 
-Кроки секундоміра починають перекриватися: кожен міряється від початку прогону, а не
-від кінця попереднього.
+The stopwatch's steps start overlapping: each is measured from the start of the run rather than
+from the end of the previous one.
 
-Сума кроків стає більшою за загальний час — розклад перестає сходитися. Це найпоширеніший
-спосіб отримати числа, які неможливо скласти, і саме заради нього секундомір один.
+The sum of the steps becomes larger than the total time — the breakdown stops reconciling. This
+is the most common way to get numbers that cannot be added up, and it is exactly why there is
+one stopwatch.
 
-Червоніє й **живий режим**: перевірка, що піднімає сокет і проводить розмову, перевіряє той
-самий закон збереження на числах, які прийшли по мережі. Одна вада, спіймана двома різними
-шляхами, — це не подвійний облік, а два незалежні свідки.
+**Live mode** turns red too: the check that raises a socket and holds a conversation verifies
+the same conservation law on numbers that arrived over the network. One defect caught by two
+different routes is not double counting but two independent witnesses.
 
 ---
 
-## Вправа 4 · Розпізнавання перестає перекриватися з мовленням
+## Exercise 4 · Recognition stops overlapping with speech
 
 `stages/s07_voice/stt.py`:
 
 ```python
-# було
+# before
         cost = FINALISE_MILLIS if self.incremental else self.millis_per_second * seconds
 
-# стало
+# after
         cost = self.millis_per_second * seconds
 ```
 
-**Червоних: 2.**
+**Red: 2.**
 
-Розпізнавання в стрімінгу перестає перекриватися з мовленням і знову коштує повну
-ціну.
+Recognition in streaming stops overlapping with speech and again costs full price.
 
-Відношення падає з 3.5x до 1.7x — тобто обіцянка «щонайменше вдвічі» ламається. У
-повідомленні перевірки це число з двома знаками: 1.69. Мутація показує, **звідки насправді**
-береться більша частина виграшу: не з фрагментів, а з того, що робота переїхала в час, коли
-людина ще говорила.
+The ratio falls from 3.5x to 1.7x — that is, the promise of "at least twice" breaks. In the
+check's message that number has two decimals: 1.69. The mutation shows **where most of the
+gain actually comes from**: not from the chunks, but from the work moving into the time when
+the person was still speaking.
 
 ---
 
-## Вправа 5 · Стрімінг збирає всі фрагменти перед першим звуком
+## Exercise 5 · Streaming collects every chunk before the first sound
 
 `stages/s07_voice/pipeline.py`:
 
 ```python
-# було
+# before
         for index, chunk in enumerate(think_chunks(heard.text, clock=clock)):
 
-# стало
+# after
         for index, chunk in enumerate(list(think_chunks(heard.text, clock=clock))):
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Один виклик `list()` — і стрімінг перестає бути стрімінгом, лишаючись ним за структурою
-коду. Фрагменти збираються цілком, перш ніж перший піде в синтез.
+One `list()` call — and streaming stops being streaming while remaining streaming by the
+structure of the code. The chunks are collected in full before the first one goes to synthesis.
 
-Це найчастіша помилка в реальному коді: `list()` дописують, щоб «зручніше було подивитись», і
-оптимізація зникає мовчки. Розклад лишається коректним, кроки на місці, сума сходиться.
-Ламається лише те, заради чого все будувалось.
+This is the most frequent mistake in real code: `list()` gets added so it is "easier to look
+at", and the optimisation disappears silently. The breakdown stays correct, the steps are in
+place, the sum reconciles. The only thing that breaks is the thing everything was built for.
 
-**Попередня редакція цієї вправи не компілювалась.** Вона підставляла `CHUNKS_SENTINEL`, якого
-в коді немає, і всі червоні були `NameError` — жодного ассерту досягнуто не було. Урок звідси
-не про стрімінг: **після мутації читай причину падіння, а не лише факт**.
+**The previous edition of this exercise did not compile.** It substituted `CHUNKS_SENTINEL`,
+which does not exist in the code, and every red one was a `NameError` — not a single assertion
+was reached. The lesson here is not about streaming: **after a mutation, read the reason for
+the failure, not only the fact of it**.
 
 ---
 
-## Вправа 6 · Barge-in дивиться лише на рівень
+## Exercise 6 · Barge-in looks only at the level
 
 `stages/s07_voice/bargein.py`:
 
 ```python
-# було
+# before
     if sound.millis < min_millis:
 
-# стало
+# after
     if False:
 ```
 
-**Червоних: 3.**
+**Red: 3.**
 
-Умова тривалості зникає, і детектор дивиться лише на рівень.
+The duration condition disappears, and the detector looks only at the level.
 
-Він і далі «працює»: гучне мовлення перериває, тиша — ні. Ламається саме те, заради чого
-друга умова існує: клацання мишею й кашель тепер обривають відповідь.
+It still "works": loud speech interrupts, silence does not. What breaks is exactly what the
+second condition exists for: mouse clicks and coughs now cut off the answer.
 
 ---
 
-## Вправа 7 · Barge-in дивиться лише на тривалість
+## Exercise 7 · Barge-in looks only at the duration
 
 `stages/s07_voice/bargein.py`:
 
 ```python
-# було
+# before
     if sound.level < level:
 
-# стало
+# after
     if False:
 ```
 
-**Червоних: 2.**
+**Red: 2.**
 
-Дзеркально до попередньої: зникає умова рівня, лишається тривалість.
+The mirror image of the previous one: the level condition disappears, the duration stays.
 
-Тепер відповідь перериває кондиціонер, вентилятор і будь-який тривалий фоновий шум. Обидві
-вправи разом показують, чому перевірок чотири, а не одна.
+Now the answer gets interrupted by the air conditioner, the fan and any sustained background
+noise. Together the two exercises show why there are four checks and not one.
 
 ---
 
-## Вправа 8 · P95 інтерполюється замість брати справжній прогін
+## Exercise 8 · P95 is interpolated instead of taking a real run
 
 `stages/s07_voice/measure.py`:
 
 ```python
-# було
+# before
         p95=ordered[rank],
 
-# стало
+# after
         p95=sum(ordered) / len(ordered) * 1.5,
 ```
 
-**Червоних: 2.**
+**Red: 2.**
 
-p95 починає обчислюватись формулою замість того, щоб бути справжнім прогоном.
+p95 starts being computed by a formula instead of being a real run.
 
-Число виглядає правдоподібно — воно навіть більше за середнє. Але такої затримки не відчув
-жоден прогін, і показувати її користувачеві означає звітувати про подію, якої не було.
+The number looks plausible — it is even larger than the mean. But no run experienced that
+latency, and showing it to the user means reporting an event that did not happen.
 
 ---
 
-## Вправа 9 · Розподіл із нуля прогонів дає нулі
+## Exercise 9 · A distribution from zero runs gives zeros
 
 `stages/s07_voice/measure.py`:
 
 ```python
-# було
+# before
     if not values:
         raise ValueError("розподіл із нуля прогонів не існує")
 
-# стало
+# after
     if not values:
         return Distribution(runs=0, mean=0.0, p95=0.0, worst=0.0)
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Розподіл із нуля прогонів перестає бути помилкою й починає повертати нулі.
+A distribution from zero runs stops being an error and starts returning zeros.
 
-Мовчазний нуль у звіті виглядає як дуже швидкий сервіс. Насправді це відсутність числа —
-і різниця між «швидко» і «не міряли» тут коштує дорого.
+A silent zero in a report looks like a very fast service. In reality it is the absence of a
+number — and the difference between "fast" and "not measured" is expensive here.
 
 ---
 
-## Вправа 10 · Мовчання йде в модель
+## Exercise 10 · Silence goes into the model
 
 `stages/s07_voice/pipeline.py`:
 
 ```python
-# було
+# before
     if heard.silent:
         return _silence(watch, tracer)
 
-# стало
+# after
     if False:
         return _silence(watch, tracer)
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Порожнє розпізнавання більше не зупиняє конвеєр, і мовчання йде в модель.
+Empty recognition no longer stops the pipeline, and silence goes into the model.
 
-Кожен кашель у мікрофон коштує токенів і півтори секунди. Доказ у перевірці — не імена
-кроків, а **затрати**: підроблена модель спить 750 мс, і годинник це показує.
+Every cough into the microphone costs tokens and a second and a half. The proof in the check is
+not the names of the steps but the **cost**: the fake model sleeps 750 ms, and the clock shows
+it.
 
 ---
 
-## Вправа 11 · Prefetch перестає називати марну роботу
+## Exercise 11 · Prefetch stops naming the wasted work
 
 `stages/s07_voice/prefetch.py`:
 
 ```python
-# було
+# before
     outcome.note = f"{WASTED}: інструмент викликано, результат відкинуто"
 
-# стало
+# after
     outcome.note = ""
 ```
 
-**Червоних: 2.**
+**Red: 2.**
 
-Prefetch перестає називати марну роботу: примітка стає порожньою.
+Prefetch stops naming the wasted work: the note becomes empty.
 
-Виграш лишається, ціна зникає з очей. Етап, що показує лише перше число, агітує за
-prefetch замість пояснювати його — і читач вмикає оптимізацію там, де інструмент потрібен
-кожному десятому запиту.
+The gain stays, the price disappears from view. A stage that shows only the first number is
+campaigning for prefetch instead of explaining it — and the reader turns the optimisation on
+where the tool is needed by one request in ten.
 
 ---
 
-## Вправа 12 · Prefetch чекає обидві затримки замість перекриття
+## Exercise 12 · Prefetch waits out both delays instead of overlapping them
 
 `stages/s07_voice/prefetch.py`:
 
 ```python
-# було
+# before
         clock.sleep(max(tool_millis, think_millis))
 
-# стало
+# after
         clock.sleep(tool_millis + think_millis)
 ```
 
-**Червоних: 2.**
+**Red: 2.**
 
-Prefetch починає чекати обидві затримки послідовно замість перекриття.
+Prefetch starts waiting out both delays in sequence instead of overlapping them.
 
-Він і далі «працює»: виклик відбувається раніше, код виглядає так само. Просто
-виграшу більше немає — складність додано за нуль.
+It still "works": the call happens earlier, the code looks the same. There simply is no gain
+any more — complexity added for nothing.
 
 ---
 
-## Вправа 13 · Час споживача приписується наступному кроку
+## Exercise 13 · The consumer's time is billed to the next step
 
 `stages/s07_voice/measure.py`:
 
 ```python
-# було
+# before
         gap = now - self._mark
         self._mark = now
         self.timing.handover += gap
 
-# стало
+# after
         gap = now - self._mark
         self.timing.handover += gap
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Секундомір перестає зсувати мітку після віддачі фрагмента. Час, коли керування було в
-споживача, більше не закривається окремо — він потрапляє в **наступний** крок.
+The stopwatch stops moving the mark after a chunk is delivered. The time during which control
+belonged to the consumer is no longer closed off separately — it lands in the **next** step.
 
-Це та сама вада, яку етап описує в частині 4, і вона найтихіша з усіх: розклад лишається
-несуперечливим на швидкому споживачі й розсипається лише на повільному. Модель, що спала
-750 мс, показує 2750 — і найдорожчим кроком стає той, після якого браузер думав найдовше.
+This is the same defect the lesson describes in part 4, and it is the quietest of them all: the
+breakdown stays consistent on a fast consumer and falls apart only on a slow one. A model that
+slept 750 ms shows 2750 — and the most expensive step becomes the one the browser thought after
+the longest.
 
-Червоніє закон збереження, і саме його **друга** половина: сума ще може зійтися, а крок
-моделі вже бреше.
+The conservation law turns red, and specifically its **second** half: the sum may still
+reconcile while the model's step is already lying.
 
 ---
 
-## Вправа 14 · P95 округлюється замість брати найближчий ранг
+## Exercise 14 · P95 is rounded instead of taking the nearest rank
 
 `stages/s07_voice/measure.py`:
 
 ```python
-# було
+# before
     rank = max(0, min(len(ordered) - 1, math.ceil(0.95 * len(ordered)) - 1))
 
-# стало
+# after
     rank = max(0, min(len(ordered) - 1, int(round(0.95 * len(ordered))) - 1))
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Найближчий ранг замінюється округленням — одне слово, і воно виглядає еквівалентним.
+Nearest rank is replaced by rounding — one word, and it looks equivalent.
 
-На ста прогонах різниці немає: `round(95)` і `ceil(95)` дають те саме. Різниця зʼявляється
-приблизно на половині розмірів вибірки — 11–19, 30–39, 51–59 — де ранг падає на одиницю
-нижче. На тридцяти прогонах p95 виходить 400 мс, тоді як 6.7 % прогонів гірші, і `tail_ratio`
-стає меншим за одиницю: «хвоста немає».
+At a hundred runs there is no difference: `round(95)` and `ceil(95)` give the same thing. The
+difference appears on roughly half of all sample sizes — 11–19, 30–39, 51–59 — where the rank
+drops one lower. At thirty runs p95 comes out as 400 ms while 6.7 % of runs are worse, and
+`tail_ratio` becomes less than one: "there is no tail".
 
-Перша редакція перевірки цього не бачила, бо стояла рівно на ста прогонах. Урок:
-**перевірка граничної арифметики має ганяти кілька розмірів вхідних даних**, інакше вона
-перевіряє одну щасливу точку.
+The first edition of the check did not see this, because it stood at exactly a hundred runs.
+The lesson: **a check on boundary arithmetic has to run several input sizes**, otherwise it is
+checking one lucky point.
 
 ---
 
-## Вправа 15 · Відкинутий prefetch усе одно чекає на інструмент
+## Exercise 15 · Discarded prefetch waits for the tool anyway
 
 `stages/s07_voice/prefetch.py`:
 
 ```python
-# було
+# before
     clock.sleep(think_millis)
     outcome = Outcome(millis=clock.now() - start, used=False)
 
-# стало
+# after
     clock.sleep(max(tool_millis, think_millis))
     outcome = Outcome(millis=clock.now() - start, used=False)
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Відкинутий prefetch знову чекає на інструмент, який рядком нижче оголошується марною
-роботою.
+Discarded prefetch waits for the tool again — the tool that is declared wasted work one line
+below.
 
-За повільного інструмента відповідь затримується на його повну ціну — заради результату,
-який викидають. Це не оптимізація, а оптимізація навпаки, і помітна вона лише тоді, коли
-інструмент **повільніший** за роздум. Перша редакція скрізь брала 500 проти 600, тож цей
-випадок не траплявся ніде.
+With a slow tool the answer is delayed by its full price, for the sake of a result that gets
+thrown away. That is not an optimisation but an optimisation in reverse, and it is only visible
+when the tool is **slower** than the thinking. The first edition took 500 against 600
+everywhere, so this case never occurred anywhere.
 
 ---
 
-## Вправа 16 · Фрагменти можна пройти двічі
+## Exercise 16 · Chunks can be traversed twice
 
 `stages/s07_voice/pipeline.py`:
 
 ```python
-# було
+# before
         if self._walked:
 
-# стало
+# after
         if False:
 ```
 
-**Червоних: 1.**
+**Red: 1.**
 
-Фрагменти знову можна пройти двічі. Другий прохід не помиляється й не порожній — він
-продовжує з середини.
+Chunks can be traversed twice again. The second pass does not fail and is not empty — it
+continues from the middle.
 
-`next(chunks)`, а потім `list(chunks)` віддає хвіст відповіді, який виглядає як уся
-відповідь. Мовчазна половина гірша за помилку: помилку видно.
+`next(chunks)` and then `list(chunks)` gives back the tail of the answer, which looks like the
+whole answer. A silent half is worse than an error: an error is visible.
 
 ---
 
-## Що робити далі
+## What to do next
 
-Спробуй **свою** мутацію: зламай щось і подивись, чи хтось помітить. Якщо набір лишився
-зеленим — ти знайшов дірку в перевірках, і це цінніше за будь-яку з шістнадцяти вище.
+Try **your own** mutation: break something and see whether anyone notices. If the suite stayed
+green, you have found a hole in the checks, and that is worth more than any of the sixteen
+above.
 
-І окремо — покрути **пороги**:
+And separately — move the **thresholds** around:
 
 ```bash
 python -c "from stages.s07_voice.bargein import *; print(should_interrupt(Sound(0.4, 250)))"
 ```
 
-Знайди пару чисел, за якої твоє власне «угу» посеред відповіді її не перериває, а «стоп» —
-перериває. Це і є справжня робота з VAD, і вона не автоматизується.
+Find the pair of numbers where your own "uh-huh" in the middle of an answer does not interrupt
+it but "stop" does. That is the real work with VAD, and it does not automate.

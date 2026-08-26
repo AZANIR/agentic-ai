@@ -1009,11 +1009,8 @@ def check_the_lesson_numbers_match_the_suite() -> None:
     """FAILURE · урок: числа в прозі збігаються з тим, що друкує команда"""
     total = len(CHECKS)
     failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
-    for name, sentence in (
-        ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("CHECKLIST.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
-    ):
+    sentence = f"{total} checks, {failures} of them on failure modes"
+    for name in ("README.md", "CHECKLIST.md", "README.en.md"):
         page = (HERE / name).read_text(encoding="utf-8")
         assert sentence in page, (
             f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
@@ -1052,7 +1049,7 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
     lines = _executable_lines("pipeline.py")
     lesson = (HERE / "README.md").read_text(encoding="utf-8")
 
-    assert f"`pipeline.py` — {lines} із 110" in lesson, (
+    assert f"`pipeline.py` — {lines} of 110" in lesson, (
         f"pipeline.py має {lines} виконуваних рядків — урок називає інше число"
     )
     assert lines <= 110, f"{lines} > 110 (NFR-1)"
@@ -1068,8 +1065,8 @@ def check_the_exercises_match_the_pinned_mutations() -> None:
     for mutation in pinned:
         number = int(mutation["name"].split()[1])
         expected = mutation["expect_failed"]
-        assert f"## Вправа {number} ·" in text_of, f"вправи {number} немає в прозі"
-        assert f"**Червоних: {expected}.**" in text_of, number
+        assert f"## Exercise {number} ·" in text_of, f"вправи {number} немає в прозі"
+        assert f"**Red: {expected}.**" in text_of, number
         for side in ("old", "new"):
             for line in mutation[side].split(NEWLINE):
                 assert line.strip() in text_of, (
@@ -1077,7 +1074,7 @@ def check_the_exercises_match_the_pinned_mutations() -> None:
                     "побачить, ЩО саме міняти"
                 )
 
-    assert text_of.count("## Вправа") == len(pinned), len(pinned)
+    assert text_of.count("## Exercise") == len(pinned), len(pinned)
 
 
 def check_every_reader_file_exists() -> None:

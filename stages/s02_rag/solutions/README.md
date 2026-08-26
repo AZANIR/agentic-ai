@@ -1,25 +1,26 @@
-# Розв'язки — етап 2
+# Solutions — stage 2
 
-Зазирай **після** власної спроби. Розбір поламаного коду, який ти вже бачив, коштує набагато
-більше, ніж розбір коду, який ти лише прочитав.
+Look **after** your own attempt. Taking apart broken code you have already seen is worth far more
+than taking apart code you have only read.
 
-| Файл | Вправа | Що показує |
+| File | Exercise | What it shows |
 |---|---|---|
-| [`exercise_1_filter_after_topk.py`](exercise_1_filter_after_topk.py) | 1 | Обидва порядки фільтрації поруч, із числами. І окремо — що при `top_k=3` та сама вада не проявляється взагалі |
+| [`exercise_1_filter_after_topk.py`](exercise_1_filter_after_topk.py) | 1 | Both filter orderings side by side, with numbers. And separately — that at `top_k=3` the very same flaw does not show up at all |
 
 ```bash
 python -m stages.s02_rag.solutions.exercise_1_filter_after_topk
 ```
 
-## Чому розв'язків менше, ніж вправ
+## Why there are fewer solutions than exercises
 
-Решта вправ — це мутації, які дають **однозначно червону перевірку з читабельним
-повідомленням**. Там розв'язок нічого не додає: вивід перевірки і є розбір.
+The remaining exercises are mutations that produce **an unambiguously red check with a readable
+message**. A solution adds nothing there: the check's output is the walkthrough.
 
-Окремий скрипт має сенс лише там, де перевірка каже «зламано», а зрозуміти чому можна
-тільки на числах. Вправа 1 саме така: різниця між правильним і неправильним порядком —
-це один документ, який зник із видачі, і побачити це можна лише поставивши обидва прогони
-поруч.
+A separate script only makes sense where the check says "broken" and the reason can only be
+understood from numbers. Exercise 1 is exactly that: the difference between the right and the
+wrong ordering is one document that vanished from the results, and you can only see it by
+putting both runs side by side.
 
-Вправи 7 і 8 навмисно без еталона: перша залежить від моделі, яку ти поставив, друга
-перетворює модуль на парсер markdown і тому свідомо лишена за межами реалізації (SAD §11).
+Exercises 7 and 8 deliberately have no reference: the first depends on which model you
+installed, and the second turns the module into a markdown parser and is therefore left outside
+the implementation on purpose (SAD §11).

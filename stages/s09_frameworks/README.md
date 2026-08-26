@@ -1,269 +1,282 @@
-# Етап 9 — Фреймворки: власні числа замість чужого твердження
+# Stage 9 — Frameworks: your own numbers instead of someone else's claim
 
-> **Фреймворк — це риштування, а не архітектура.** Риштування прискорює будівництво й нічого
-> не каже про те, що ти будуєш. Обраний до того, як відома форма будівлі, він **стає** формою.
+> **A framework is scaffolding, not architecture.** Scaffolding speeds up construction and says
+> nothing about what you are constructing. Chosen before the shape of the building is known, it
+> **becomes** the shape.
 
-Вісім етапів побудували систему власними руками. Питання, з якого починає більшість, не
-постало жодного разу: **«який фреймворк узяти?»** Це не випадковість, а конструкція курсу.
-Питання ставиться дев'ятим, бо відповісти на нього можна лише маючи те, з чим порівнювати.
+Eight stages built the system by hand. The question most people start with was never asked once:
+**"which framework should I take?"** That is not an accident, it is the construction of the
+course. The question comes ninth because it can only be answered against something to compare
+with.
 
-## Що ти зможеш після цього етапу
+## What you will be able to do after this stage
 
-- Назвати, **де саме** живе координація в кожній із чотирьох реалізацій — і скільки коштує
-  дізнатися, чому виконався саме цей крок.
-- Сказати, скільки рядків ти справді написав і скільки працює за тебе невидимо.
-- Побачити, скільки токенів фреймворк додає **від себе**, поверх того, що ти просив.
-- Сформулювати правило вибору як **обмеження → інструмент**, а не як «переможець».
-- Помітити обмеження, яке вирішує вибір **першим** і про яке не пише жоден блог.
+- Name **where exactly** coordination lives in each of the four implementations — and what it
+  costs to find out why this particular step ran.
+- Say how many lines you actually wrote and how many work invisibly on your behalf.
+- See how many tokens a framework adds **of its own**, on top of what you asked for.
+- State the choosing rule as **constraint → tool** rather than as a "winner".
+- Notice the constraint that settles the choice **first** and that no blog post writes about.
 
-## Запусти перед читанням
+## Run this before reading
 
 ```bash
-python -m stages.s09_frameworks.run     # шість сцен, без ключа й без мережі
-python -m stages.s09_frameworks.check   # 28 перевірок, з них 12 на режими відмови
+python -m stages.s09_frameworks.run     # six scenes, no key, no network
+python -m stages.s09_frameworks.check   # 28 checks, 12 of them on failure modes
 ```
 
-## Частина 1. Найдорожча знахідка сталася до першого рядка коду
+## Part 1. The most expensive finding happened before the first line of code
 
 ```
 pip install "crewai>=0.60"
 ERROR: Could not find a version that satisfies the requirement crewai>=0.60
 ```
 
-**Точне формулювання тут важить**, бо неточне спростовується однією командою. `pip download
-crewai` на Python 3.14 успішно віддає **0.11.2**: старі версії оголошують `>=3.10,<4.0` і
-ставляться чудово. Межа `<3.14` (або `<=3.13`) починається з **0.14.0**.
+**The precise wording matters here**, because the imprecise one is refuted by a single command.
+`pip download crewai` on Python 3.14 happily returns **0.11.2**: old releases declare
+`>=3.10,<4.0` and install fine. The `<3.14` (or `<=3.13`) bound starts at **0.14.0**.
 
-І саме з 0.14.0 з'являються `crewai.BaseLLM` і `crewai.tools.BaseTool` — точки, крізь які етап
-подає власного клієнта (ADR-0007). Тобто вибір такий: **або версія, що ставиться й не має чим
-підключити наш клієнт, або версія з потрібним API, що не ставиться.**
+And 0.14.0 is also where `crewai.BaseLLM` and `crewai.tools.BaseTool` appear — the seams through
+which this stage hands over its own client (ADR-0007). So the choice is: **either a release that
+installs and has nothing to plug our client into, or a release with the right API that does not
+install.**
 
-Це не збій етапу. Це найгостріше з обмежень, які етап учить бачити: **воно вирішує вибір
-першим**, ще до питання про елегантність. І жодне порівняння фреймворків у блогах його не
-показує — бо всі вони написані на тій версії, де все встановилось.
+That is not a failure of the stage. It is the sharpest of the constraints the stage teaches you
+to see: **it settles the choice first**, before elegance is even on the table. And no framework
+comparison in a blog post shows it — because every one of them was written on the version where
+everything installed.
 
-Побічний наслідок виявився гіршим за саму несумісність. Extra `[s09]` без маркера падав
-**цілком** і забирав із собою LangGraph, який ставився чудово. Тобто інструкція **карала за
-послух**: читач, який виконав написане, лишався без нічого, а той, хто не виконав, — із
-робочим етапом.
+The side effect turned out to be worse than the incompatibility itself. The `[s09]` extra without
+a marker failed **as a whole** and took LangGraph down with it, which installed perfectly. The
+instruction **punished obedience**: a reader who did what was written was left with nothing, and
+one who did not was left with a working stage.
 
 ```toml
 crewai>=0.60; python_version < '3.14'
 ```
 
-Один маркер. І три різні стани замість двох:
+One marker. And three distinct states instead of two:
 
 ```
-пакета немає                   лікується встановленням
-пакет не встановлюється        лікується лише іншим інтерпретатором
-креденшелів немає              лікується обліковим записом
+package not installed          fixed by installing it
+package cannot be installed    fixed only by a different interpreter
+credentials missing            fixed by an account
 ```
 
-## Частина 2. Що робить порівняння чесним
+## Part 2. What makes the comparison honest
 
-Три реалізації «однієї задачі» порівнянні лише тоді, коли задача **та сама**. Інакше
-вимірюється вправність автора, а не фреймворки.
+Three implementations of "the same task" are comparable only when the task **is** the same.
+Otherwise what gets measured is the author's fluency, not the frameworks.
 
-Проблема не в недобросовісності, а в непомітності. Реалізація на CrewAI природно хоче ще один
-крок делегування; реалізація на LangGraph — окремий вузол валідації. Кожне відхилення виглядає
-як «так тут прийнято», і кожне робить чужу колонку неспівмірною.
+The problem is not dishonesty, it is invisibility. A CrewAI implementation naturally wants one
+more delegation step; a LangGraph one wants a separate validation node. Every deviation looks
+like "that's how it is done here", and every one makes somebody else's column incommensurable.
 
-Тому контракт — це **код**, а не список у README:
-
-```
-вхід             те саме питання
-інструменти      рівно search_notes, рівно один виклик
-модель           клієнт подається ззовні, і його бачив лічильник
-умова зупинки    відповідь дано, а не обірвано на півдорозі
-форма            відповідь спирається на видані нотатки
-```
-
-Порушник **лишається** в таблиці — без чисел, із назвою порушеного елемента. Викинути його
-мовчки означало б показати три рядки як усі; полагодити — порівнювати виправлену задачу з
-іншими.
-
-**Кількість викликів моделі контрактом не обмежена.** Це вимірювана колонка, а не порушення:
-обмежити її означало б оголосити фреймворк зламаним за те, що він фреймворк.
-
-## Частина 3. Таблиця
+So the contract is **code**, not a list in a README:
 
 ```
-| реалізація     | мої рядки | невидимі рядки | викликів | токени | понад запит | прози |
-| без фреймворка |        37 |              0 |        2 |    118 |           0 |     0 |
+input             the same question
+tools             exactly search_notes, exactly one call
+model             the client is supplied from outside, and the counter saw it
+stopping          an answer was given, not cut off halfway
+shape             the answer rests on the notes that were handed over
+```
+
+A violator **stays** in the table — without numbers, naming the element it broke. Dropping it
+silently would show three rows as all of them; fixing it would compare a corrected task against
+the others.
+
+**The number of model calls is not constrained by the contract.** That is a measured column, not
+a violation: bounding it would declare a framework broken for being a framework.
+
+## Part 3. The table
+
+```
+| implementation | my lines  | invisible      | calls    | tokens | over request | prose |
+| no framework   |        37 |              0 |        2 |    118 |           0 |     0 |
 | LangGraph      |        54 |           1895 |        2 |    118 |           0 |     0 |
-| CrewAI         |        62 |  не перевірено |        — |      — |           — |    10 |
-| Google ADK     |        43 |  не перевірено |        — |      — |           — |     1 |
+| CrewAI         |        62 |  NOT EVALUATED |        — |      — |           — |    10 |
+| Google ADK     |        43 |  NOT EVALUATED |        — |      — |           — |     1 |
 ```
 
-Зверни увагу: **«мої рядки» й «місць прози» стоять і в непригнаних рядків.** Обидва
-вимірюються з джерела, а обмеження інтерпретатора не робить код нечитабельним. Прочерк на
-їхньому місці викинув би єдині чесні числа, які про CrewAI взагалі можна назвати.
+Note that **"my lines" and "prose places" are filled in for the rows that never ran.** Both are
+measured from source, and an interpreter constraint does not make code unreadable. A dash in
+their place would have discarded the only honest numbers that can be stated about CrewAI at all.
 
-Три числа варті того, щоб зупинитись.
+Three numbers are worth stopping at.
 
-**37 проти 54.** Різниця в сімнадцять рядків — і це не «фреймворк економить код». Тут він
-його **додає**: ті самі три кроки описані двічі, раз як функції, раз як граф, плюс оголошення
-типу стану. На задачі з двох кроків риштування дорожчі за будівлю.
+**37 against 54.** A difference of seventeen lines — and this is not "the framework saves code".
+Here it **adds** code: the same three steps are described twice, once as functions and once as a
+graph, plus a state type declaration. On a two-step task the scaffolding costs more than the
+building.
 
-Число чесне саме тому, що кожна реалізація має **власний** виклик моделі. Спільний хелпер
-робив би колонку несиметричною: базова лінія несла б ці пʼять рядків у своїх, а LangGraph
-діставав би їх безкоштовно — і помилка йшла б у бік «фреймворк дешевший».
+The number is honest precisely because each implementation has **its own** model call. A shared
+helper would make the column asymmetric: the baseline would carry those five lines in its own,
+and LangGraph would get them for free — and the error would point towards "the framework is
+cheaper".
 
-**0 проти 1895.** Стільки рядків пакета **виконалось** за автора на цьому вході. Не стільки
-встановлено — стільки спрацювало, і не рахуючи разового імпорту: він трапляється раз на
-процес, а не раз на запит. Це і є друга половина аргументу «менше коду»: код нікуди не
-подівся, він переїхав туди, де його не видно, не можна прочитати під час інциденту й не можна
-виправити.
+**0 against 1895.** That is how many lines of the package **executed** on the author's behalf on
+this input. Not how many are installed — how many ran, and not counting the one-off import: that
+happens once per process, not once per request. This is the missing half of the "less code"
+argument: the code did not go away, it moved somewhere you cannot see it, cannot read it during
+an incident and cannot fix it.
 
-**0 і 0 у колонці «понад запит».** Ось тут ліниве читання тези спотикається. «Фреймворк
-дорожчий у токенах» — **не закон**. LangGraph вирішує **порядок**, а не зміст: до моделі їде
-рівно те, що склав автор. Він бере рядками, а не токенами.
+**0 and 0 in the "over request" column.** This is where the lazy reading of the thesis trips.
+"A framework costs more in tokens" is **not a law**. LangGraph decides **order**, not content:
+exactly what the author composed reaches the model. It charges in lines, not in tokens.
 
-CrewAI, **за нашим очікуванням**, узяв би навпаки — але тут це очікування, а не вимір: його
-рядок у таблиці порожній. Перевірити можна на Python 3.12, і саме про це остання вправа.
+CrewAI, **by our expectation**, would charge the other way round — but here that is an
+expectation, not a measurement: its row in the table is empty. It can be checked on Python 3.12,
+and that is exactly what the last exercise is about.
 
-Етап, чия теза — «порахуй, а не припусти», не має права робити виняток для себе.
+A stage whose thesis is "count it, do not assume it" has no right to make an exception for
+itself.
 
-## Частина 4. Явна проти неявної координації — числом
+## Part 4. Explicit against implicit coordination — as a number
 
-«Неявна координація дешевша» — половина правди, і саме та половина, за яку платять пізніше.
-Друга половина вимірюється:
-
-```
-без фреймворка    0 місць прози
-LangGraph         0 місць прози
-CrewAI           10 місць прози
-Google ADK        1 місце прози
-```
-
-Рахуються іменовані аргументи, значення яких описують **поведінку прозою**: `role`, `goal`,
-`backstory`, `description`, `instruction`, `expected_output`. Нуль означає явну координацію —
-наступний крок вирішує код. Десять означає, що на питання «чому виконався цей крок» доведеться
-прочитати десять описів і уявити, як їх прочитала модель.
-
-**Це вимір із джерела, а не з прогону.** Тому він є навіть у рядка, який неможливо виконати:
-обмеження інтерпретатора не робить код нечитабельним. Оголошене число було б прапорцем, який
-автор виставляє рукою, — тією самою вадою, від якої застерігає етап 8.
-
-## Частина 5. Читаємо код — сім файлів
-
-### `contract.py` — те, що робить числа порівнянними
-
-`44 із 110`. П'ять елементів задачі й функція, що перевіряє їхнє дотримання. Серед елементів —
-**шлях**: набір викликаних інструментів і умова зупинки. Порівняння еталонного виводу цього не
-ловить: реалізація, що покликала зайвий інструмент і дійшла того самого тексту, пройшла б.
-
-### `counters.py` — два виміри, які реалізація не може зробити сама
-
-`77 із 110`. Лічильник обгортає клієнта з `shared.llm` і бачить **фактичний** запит, яким би
-шаром він не був складений. Лічильник усередині реалізації бачить лише те, що вона попросила, —
-тобто саме надбавки й не бачить.
-
-Тут же трасування виконаних рядків. І тут же знайшлася вада, яку зловила власна перевірка:
-пакет шукався за `origin`, а в namespace-пакета (`langgraph`) він дорівнює `None`. Колонка
-невидимих рядків мовчки показала б **нуль** — тихий нуль там, де колонка існує саме щоб нулем
-не бути.
-
-### `compare.py` — таблиця, що розбирається назад
-
-`74 із 110`. `parse()` читає **записаний файл** і рахує заново. Рівність, обчислена з одного
-джерела, — тотожність: вона зійдеться й тоді, коли реалізація до файлу не доїхала.
-
-### `baseline.py` — без жодного фреймворка
-
-`37 із 110`. Прочитавши цей файл, важко не помітити головного: **тут нічого немає**. Два
-виклики моделі, один виклик інструмента, явна передача стану змінною.
-
-Граф етапу 3 сюди не переноситься навмисно: там supervisor-роутер із циклом ревізій, тут два
-послідовні кроки. Підігнати одне під інше означало б порівнювати задачу з іншою задачею.
-
-### `via_langgraph.py` — явна координація
-
-`54 із 110`. Увесь можливий порядок кроків — у `_wire()`, і більше ніде. Це головна властивість
-явної координації: питання «чому цей крок» має відповідь в **одному** місці.
-
-### `via_crewai.py` — неявна координація
-
-`62 із 110`. **Написано, але жодного разу не прогнано тут** — див. частину 1. Клієнт подається
-через `BaseLLM`, задокументовану точку розширення; це найбільша частина файлу, і вона теж є
-знахідкою: рядки, витрачені на те, щоб не дати бібліотеці піти в мережу власним шляхом, — теж
-ціна риштувань, і вони чесно потрапляють у колонку «мої рядки».
-
-### `via_adk.py` — прапорець, який не має мовчати
-
-`43 із 110`. Найтонше рішення етапу тут. «Не перевірено» правильне для того, хто ADK не просив.
-Але для того, хто **явно ввімкнув** прапорець, той самий стан був би брехнею: він попросив
-четвертий рядок, отримав три й нічого про це не дізнався.
+"Implicit coordination is cheaper" is half the truth, and precisely the half you pay for later.
+The other half is measurable:
 
 ```
-прапорець вимкнено                 не перевірено, окремий рядок таблиці
-прапорець увімкнено, пакета немає  ГУЧНА відмова з назвою того, чого бракує
+no framework      0 prose places
+LangGraph         0 prose places
+CrewAI           10 prose places
+Google ADK        1 prose place
 ```
 
-**Креденшели Google цій реалізації не потрібні** — і це наслідок того самого ADR-0007:
-`_model()` відводить ADK від Gemini до нашого клієнта. Перша редакція вимагала їх усе одно й
-карала за послух: читач, який виконав дві команди з докстрінга, отримував сімнадцять червоних
-і пораду завести обліковий запис, якого його ж коду не треба.
+What gets counted are keyword arguments whose values describe **behaviour in prose**: `role`,
+`goal`, `backstory`, `description`, `instruction`, `expected_output`. Zero means explicit
+coordination — the next step is decided by code. Ten means that answering "why did this step run"
+takes reading ten descriptions and imagining how the model read them.
 
-## Частина 6. Правило вибору
+**This is measured from source, not from a run.** So it exists even for a row that cannot be
+executed: an interpreter constraint does not make code unreadable. A declared number would be a
+flag the author raises by hand — the very defect stage 8 warns about.
 
-Зведеного бала немає й бути не може: ваги обмежень — це думка про те, чиє обмеження важливіше,
-вбудована в число, яке ніхто не обговорював.
+## Part 5. Reading the code — seven files
 
-| Якщо твоє обмеження | Бери | Колонка |
+### `contract.py` — what makes the numbers comparable
+
+`44 of 110`. Five elements of the task and the function that checks they are honoured. Among the
+elements is the **path**: the set of tools called and the stopping condition. Comparing against a
+golden output does not catch that: an implementation that called an extra tool and arrived at the
+same text would pass.
+
+### `counters.py` — two measurements an implementation cannot make about itself
+
+`77 of 110`. The counter wraps the client from `shared.llm` and sees the **actual** request,
+whatever layer composed it. A counter inside the implementation sees only what that
+implementation asked for — which is precisely what misses the overhead.
+
+Executed-line tracing lives here too. And here is where a defect turned up that its own check
+caught: the package was located by `origin`, and for a namespace package (`langgraph`) that is
+`None`. The invisible-lines column would silently have shown **zero** — a quiet zero in a column
+that exists precisely in order not to be zero.
+
+### `compare.py` — a table that parses back
+
+`74 of 110`. `parse()` reads the **written file** and counts again. An equality computed from a
+single source is an identity: it holds even when the implementation never reached the file.
+
+### `baseline.py` — no framework at all
+
+`37 of 110`. Having read this file it is hard to miss the main point: **there is nothing here**.
+Two model calls, one tool call, state passed explicitly in a variable.
+
+The graph from stage 3 is deliberately not carried over: there it is a supervisor router with a
+revision loop, here it is two sequential steps. Bending one to fit the other would compare a task
+against a different task.
+
+### `via_langgraph.py` — explicit coordination
+
+`54 of 110`. Every possible order of steps lives in `_wire()`, and nowhere else. That is the main
+property of explicit coordination: the question "why this step" has an answer in **one** place.
+
+### `via_crewai.py` — implicit coordination
+
+`62 of 110`. **Written, but never run here** — see part 1. The client is supplied through
+`BaseLLM`, a documented extension point; that is the largest part of the file, and it is a
+finding too: the lines spent on stopping the library from going to the network its own way are
+also a price of the scaffolding, and they honestly land in the "my lines" column.
+
+### `via_adk.py` — a flag that must not stay silent
+
+`43 of 110`. The subtlest decision of the stage is here. "Not evaluated" is right for someone who
+never asked for ADK. But for someone who **explicitly turned the flag on**, that same state would
+be a lie: they asked for a fourth row, got three, and learned nothing about it.
+
+```
+flag off                     not evaluated, its own row in the table
+flag on, package missing     a LOUD failure naming what is absent
+```
+
+**This implementation does not need Google credentials** — a consequence of that same ADR-0007:
+`_model()` steers ADK away from Gemini and onto our client. The first draft demanded them anyway
+and punished obedience: a reader who ran the two commands from the docstring got seventeen reds
+and advice to open an account their own code does not need.
+
+## Part 6. The choosing rule
+
+There is no composite score and there cannot be one: weights on constraints are an opinion about
+whose constraint matters more, baked into a number nobody agreed on.
+
+| If your constraint is | Take | Column |
 |---|---|---|
-| треба розуміти порядок кроків під час інциденту | явну координацію | місць прози |
-| рахунок від провайдера болить | те, що додає нуль понад запит | понад запит |
-| код читатимуть новачки | менше невидимих рядків | невидимі рядки |
-| задача — два кроки без розгалужень | нічого; базова лінія вже коротша | мої рядки |
-| треба паралельні гілки, чекпоінти, стрімінг | граф-оркестратор | невидимі рядки |
+| you need to understand the order of steps during an incident | explicit coordination | prose places |
+| the provider's bill hurts | whatever adds zero over the request | over request |
+| the code will be read by newcomers | fewer invisible lines | invisible lines |
+| the task is two steps with no branching | nothing; the baseline is already shorter | my lines |
+| you need parallel branches, checkpoints, streaming | a graph orchestrator | invisible lines |
 
-Кожне правило називає колонку, з якої воно виведене. Правило, яке неможливо застосувати поза
-цією таблицею, є переказом, а не правилом — а задача читача буде саме поза нею.
+Every rule names the column it was derived from. A rule you cannot apply outside this table is a
+retelling, not a rule — and your task will be exactly outside it.
 
-## Частина 7. Що зламати
+## Part 7. What to break
 
-Десять мутацій у [`exercises.md`](exercises.md). Найдорожчі стосуються не фреймворків, а **чесності
-порівняння**: контракт перестає перевіряти шлях, лічильник переїжджає всередину реалізації,
-невидимі рядки міряються розміром пакета, «місць прози» оголошується числом замість виміру.
+Ten mutations in [`exercises.md`](exercises.md). The most expensive ones are not about frameworks
+but about the **honesty of the comparison**: the contract stops checking the path, the counter
+moves inside an implementation, invisible lines get measured by package size, "prose places" gets
+declared as a number instead of measured.
 
 ```bash
 python scripts/mutate.py s09 --expect
 ```
 
-**Читай не кількість, а назви.** Мутація, спіймана випадковою перевіркою, гірша за спійману
-тією, яка про неї стверджує.
+**Read the names, not the count.** A mutation caught by an incidental check is worse than one
+caught by the check that claims it.
 
-## Межі цього етапу — щоб ти не переніс їх у продакшн
+## The limits of this stage — so you do not carry them into production
 
-- **Дві реалізації з чотирьох не прогнано.** CrewAI із потрібним API не встановлюється на
-  цьому Python; ADK вимкнено прапорцем за замовчуванням. Це найслабше місце етапу, і воно
-  назване рядком таблиці, а не сховане.
-- **Усе, що сказано про поведінку CrewAI, — очікування.** Ані його надбавка в токенах, ані
-  його дотримання контракту тут не виміряні. Урок вживає умовний спосіб; якщо десь стоїть
-  теперішній час — це вада прози.
-- **Числа підробленої моделі не переносяться на реальну.** Доводяться **співвідношення**, не
-  абсолютні значення.
-- **Невидимі рядки описують цей вхід.** Інша задача виконає інші — це властивість виміру.
-- **Токени рахуються за довжиною тексту**, а не токенізатором провайдера. Для співвідношень
-  досить, для рахунку — ні.
-- **Реалізації мінімальні.** Жодних ретраїв, кешу, запобіжників: доданий обвіс зробив би числа
-  непорівнянними.
-- **Ми не вчимо жодного фреймворка.** Етап про вибір, а не про володіння.
-- **Ми не порівнюємо екосистеми.** Кількість інтеграцій і статей — не властивість коду.
+- **Two implementations out of four were never run.** CrewAI with the required API does not
+  install on this Python; ADK is off behind its flag by default. This is the stage's weakest
+  point, and it is named by a row in the table rather than hidden.
+- **Everything said about CrewAI's behaviour is an expectation.** Neither its token overhead nor
+  its compliance with the contract was measured here. The lesson uses the conditional; a present
+  tense anywhere is a defect in the prose.
+- **Fake-model numbers do not transfer to a real one.** What is proven are **ratios**, not
+  absolute values.
+- **Invisible lines describe this input.** A different task will execute different ones — that is
+  a property of the measurement.
+- **Tokens are counted by text length**, not by the provider's tokenizer. Enough for ratios, not
+  for a bill.
+- **The implementations are minimal.** No retries, no cache, no breakers: added scaffolding would
+  make the numbers incommensurable.
+- **We teach no framework here.** The stage is about choosing, not about mastery.
+- **We do not compare ecosystems.** Integration counts and article counts are not properties of
+  code.
 
-## Числа
+## Numbers
 
-| Що | Скільки |
+| What | How much |
 |---|---|
-| Реалізацій / з них прогнано тут | 4 / 2 |
-| Перевірок / на режими відмови | 28 / 12 |
-| Мої рядки: базова лінія / LangGraph | 37 / 54 |
-| Невидимі рядки: базова лінія / LangGraph | 0 / 1895 |
-| Місць прози: LangGraph / CrewAI | 0 / 10 |
-| Мутацій у вправах | 10 |
+| Implementations / of them run here | 4 / 2 |
+| Checks / on failure modes | 28 / 12 |
+| My lines: baseline / LangGraph | 37 / 54 |
+| Invisible lines: baseline / LangGraph | 0 / 1895 |
+| Prose places: LangGraph / CrewAI | 0 / 10 |
+| Mutations in the exercises | 10 |
 
-## Далі
+## Next
 
-Етап 10 — капстоун: зібрати судження, а не конспект. Support-агент, що **імпортує** зріле з
-етапів 1–9 і обґрунтовує кожне рішення посиланням на етап-джерело.
+Stage 10 — the capstone: assemble judgement, not notes. A support agent that **imports** the
+mature parts of stages 1–9 and justifies every decision by citing a source stage.

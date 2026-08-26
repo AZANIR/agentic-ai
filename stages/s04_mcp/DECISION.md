@@ -1,69 +1,70 @@
-# Окремий інструмент чи ще один ендпоінт
+# A separate tool or one more endpoint
 
-Найпоширеніша помилка з MCP виглядає як старанність: узяти своє REST API й оголосити кожен
-ендпоінт інструментом. Виходить сервер із сорока інструментами, у якому модель обирає гірше,
-ніж обирала б у п'яти — та сама вада, що на етапі 3, лише прийшла з іншого боку.
+The commonest MCP mistake looks like diligence: take your REST API and declare every endpoint a
+tool. The result is a server with forty tools where the model chooses worse than it would among
+five — the same defect as on stage 3, arriving from the other side.
 
-> **MCP-інструмент — це не ендпоінт. Це завдання, яке хтось хоче виконати.**
+> **An MCP tool is not an endpoint. It is a job somebody wants done.**
 
-`GET /orders/{id}`, `GET /orders/{id}/items` і `GET /orders/{id}/shipping` — три ендпоінти й
-**один** інструмент: «розкажи про замовлення». Модель не хоче трьох викликів; вона хоче
-відповіді.
+`GET /orders/{id}`, `GET /orders/{id}/items` and `GET /orders/{id}/shipping` are three endpoints
+and **one** tool: "tell me about the order". The model does not want three calls; it wants an
+answer.
 
-## Три вердикти
+## Three verdicts
 
-    ОКРЕМИЙ ІНСТРУМЕНТ   завдання самостійне, модель обирає його свідомо
-    ПАРАМЕТР             те саме завдання, інший обсяг чи фільтр
-    НЕ ВИСТАВЛЯТИ        модель не має причин це викликати
+    SEPARATE TOOL   the job stands on its own, the model picks it deliberately
+    PARAMETER       the same job, a different volume or filter
+    DO NOT EXPOSE   the model has no reason to call this
 
-## Чекліст
+## The checklist
 
-Правила перевіряються згори вниз, спрацьовує перше. Порядок — теж рішення:
+The rules are checked top to bottom, and the first one to fire wins. The order is a decision
+too:
 
-| Черга | Що перевіряємо | Чому саме тут |
+| Position | What is checked | Why here |
 |---|---|---|
-| 1–2 | **Безпека** | Дію, яку не можна підтвердити, не виставляють узагалі — хоч би якою самостійною вона була |
-| 3–4 | **Самостійність завдання** | Чи це те, що хтось хоче зробити, чи варіант чогось іншого |
-| 5–6 | **Форма відповіді** | Найслабший аргумент: обсяг і фільтр майже завжди лікуються параметром |
+| 1–2 | **Safety** | An action that cannot be confirmed is not exposed at all — however self-contained it is |
+| 3–4 | **Whether the job stands alone** | Is this something somebody wants done, or a variant of something else |
+| 5–6 | **The shape of the answer** | The weakest argument: volume and filter are almost always cured by a parameter |
 
-| # | Сигнал | Відповідь |
+| # | Signal | Answer |
 |---|---|---|
-| 1 | Модель не має жодної причини це викликати | **НЕ ВИСТАВЛЯТИ** |
-| 2 | Незворотна дія без способу підтвердити | **НЕ ВИСТАВЛЯТИ** |
-| 3 | Це самостійне завдання, а не варіант іншого | **ОКРЕМИЙ ІНСТРУМЕНТ** |
-| 4 | Потрібні інші права, ніж у сусідньої дії | **ОКРЕМИЙ ІНСТРУМЕНТ** |
-| 5 | Те саме завдання, інший обсяг чи фільтр | **ПАРАМЕТР** |
-| 6 | Один із багатьох ендпоінтів однієї сутності | **ПАРАМЕТР** |
-| — | Жоден сигнал не спрацював | **ПАРАМЕТР** |
+| 1 | The model has no reason whatsoever to call this | **DO NOT EXPOSE** |
+| 2 | An irreversible action with no way to confirm | **DO NOT EXPOSE** |
+| 3 | This is a job of its own, not a variant of another | **SEPARATE TOOL** |
+| 4 | It needs different permissions from the action next to it | **SEPARATE TOOL** |
+| 5 | The same job, a different volume or filter | **PARAMETER** |
+| 6 | One of many endpoints of a single entity | **PARAMETER** |
+| — | No signal fired | **PARAMETER** |
 
-Ті самі правила лежать кодом у `decision.py`, і перевірка стверджує, що таблиця нижче
-**дослівно** збігається з тим, що друкує код.
+The same rules live as code in `decision.py`, and a check asserts that the table below matches
+**verbatim** what the code prints.
 
 ```
 python -m stages.s04_mcp.decision
 ```
 
-## Сім ситуацій
+## Seven situations
 
-| Ситуація | Відповідь | Чому |
+| Situation | Answer | Why |
 |---|---|---|
-| Внутрішній ендпоінт міграції даних | **НЕ ВИСТАВЛЯТИ** | Модель не має причин це викликати, а ціна помилки — вся база. |
-| Видалення акаунта без гейта підтвердження | **НЕ ВИСТАВЛЯТИ** | Незворотне без підтвердження не виставляють. Спершу гейт, потім інструмент. |
-| Оформити повернення замовлення | **ОКРЕМИЙ ІНСТРУМЕНТ** | Самостійне завдання з власним результатом. Модель обирає його свідомо. |
-| Пошук у внутрішніх документах для операторів | **ОКРЕМИЙ ІНСТРУМЕНТ** | Інші права, ніж у публічного пошуку. Одним інструментом із прапорцем — не можна. |
-| Список замовлень за останній місяць замість усіх | **ПАРАМЕТР** | Те саме завдання, інший фільтр. Другий інструмент лише розмиває вибір. |
-| GET /orders/{id}/items поруч із GET /orders/{id} | **ПАРАМЕТР** | Модель хоче відповіді про замовлення, а не трьох викликів по його частинах. |
-| Одна дія, яку користувач просить словами щодня | **ОКРЕМИЙ ІНСТРУМЕНТ** | Найпростіший випадок, і його теж варто мати в переліку: якщо просять — виставляй. |
+| An internal data-migration endpoint | **DO NOT EXPOSE** | The model has no reason to call it, and the price of a mistake is the whole database. |
+| Deleting an account with no confirmation gate | **DO NOT EXPOSE** | The irreversible without a confirmation is not exposed. Gate first, tool after. |
+| Start a return for an order | **SEPARATE TOOL** | A job of its own with its own result. The model picks it deliberately. |
+| Search of internal documents for operators | **SEPARATE TOOL** | Different permissions from the public search. One tool with a flag will not do. |
+| Orders from the last month instead of all of them | **PARAMETER** | The same job, a different filter. A second tool only blurs the choice. |
+| GET /orders/{id}/items next to GET /orders/{id} | **PARAMETER** | The model wants an answer about the order, not three calls about its parts. |
+| One action users ask for in words every day | **SEPARATE TOOL** | The simplest case, and worth having on the list too: if they ask, expose it. |
 
-## Чого чекліст не вирішує
+## What the checklist does not decide
 
-**Він не каже, скільки інструментів забагато.** Це залежить від того, наскільки описи
-відрізняються один від одного, а не від числа. Двадцять інструментів із чіткими межами
-працюють краще за п'ять, які модель плутає.
+**It does not say how many tools is too many.** That depends on how different the descriptions
+are from one another, not on a count. Twenty tools with sharp boundaries work better than five
+the model confuses.
 
-**Він не рятує від поганого опису.** Інструмент, названий правильно й описаний невиразно,
-програє тому самому інструменту з чітким описом. Опис — те, за чим модель обирає; на етапі 3
-це видно на числах.
+**It does not save you from a bad description.** A tool named correctly and described vaguely
+loses to the same tool with a sharp description. The description is what the model chooses by;
+stage 3 shows that on numbers.
 
-**Другий рядок таблиці найважливіший.** Незворотну дію без гейта підтвердження не виставляють
-узагалі. Спершу гейт — потім інструмент, а не навпаки.
+**The second row of the table is the most important one.** An irreversible action with no
+confirmation gate is not exposed at all. Gate first — then the tool, not the other way round.

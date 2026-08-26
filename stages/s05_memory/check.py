@@ -600,8 +600,8 @@ def check_the_order_of_the_checklist_is_load_bearing() -> None:
     )
 
     questions = [rule.question for rule in RULES]
-    secret = next(i for i, q in enumerate(questions) if "секрет" in q)
-    asked = next(i for i, q in enumerate(questions) if "прямо просив" in q)
+    secret = next(i for i, q in enumerate(questions) if "secret" in q)
+    asked = next(i for i, q in enumerate(questions) if "directly ask" in q)
     assert secret < asked, f"секрет ({secret}) має стояти перед проханням ({asked})"
 
     assert RULES[-1].applies(Situation("будь-що")), "останнє правило перестало ловити все"
@@ -628,7 +628,7 @@ def check_the_prose_checklist_matches_the_code() -> None:
         f"у прозі {len(body)} правил, у коді {len(RULES)} — таблиця відстала від коду"
     )
 
-    keeps = sum(1 for row in body if "**зберегти**" in row)
+    keeps = sum(1 for row in body if "**store**" in row)
     assert keeps == sum(1 for rule in RULES if rule.keep), (
         "кількість «зберегти» у таблиці не збігається з кодом"
     )
@@ -818,11 +818,8 @@ def check_the_lesson_numbers_match_the_suite() -> None:
     total = len(CHECKS)
     failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
     here = Path(__file__).parent
-    for name, sentence in (
-        ("README.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("CHECKLIST.md", f"перевірок: {total}, з них на режими відмови: {failures}"),
-        ("README.en.md", f"{total} checks, {failures} of them on failure modes"),
-    ):
+    sentence = f"{total} checks, {failures} of them on failure modes"
+    for name in ("README.md", "CHECKLIST.md", "README.en.md"):
         page = (here / name).read_text(encoding="utf-8")
         assert sentence in page, (
             f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
@@ -849,7 +846,7 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
         require_intact_source(f"{module}.py")
         lines = _executable_lines(f"{module}.py")
         if budget is not None:
-            assert f"`{module}.py` — {lines} із {budget}" in lesson, (
+            assert f"`{module}.py` — {lines} of {budget}" in lesson, (
                 f"{module}.py має {lines} виконуваних рядків — урок називає інше число"
             )
         shown = f"{lines} / {budget}" if budget else f"| {lines} |"

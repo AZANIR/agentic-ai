@@ -1,17 +1,21 @@
-# Дані етапу 2
+# Stage 2 data
 
-`kb/` — база знань NovaShop. Кожен файл має метадані: `title` і `access` (`public` або
-`internal`).
+`kb/` is the NovaShop knowledge base. Every file carries metadata: `title` and `access`
+(`public` or `internal`).
 
-Склад підібраний так, щоб перевірки були детермінованими, а не щасливими:
+The set is picked so the checks are deterministic rather than lucky:
 
-| Документ | Роль у перевірках |
+| Document | Its role in the checks |
 |---|---|
-| `returns-policy.md` | Ціль AC-01: виграє за дослівним питанням про повернення |
-| `internal-refund-thresholds.md` | **Пастка AC-05:** навмисно містить ті самі слова, що й питання покупця про суму повернення, і виграв би за близькістю. Має бути відсіяний фільтром — і при цьому `returns-policy` має лишитись у видачі |
-| `internal-escalation.md` | Другий внутрішній: доводить, що фільтр не залежить від одного файлу |
-| `empty.md`, `tiny.md` | AC-08b: індексація не падає, документи названі, решта бази шукається |
-| решта | Наповнення, щоб top-k мав із чого вибирати |
+| `returns-policy.md` | The target of AC-01: it wins on the literal returns question |
+| `internal-refund-thresholds.md` | **The AC-05 trap:** it deliberately contains the same words as a shopper's question about the refund amount, and would win on closeness. It has to be cut out by the filter — and `returns-policy` has to stay in the results while that happens |
+| `internal-escalation.md` | The second internal document: proves the filter does not depend on one file |
+| `empty.md`, `tiny.md` | AC-08b: indexing does not fall over, the documents are named, and the rest of the base is still searchable |
+| the rest | Filler, so that top-k has something to choose between |
 
-Якщо міняєш `internal-refund-thresholds.md` — перевір, що він **усе ще виграє** за
-близькістю без фільтра. Інакше AC-05 почне перевіряти збіг обставин, а не механізм.
+If you change `internal-refund-thresholds.md`, check that it **still wins** on closeness without
+the filter. Otherwise AC-05 starts checking a coincidence rather than a mechanism.
+
+The knowledge-base documents themselves are the shop's Ukrainian-language corpus and are
+fixtures, not lesson prose: the checks match their wording literally, and the AC-05 trap only
+works because the trap document shares words with the question.

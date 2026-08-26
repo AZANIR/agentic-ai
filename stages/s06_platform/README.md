@@ -1,177 +1,181 @@
-# Етап 6 — Платформа: п'ять здатностей стають системою
+# Stage 6 — Platform: five capabilities become a system
 
-Після п'яти етапів у репозиторії є цикл агента, пошук, маршрутизація, інструменти за межею
-процесу й пам'ять. Кожне працює. **Системи немає.**
+After five stages the repository holds an agent loop, search, routing, tools across a process
+boundary and memory. Each of them works. **There is no system.**
 
-Цей етап зшиває їх в один сервіс і показує, що перехід у продакшн — не «те саме, тільки на
-сервері».
+This stage stitches them into one service and shows that going to production is not "the same
+thing, only on a server".
 
-## Що ти зможеш після цього етапу
+## What you will be able to do after this stage
 
-- Підняти один сервіс, який відповідає, використовуючи всі п'ять попередніх етапів
-- Розрізняти три механізми меж — хто, скільки разів, за чий рахунок — і три їхні відмови
-- Пояснити, чому метрики не відповідають на питання «чому агент так вирішив»
-- Відтворити пастку двох воркерів **наживо** й побачити обидві її половини
-- Розгорнути за HTTPS і перевірити одним скриптом, який працює й локально, і на домені
+- Bring up one service that answers using all five previous stages
+- Tell the three boundary mechanisms apart — who, how often, at whose expense — and their three
+  failures
+- Explain why metrics do not answer the question "why did the agent decide that"
+- Reproduce the two-worker trap **live** and see both of its halves
+- Deploy behind HTTPS and verify it with one script that works locally and on a domain alike
 
-## Запусти перед читанням
+## Run this before reading
 
 ```bash
-python -m stages.s06_platform.run           # сім сцен, без ключа й без контейнерів
-python -m stages.s06_platform.run --trace   # ще й трейс одного запиту
-python -m stages.s06_platform.check         # 69 перевірок
+python -m stages.s06_platform.run           # seven scenes, no key, no containers
+python -m stages.s06_platform.run --trace   # plus one request's trace
+python -m stages.s06_platform.check         # 69 checks
 ```
 
-Дивись на **шосту** сцену. Решта показують, що сервіс працює; вона показує, що він перестає
-бути правдою, щойно процесів стає два.
+Watch the **sixth** scene. The others show that the service works; that one shows that it stops
+being true the moment there are two processes.
 
-## Частина 1. Що змінюється в продакшні
+## Part 1. What changes in production
 
-Прототип відповідає на питання **«чи це працює?»**. Продакшн відповідає на інше:
+A prototype answers the question **"does this work?"**. Production answers a different one:
 
-> **Що станеться, коли це зламається о третій ночі, і хто про це дізнається.**
+> **What happens when it breaks at three in the morning, and who finds out.**
 
-Три речі, яких у прототипі не було й не могло бути:
+Three things that were not in the prototype and could not have been:
 
-    межі        хто має право питати, скільки разів, і за чий рахунок
-    видимість   що сервіс робить зараз і що робив тоді, коли ніхто не дивився
-    життя       він переживає перезапуск, оновлення й другий процес поруч
+    boundaries   who is allowed to ask, how many times, and at whose expense
+    visibility   what the service is doing now and what it was doing when nobody was watching
+    life         it survives a restart, an upgrade, and a second process alongside
 
-Останнє — найпідступніше, і йому тут присвячено половину етапу.
+The last one is the most treacherous, and half of this stage is devoted to it.
 
-## Частина 2. Найважливіше речення всього етапу
+## Part 2. The most important sentence of the whole stage
 
-> **Стан у пам'яті процесу перестає бути правдою, щойно процесів стає більше одного. І
-> перестає мовчки.**
+> **State in process memory stops being true the moment there is more than one process. And it
+> stops silently.**
 
-Прототип живе в одному процесі. Будь-який лічильник, кеш або розклад у пам'яті працює
-бездоганно. Другий воркер робить кожен із них неправдою — без помилки, без винятку, без
-рядка в логу.
+A prototype lives in one process. Any counter, cache or schedule in memory works flawlessly. A
+second worker makes every one of them untrue — with no error, no exception, no line in the log.
 
-Ця причина має **три обличчя**, і етап показує всі три:
+That one cause has **three faces**, and the stage shows all three:
 
-| Де | Наслідок | Чи видно |
+| Where | Consequence | Is it visible |
 |---|---|---|
-| Планувальник | задача виконується двічі за інтервал | у логах — якщо туди дивитись |
-| Лічильник | ліміт у 30 пропускає 60 | **ніде**: сервіс поводиться нормально |
-| Метрики | видача показує зріз одного воркера | доки числа не почнуть «майже сходитись» |
+| Scheduler | the job runs twice per interval | in the logs — if anybody is looking |
+| Counter | a limit of 30 passes 60 | **nowhere**: the service behaves normally |
+| Metrics | the endpoint serves one worker's slice | until the numbers start "almost reconciling" |
 
-**Друга важливіша за першу.** Подвоєну задачу помічають; подвоєний ліміт означає, що межа
-тихо стала іншою, і жоден монітор про це не скаже.
+**The second matters more than the first.** A doubled job gets noticed; a doubled limit means the
+boundary quietly became something else, and no monitor will say a word about it.
 
-## Частина 3. Три воротарі — три механізми, а не «безпека»
+## Part 3. Three gates — three mechanisms, not "security"
 
-`guards.py`, 40 рядків. Найважливіше тут — **порядок**:
+`guards.py`, 40 lines. What matters most here is the **order**:
 
-    1. хто ти            без цього немає ні за ким рахувати, ні з кого списувати
-    2. скільки разів     дешева перевірка перед дорогою
-    3. за чий рахунок    рахувати витрати відхилених — марна робота
+    1. who you are         without it there is nobody to count and nobody to charge
+    2. how many times      the cheap check before the expensive one
+    3. at whose expense    counting the spend of the rejected is wasted work
 
-Ліміт до автентифікації рахував би всіх анонімів як одного клієнта: один зловмисник закривав
-би сервіс для решти. Бюджет до ліміту витрачав би облік на тих, кого однаково відхилять.
+A rate limit before authentication would count every anonymous caller as one client: a single
+attacker would close the service for everybody else. A budget before the rate limit would spend
+its bookkeeping on those who are going to be rejected anyway.
 
-**Жоден воротар не доходить до моделі.** Запобіжник, що спрацьовує після витрати, називається
-звітом.
+**No gate reaches the model.** A breaker that fires after the spend is called a report.
 
-Три деталі, кожна з яких — рішення:
+Three details, each of them a decision:
 
-**Порівняння ключа стале за часом.** Звичайне `==` завершується на першому розбіжному байті,
-тобто час відповіді розповідає довжину спільного префікса. Ціна правильного порівняння — одна
-функція зі стандартної бібліотеки; ціна неправильного — підбір ключа по одному символу.
+**The key comparison is constant-time.** A plain `==` finishes at the first differing byte, which
+means the response time tells you the length of the shared prefix. The price of the right
+comparison is one function from the standard library; the price of the wrong one is a key guessed
+one character at a time.
 
-**Відмова не каже, чи існує такий ключ.** «Немає такого» і «прострочено» звучать однаково.
-Різниця у відповіді — це оракул: перебирай, доки текст не зміниться.
+**A refusal does not say whether such a key exists.** "No such key" and "expired" sound the same.
+A difference in the answer is an oracle: keep trying until the text changes.
 
-**Ключ не залишає модуля.** У трейс, метрики й ключі лічильників іде похідний ідентифікатор
-власника. Ключ у трейсі — це ключ у файлі, який читає той, хто налагоджує.
+**The key never leaves the module.** What goes into the trace, the metrics and the counter keys is
+a derived owner identifier. A key in a trace is a key in a file read by whoever is debugging.
 
-## Частина 4. Стан і метрики відповідають на різні питання
+## Part 4. Health and metrics answer different questions
 
-    стан      чи сервіс і кожна залежність працюють ПРЯМО ЗАРАЗ
-    метрики   скільки чого сталося за період і якого саме роду
-    трейс     ЧОМУ агент так вирішив
+    health    whether the service and each dependency are working RIGHT NOW
+    metrics   how much of what happened over a period, and of which kind
+    trace     WHY the agent decided that
 
-Плутати перші два з третім — найдорожча помилка спостережуваності. Метрика скаже, що 3 %
-запитів відхилено, і не скаже, **чому саме ці три**.
+Confusing the first two with the third is the most expensive observability mistake. A metric will
+say that 3 % of requests were rejected and will not say **why those three**.
 
-**Стан називає кожну залежність окремо.** «Сервіс живий» без переліку — відповідь, після якої
-монітор мовчить, поки не поскаржиться користувач: процес справді живий, просто база недоступна
-вже годину.
+**Health names every dependency separately.** "The service is alive" with no list is the answer
+that keeps the monitor quiet until a user complains: the process really is alive, the database has
+merely been unreachable for an hour.
 
-**Причина — тип помилки, не її текст.** Текст драйвера бази несе адресу, користувача й порт, а
-стан читає той, у кого ключа немає.
+**The reason is the error's type, not its text.** The database driver's text carries the address,
+the user and the port, and health is read by somebody who has no key.
 
-**Стан відкритий, метрики закриті.** Кількість запитів на клієнта — бізнес-інформація.
+**Health is public, metrics are closed.** The number of requests per client is business
+information.
 
-## Частина 5. Дзеркальні половини — знову, і не випадково
+## Part 5. Mirrored halves — again, and not by accident
 
-Цей етап має **чотири** пари, і кожна друга половина не випливає з першої:
+This stage has **four** pairs, and no second half follows from its first:
 
-| Стверджує | Задовольняється порожнім |
+| Claims | Satisfied by an empty result |
 |---|---|
-| чужого відхилено | воротарем, що не пускає нікого |
-| несправну залежність названо | станом, зашитим у «зламано» |
-| збій дає ненульовий код | скриптом, що завжди падає |
-| чужа пам'ять не дійшла | порожньою видачею |
+| somebody else's was rejected | a gate that lets nobody through |
+| the unhealthy dependency was named | health hard-wired to "broken" |
+| a failure gives a non-zero exit code | a script that always fails |
+| somebody else's memory did not arrive | an empty result |
 
-Це п'ятий етап поспіль, де рев'ю знаходить перевірку з правильним вердиктом і надто слабким
-твердженням. Тут вони написані парами від початку — і навіть так дві пройшли **порожніми** у
-власному смоук-скрипті: «стан не розкриває рядка підключення» зеленіла на порожньому тілі, а
-«сервіс живий» матчила `up`, що належало залежності, поки сам сервіс був `down`.
+This is the fifth stage running where a review finds a check with the right verdict and too weak a
+claim. Here they were written in pairs from the start — and even so two of them passed **empty**
+in our own smoke script: "health does not expose the connection string" went green on an empty
+body, and "the service is alive" matched an `up` that belonged to a dependency while the service
+itself was `down`.
 
-## Частина 6. Що знайшло саме розгортання
+## Part 6. What deploying itself found
 
-Чотири вади. Жодної не видно ні з коду, ні з перевірок:
+Four defects. Not one of them is visible from the code or from the checks:
 
-**Том належав root**, процес — непривілейованому користувачу. Перший запис трейсу дав
-`PermissionError`, проксі віддав `502`. Локально каталог належить тому, хто запустив, тож
-побачити це можна лише в контейнері.
+**The volume belonged to root** while the process runs as an unprivileged user. The first trace
+write gave `PermissionError`, the proxy returned `502`. Locally the directory belongs to whoever
+started the command, so this can only be seen inside a container.
 
-**Міграції ніхто не застосовував.** Таблиці не було — і перший невдалий запит лишив транзакцію
-в аварійному стані. Сервіс лишався мертвим **після того, як причина зникла**: це вада «пам'яті
-про минуле», і жоден тест її не бачить, бо кожен тест бере свіже з'єднання.
+**Nobody had applied the migrations.** The table was not there — and the first failed query left
+the transaction in an aborted state. The service stayed dead **after the cause was gone**: this is
+a "memory of the past" defect, and no test sees it, because every test takes a fresh connection.
 
-**Конфігурація відмовилась піднімати `prod` без платного ключа** — сторож етапу 0 спрацював
-правильно й заблокував перевірку справжніх адаптерів. Розв'язок — явний прапорець, який видно
-у стані (ADR-0009).
+**The configuration refused to start `prod` without a paid key** — stage 0's guard fired correctly
+and blocked verification of the real adapters. The resolution is an explicit flag, visible in
+health (ADR-0009).
 
-**Планувальник перезапускався мовчки.** Його ніхто не смикає ззовні, тож помітити можна лише
-через `ps` або лог — саме те, що ADR-0003 назвав ціною винесення в окремий процес.
+**The scheduler restarted silently.** Nothing pokes it from outside, so it can only be noticed
+through `ps` or the log — exactly what ADR-0003 named as the price of moving it into its own
+process.
 
-## Частина 7. Що зламати
+## Part 7. What to break
 
 ```bash
-python scripts/mutate.py s06          # усі шістнадцять мутацій
-python scripts/mutate.py s06 --expect # ще й звірити з обіцяними числами
+python scripts/mutate.py s06          # all sixteen mutations
+python scripts/mutate.py s06 --expect # and check them against the promised numbers
 ```
 
-Найцікавіші три лишають код таким, що **працює й лишається неправильним**: лічильник стає
-процесо-локальним, фільтр власника зникає із запиту, бюджет перевіряється раніше за ліміт.
+The three most interesting leave the code **working and wrong**: the counter becomes
+process-local, the owner filter disappears from the query, the budget is checked before the rate
+limit.
 
-Розбір — у [`exercises.md`](exercises.md).
+The walkthrough is in [`exercises.md`](exercises.md).
 
-## Межі цього етапу — щоб ти не переніс їх у продакшн
+## The limits of this stage — so you do not carry them into production
 
-- **Один ключ — один власник.** Ролей, прав і квот на команду немає; відкликання ключа
-  потребує перезапуску (ADR-0006).
-- **Бюджет рахує оцінку**, а не рахунок провайдера. Запобіжник має спрацювати раніше за
-  катастрофу, а не звести баланс.
-- **Метрики процесо-локальні.** За N воркерів видача — зріз одного. Багатопроцесний збирач
-  робить продакшн; тут це названо, а не приховано.
-- **Трейс не пояснює вибірку.** Етапи 2 і 5 кроків не пишуть, тож трейс каже «яка гілка» і
-  не каже «чому саме ці документи» (ADR-0005).
-- **Довіру до сертифіката перевірено не було.** Локально він самопідписаний за побудовою, і
-  смоук позначає це третім станом, а не зеленим.
-- **Резервного копіювання немає.** `down -v` стирає і факти, і трейси; копії — етап 10.
+- **One key, one owner.** There are no roles, permissions or per-team quotas; revoking a key needs
+  a restart (ADR-0006).
+- **The budget counts an estimate**, not the provider's invoice. A breaker has to fire before the
+  catastrophe, not balance the books.
+- **Metrics are process-local.** With N workers the endpoint serves one worker's slice. A
+  multi-process collector is what production does; here it is named, not hidden.
+- **The trace does not explain retrieval.** Stages 2 and 5 write no steps, so the trace says
+  "which branch" and does not say "why these documents" (ADR-0005).
+- **Certificate trust was not verified.** Locally it is self-signed by construction, and the smoke
+  script marks that as a third state rather than a pass.
+- **There are no backups.** `down -v` erases both facts and traces; copies are stage 10.
 
-## Числа
+## Numbers
 
-**перевірок: 69, з них на режими відмови: 57.** Модулі: `app.py` — 66 із 120 дозволених
-рядків, `guards.py` — 40 із 100. Смоук проти живої збірки: 10 пройдено, 0 збоїв, 1 не
-перевірено.
+**69 checks, 57 of them on failure modes.** Modules: `app.py` — 66 of 120 lines allowed,
+`guards.py` — 40 of 100. Smoke against a live build: 10 passed, 0 failures, 1 not verified.
 
-## Далі
+## Next
 
-Етап 7 — **голос**: той самий конвеєр двічі, батчевий і стрімінговий, із вимірюванням.
-Питання етапу: чому 600 мс, чому p95 важливіший за середнє, і скільки коштує синхронний
-виклик інструмента, коли на тому кінці людина чекає.
+Stage 7 — **voice**: the same pipeline twice, batch and streaming, with measurement. The stage's
+questions: why 600 ms, why p95 matters more than the mean, and what a synchronous tool call costs
+when a human is waiting at the other end.

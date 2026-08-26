@@ -721,7 +721,7 @@ def check_the_lesson_numbers_match_the_bench() -> None:
         1 for check in CHECKS if (check.__doc__ or "").split(NEWLINE)[0].startswith("FAILURE")
     )
     flat = re.sub(r"\s+", " ", checklist)
-    assert f"перевірок: {len(CHECKS)}, з них на режими відмови: {failures}" in flat, (
+    assert f"checks: {len(CHECKS)}, of them on failure modes: {failures}" in flat, (
         "чекліст називає інші числа, ніж дає набір"
     )
     for page in (lesson, english):
@@ -730,7 +730,7 @@ def check_the_lesson_numbers_match_the_bench() -> None:
     # Розміри модулів — обчислені.
     for name in IMPLEMENTATION:
         lines = _executable_lines(name)
-        assert f"`{lines} із {LINE_BUDGET}`" in lesson, (
+        assert f"`{lines} of {LINE_BUDGET}`" in lesson, (
             f"{name} має {lines} виконуваних рядків — урок називає інше число"
         )
         assert f"| {lines} |" in english, f"{name}: карта називає інший розмір, ніж {lines}"
@@ -756,7 +756,7 @@ def check_the_lesson_numbers_match_the_bench() -> None:
             )
             assert f"| {row.places} |" in flat_lesson or f" {row.places} |" in flat_lesson, row.name
 
-    assert f"| Мутацій у вправах | {len(pinned)} |" in lesson, len(pinned)
+    assert f"| Mutations in the exercises | {len(pinned)} |" in lesson, len(pinned)
 
 
 def check_the_exercises_match_the_pinned_mutations() -> None:
@@ -769,8 +769,8 @@ def check_the_exercises_match_the_pinned_mutations() -> None:
     for mutation in pinned:
         number = int(mutation["name"].split()[1])
         expected = mutation["expect_failed"]
-        assert f"## Вправа {number} ·" in text_of, f"вправи {number} немає в прозі"
-        assert f"**Червоних: {expected}.**" in text_of, number
+        assert f"## Exercise {number} ·" in text_of, f"вправи {number} немає в прозі"
+        assert f"**Red: {expected}.**" in text_of, number
         assert mutation["file"] in text_of, f"вправа {number}: файл не названо"
         for side in ("old", "new"):
             for line in mutation[side].split(NEWLINE):
@@ -779,7 +779,7 @@ def check_the_exercises_match_the_pinned_mutations() -> None:
                     "побачить, ЩО саме міняти"
                 )
 
-    assert text_of.count("## Вправа") == len(pinned), len(pinned)
+    assert text_of.count("## Exercise") == len(pinned), len(pinned)
 
 
 def check_every_reader_file_exists() -> None:

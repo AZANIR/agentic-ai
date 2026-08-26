@@ -1,12 +1,13 @@
-# Еталонні розв'язки
+# Reference solutions
 
-Зазирай **після** власної спроби. Розв'язок, прочитаний до спроби, дає впізнавання, а не
-розуміння — і на етапі 6, де ніхто нічого не підкаже, різниця стане болючою.
+Look **after** your own attempt. A solution read before the attempt gives recognition, not
+understanding — and by stage 6, where nobody prompts you with anything, that difference starts
+to hurt.
 
-| Вправа | Файл |
+| Exercise | File |
 |---|---|
-| 2 — обдури валідацію булевим | [`exercise_2_bool_leak.py`](exercise_2_bool_leak.py) |
-| 5 — неіснуючий інструмент | [`exercise_5_unknown_tool.py`](exercise_5_unknown_tool.py) |
+| 2 — fool the validator with a boolean | [`exercise_2_bool_leak.py`](exercise_2_bool_leak.py) |
+| 5 — a tool that does not exist | [`exercise_5_unknown_tool.py`](exercise_5_unknown_tool.py) |
 
-Вправи 1, 3 і 4 розв'язку не мають: вони полягають у тому, щоб **прибрати** рядок і подивитись
-на наслідок. Файл із текстом «закоментуй рядок 147» був би знущанням.
+Exercises 1, 3 and 4 have no solution: they consist of **removing** a line and looking at the
+consequence. A file whose contents read "comment out line 147" would be an insult.

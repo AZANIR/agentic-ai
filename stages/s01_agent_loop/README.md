@@ -1,199 +1,203 @@
-# Етап 1 — Цикл агента
+# Stage 1 — The agent loop
 
-> Стаття етапу: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/three_guards_every_agent_loop_needs)
-> · [English summary](README.md) · [Вправи](exercises.md) · [Чекліст](CHECKLIST.md)
+> Stage article: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/three_guards_every_agent_loop_needs)
+> · [Exercises](exercises.md) · [Checklist](CHECKLIST.md)
 
-## Що ти зможеш після цього етапу
+## What you will be able to do after this stage
 
-- Пояснити **словами**, чому мовна модель не виконує функції сама.
-- Прочитати будь-який агентний фреймворк і впізнати всередині цей самий цикл.
-- Назвати три способи, якими агент ламається, і показати код, що кожен із них зупиняє.
+- Explain **in words** why a language model does not execute functions itself.
+- Read any agent framework and recognise this same loop inside it.
+- Name three ways an agent breaks, and point at the code that stops each one.
 
-Час: 2–3 години. Гроші: нуль.
+Time: 2–3 hours. Cost: nothing.
 
-## Запусти перед читанням
+## Run this before you read
 
 ```bash
 python -m stages.s01_agent_loop.run
 ```
 
-Мережі не буде, ключ не потрібен. Перший рядок скаже, звідки беруться відповіді.
-Подивись на вивід — далі ми розберемо, звідки взявся кожен рядок.
+No network, no key needed. The first line tells you where the answers come from.
+Look at the output — we are about to take apart where every line of it came from.
 
 ---
 
-## Частина 1. Що таке агент
+## Part 1. What an agent is
 
-Уяви дуже начитану людину, замкнену в кімнаті. Ти просовуєш під двері записку, вона читає,
-думає й просовує відповідь назад. Одна записка туди, одна сюди. Вона не може відчинити двері,
-щось погуглити, комусь подзвонити. Вона лише **говорить**.
+Picture an extremely well-read person locked in a room. You slide a note under the door, they
+read it, think, and slide an answer back. One note in, one note out. They cannot open the door,
+look something up, or call anyone. All they can do is **talk**.
 
-Це звичайна мовна модель. Потужна, але нічого не **робить**.
+That is an ordinary language model. Powerful, and it **does** nothing.
 
-Тепер дай їй телефон, доступ до пошти й можливість запускати скрипти. І головне — дай їй
-вирішувати, **чим саме скористатися й коли**. Оце вже агент.
+Now give them a phone, access to email, and the ability to run scripts. And, above all, let
+them decide **what to use and when**. That is an agent.
 
-Агент — це три речі:
+An agent is three things:
 
-| Складова | Що це | Де в нашому коді |
+| Part | What it is | Where it lives in our code |
 |---|---|---|
-| **Мозок** | мовна модель, що міркує й вирішує | `shared/llm.py` |
-| **Інструменти** | функції, які їй дозволено викликати | [`tools.py`](tools.py) |
-| **Пам'ять** | необов'язкова; наш агент її не має | етап 5 |
+| **Brain** | the language model that reasons and decides | `shared/llm.py` |
+| **Tools** | the functions it is allowed to call | [`tools.py`](tools.py) |
+| **Memory** | optional; our agent has none | stage 5 |
 
-І один цикл, що їх з'єднує:
+And one loop joining them:
 
 ```
-        задача
+        task
           ↓
-    ┌─→ модель: «що робити далі?»
+    ┌─→ model: "what next?"
     │     ↓
-    │  обирає інструмент
+    │  picks a tool
     │     ↓
-    │  ми виконуємо інструмент
+    │  we run the tool
     │     ↓
-    │  результат повертається моделі
+    │  the result goes back to the model
     │     ↓
-    └── «я закінчила?» — ні
-              ↓ так
-          відповідь
+    └── "am I done?" — no
+              ↓ yes
+          answer
 ```
 
-Цей цикл називають **ReAct** (Reasoning + Acting). На ньому побудовано геть усе: LangGraph,
-CrewAI, AutoGen, Google ADK. Різниця лише в тому, скільки з нього від тебе сховали.
+This loop is called **ReAct** (Reasoning + Acting). Everything is built on it: LangGraph,
+CrewAI, AutoGen, Google ADK. The only difference is how much of it has been hidden from you.
 
-Тут не сховано нічого.
-
----
-
-## Частина 2. Найважливіше речення всього етапу
-
-> **Модель не виконує функції. Вона їх просить.**
-
-Коли модель «викликає інструмент», насправді вона повертає текст приблизно такого змісту:
-«я хочу `get_order_status` з аргументами `{"order_id": "ord_4471"}`». Далі **твій код**
-вирішує, викликати цю функцію чи ні.
-
-Це не технічна дрібниця. Це те, що робить агентів керованими: між рішенням моделі й
-наслідком у реальному світі є місце, куди можна поставити перевірку.
-
-Саме туди ми поставимо три захисти.
+Here nothing is hidden.
 
 ---
 
-## Частина 3. Читаємо код — п'ять файлів
+## Part 2. The one sentence that matters most in this stage
 
-Порядок має значення: кожен наступний спирається на попередній.
+> **The model does not execute functions. It asks for them.**
 
-### `tools.py` — що агенту дозволено
+When a model "calls a tool", what it actually returns is text along the lines of: "I want
+`get_order_status` with the arguments `{"order_id": "ord_4471"}`". After that it is **your
+code** that decides whether to call that function at all.
+
+This is not a technical footnote. It is what makes agents governable: between the model's
+decision and its consequence in the real world there is a gap, and a check fits in that gap.
+
+That is exactly where we put three guards.
+
+---
+
+## Part 3. Reading the code — five files
+
+The order matters: each one builds on the one before it.
+
+### `tools.py` — what the agent is allowed to do
 
 ```python
 @dataclass(frozen=True)
 class Tool:
     name: str
     description: str
-    parameters: dict[str, Any]  # схема, яку побачить модель
-    func: Callable[..., str]  # функція, яку викличемо ми
-    irreversible: bool = False  # чи потрібне підтвердження
+    parameters: dict[str, Any]  # the schema the model will see
+    func: Callable[..., str]  # the function we will call
+    irreversible: bool = False  # whether confirmation is required
 ```
 
-Три інструменти: `get_weather` (канон зі статті), `get_order_status` (наш магазин NovaShop),
-`initiate_return` — незворотний.
+Three tools: `get_weather` (the canonical one from the article), `get_order_status` (our
+NovaShop domain), and `initiate_return` — irreversible.
 
-**Найважливіше тут — `description`.** Модель не бачить коду. Вона обирає інструмент, читаючи
-його ім'я й опис. Розмитий опис ламає вибір сильніше, ніж слабша модель — і це найдешевший
-спосіб зіпсувати агента.
+**The most important thing here is `description`.** The model does not see the code. It picks a
+tool by reading its name and its description. A vague description breaks that choice harder
+than a weaker model does — and it is the cheapest way there is to ruin an agent.
 
-Реєстр — звичайний словник, а не декоратор. Декоратор виглядав би елегантніше, але сховав би
-реєстрацію: ти маєш бачити повний список дозволеного одним поглядом.
+The registry is a plain dictionary rather than a decorator. A decorator would look neater, and
+it would hide the registration: you have to be able to see the full list of what is allowed at
+a glance.
 
-### `validate.py` — межа довіри
+### `validate.py` — the trust boundary
 
-Сорок рядків, які вирішують, чи аргументи від моделі взагалі схожі на правду. Три випадки:
-бракує обов'язкового поля, є зайве поле, не той тип.
+Forty lines that decide whether the arguments coming back from the model even resemble the
+truth. Three cases: a required field is missing, an unexpected field is present, the type is
+wrong.
 
-**Типи не приводяться.** Рядок `"3"` там, де оголошено число, — це відмова, а не привід
-здогадуватись. Мовчазне приведення сховало б помилку моделі саме там, де ти маєш її побачити.
+**Types are never coerced.** The string `"3"` where a number was declared is a rejection, not an
+invitation to guess. Silent coercion would hide the model's mistake at exactly the point where
+you need to see it.
 
-Одна деталь, на якій легко спіткнутися:
+One detail that is easy to trip over:
 
 ```python
 if expected in ("integer", "number") and isinstance(value, bool):
     return False
 ```
 
-У Python `bool` — підтип `int`, тож `isinstance(True, int)` істинне. Без цього рядка `True`
-тихо пройшов би там, де очікується число.
+In Python `bool` is a subtype of `int`, so `isinstance(True, int)` is true. Without that line
+`True` would pass quietly wherever a number is expected.
 
-### `loop.py` — власне цикл
+### `loop.py` — the loop itself
 
-Уся «магія» — один `while`. Прочитай його від початку до кінця, він того вартий.
+All the "magic" is one `while`. Read it end to end; it is worth it.
 
 ```python
-while result.steps < limit:                    # ← захист 1
+while result.steps < limit:                    # ← guard 1
     response = client.chat.completions.create(...)
     message = response.choices[0].message
 
-    if not message.tool_calls:                 # модель відповіла текстом
+    if not message.tool_calls:                 # the model answered with text
         result.answer = message.content
         return result
 
     for call in message.tool_calls:
         outcome = _execute(call, tools, tracer, confirmed=confirmed)
-        messages.append({"role": "tool", ...})  # результат — назад моделі
+        messages.append({"role": "tool", ...})  # the result — back to the model
 ```
 
-Зверни увагу на `messages.append({"role": "tool", ...})`. Результат інструмента **обов'язково**
-повертається моделі. Без цього вона відповідала б наосліп — і саме так виглядає найпоширеніша
-помилка в саморобних агентах.
+Note `messages.append({"role": "tool", ...})`. The tool's result **must** go back to the model.
+Without that it would be answering blind — and that is precisely what the commonest mistake in
+home-made agents looks like.
 
-І ще одна деталь із протоколу:
+One more detail from the protocol:
 
 ```python
 arguments = json.loads(call.function.arguments)
 ```
 
-`arguments` приходить **рядком JSON**, а не словником. Так влаштований протокол, і наша
-підробна модель відтворює це один в один — інакше твій код працював би на підробці й ламався
-на справжньому провайдері.
+`arguments` arrives as a **JSON string**, not a dictionary. That is how the protocol works, and
+our fake model reproduces it exactly — otherwise your code would work against the fake and
+break against a real provider.
 
-### `gate.py` — гейт підтвердження
+### `gate.py` — the confirmation gate
 
-Тридцять рядків, які вирішують долю **всього кроку**, а не окремого виклику. Чому саме кроку —
-у частині 4.
+Thirty lines that decide the fate of **the whole step** rather than of an individual call. Why
+the step — part 4.
 
-### `run.py` — демо
+### `run.py` — the demo
 
-Чотири сценарії, кожен показує один критерій приймання. Дивись не на код, а на вивід.
+Four scenarios, each showing one acceptance criterion. Look at the output rather than the code.
 
 ---
 
-## Частина 4. Три захисти
+## Part 4. Three guards
 
-### Захист 1 — ліміт кроків
+### Guard 1 — the step limit
 
-**Що ламається без нього.** Задача незрозуміла, інструмент повертає щось непридатне, модель
-пробує знову. І знову. Токени горять, відповіді немає.
+**What breaks without it.** The task is unclear, a tool returns something unusable, the model
+tries again. And again. Tokens burn, there is no answer.
 
-**Як зупиняємо.** Лічильник у циклі. Коли ліміт вичерпано:
+**How we stop it.** A counter in the loop. When the limit is spent:
 
 ```python
 result.stopped_by_limit = True
-return result  # answer лишається None
+return result  # answer stays None
 ```
 
-Відповіді немає — і вигадувати її **не можна**. Чесне «не впорався» краще за правдоподібний
-текст, за яким нічого не стоїть. У сценарії 3 демо це видно.
+There is no answer — and inventing one is **not allowed**. An honest "I could not do it" beats
+a plausible piece of text with nothing behind it. Scenario 3 of the demo shows this.
 
-### Захист 2 — валідація аргументів
+### Guard 2 — argument validation
 
-**Що ламається без нього.** Модель вигадує поле `town` замість `city`, твоя функція отримує
-несподіваний аргумент і падає — або, гірше, працює з чимось не тим.
+**What breaks without it.** The model invents a field `town` instead of `city`, your function
+receives an unexpected argument and crashes — or, worse, works on the wrong thing.
 
-**Як зупиняємо.** Аргументи не доходять до функції, поки не пройшли схему. Причина відмови
-повертається моделі як результат кроку, і цикл **продовжується**.
+**How we stop it.** Arguments do not reach the function until they have passed the schema. The
+reason for the rejection goes back to the model as the result of the step, and the loop
+**continues**.
 
-Подивись на сценарій 2 у виводі демо:
+Look at scenario 2 in the demo output:
 
 ```
 -> модель просить get_weather({"town": "Київ"})
@@ -202,112 +206,119 @@ return result  # answer лишається None
 <- У Києві +28°C...
 ```
 
-Модель виправилась **з одного кола**, бо отримала обидва факти одразу. Якби ми повідомили лише
-про перший, вона дізналась би про `town` наступним викликом — ще токени, ще затримка.
+The model corrected itself **in one round**, because it got both facts at once. Had we reported
+only the first, it would have learnt about `town` on the next call — more tokens, more latency.
 
-### Захист 3 — гейт підтвердження
+### Guard 3 — the confirmation gate
 
-**Що ламається без нього.** Клієнт питає «а яка у вас політика повернень?», модель чує «оформи
-повернення» — і оформлює. Гроші списано, склад повідомлено, відкотити нічим.
+**What breaks without it.** A customer asks "what is your returns policy?", the model hears
+"process a return" — and processes one. Money is refunded, the warehouse is notified, there is
+nothing left to roll back.
 
-**Як зупиняємо.** Перед виконанням **будь-чого** в кроці [`gate.py`](gate.py) переглядає всі
-інструменти, які модель попросила цією відповіддю:
+**How we stop it.** Before **anything** in the step runs, [`gate.py`](gate.py) looks over every
+tool the model asked for in that one response:
 
 ```python
 blocked = screen(message.tool_calls, tools, confirmed=confirmed)
 if blocked is not None:
-    return result        # не виконано ЖОДНОГО
+    return result        # NOTHING was executed
 ```
 
-Підтвердження приходить **окремим повторним запуском**, а не питанням у консолі:
+Confirmation arrives as **a separate second run**, not as a console prompt:
 
 ```bash
 python -m stages.s01_agent_loop.run --confirm
 ```
 
-Причина прозаїчна: `input()` у CI читає кінець потоку й падає, і перевірка потребувала б
-мокування стандартного вводу — першої магії в курсі.
+The reason is prosaic: `input()` in CI reads end-of-stream and crashes, and the check would then
+need standard input mocked — the first piece of magic in the course.
 
-**Чому гейт дивиться на весь крок, а не на кожен виклик окремо.** Модель може попросити кілька
-інструментів однією відповіддю. Якщо перевіряти їх по черзі, виходить пастка:
+**Why the gate looks at the whole step rather than at each call separately.** The model can ask
+for several tools in a single response. Check them one at a time and you get a trap:
 
-| | перевірка по одному | перевірка кроку цілком |
+| | one call at a time | the whole step |
 |---|---|---|
-| без підтвердження | блокуємо на першому; про решту читач не дізнається | показуємо **всі** незворотні дії |
-| з підтвердженням | виконуємо **всі**, зокрема невидимі | виконуємо саме те, що показали |
+| without confirmation | we block on the first; the reader never learns about the rest | we show **every** irreversible action |
+| with confirmation | we run **all** of them, including the invisible ones | we run exactly what we showed |
 
-Тобто поколовий гейт перетворює підтвердження на бланкетний дозвіл. Прогін має показати,
-**що саме сталося б** — усе, а не перше. Підтверджувати наосліп — не підтвердження.
+Which is to say a per-call gate turns confirmation into blanket permission. The run has to show
+**what would actually happen** — all of it, not the first item. Confirming blind is not
+confirmation.
 
-Ця вада була в першій версії етапу й знайшлася лише незалежним рев'ю. Автор написав і код,
-і тести, і обидва були узгоджені між собою — просто неправильні разом.
-
----
-
-## Що зламати
-
-Найкорисніша частина. Ламай, дивись, повертай назад.
-
-1. У [`gate.py`](gate.py) заміни `and tool.irreversible` на `and False` — гейт перестане
-   спрацьовувати взагалі. Запусти демо: сценарій 4 тепер оформлює повернення сам. Запусти
-   `python -m stages.s01_agent_loop.check` — червоніють **три** перевірки, і кожна каже, що
-   саме зламалось (`виконано попри блокування`, `незворотну функцію виконано без
-   підтвердження`, `у трейсі демо немає step_blocked`). Поверни як було.
-
-   > Обережно з інтуїтивнішою правкою: якщо прибрати з умови лише `not confirmed`, гейт почне
-   > блокувати **завжди**, а не ніколи. Демо не передає підтвердження, тож вивід не зміниться,
-   > і ти вирішиш, що дивишся не туди. Саме така помилка була в першій версії цього уроку.
-2. У [`validate.py`](validate.py) прибери рядок про `bool`. Додай інструмент із цілим
-   параметром і надішли `True`. Подивись, що пройде.
-3. У своєму `.env` (див. [`.env.example`](../../.env.example)) постав `AGENT_MAX_STEPS=1`. Що станеться зі сценарієм 1?
-4. У [`tools.py`](tools.py) заміни опис `get_order_status` на `"Does a thing."` — і запусти зі
-   **справжньою** моделлю. Вона все ще обере правильний інструмент?
-
-Повний список — у [`exercises.md`](exercises.md).
+This flaw was in the first version of the stage and was found only by an independent review.
+The author wrote both the code and the tests, and the two agreed with each other — they were
+simply wrong together.
 
 ---
 
-## Ручний чекліст: справжня модель
+## What to break
 
-Перевірки навмисно не ходять у мережу, тож половину критерію AC-05 закриваєш ти сам. П'ять хвилин:
+The most useful part. Break it, look, put it back.
 
-1. Зареєструйся на [Groq](https://console.groq.com) — безкоштовний рівень, картка не потрібна.
-2. У `.env`:
+1. In [`gate.py`](gate.py) replace `and tool.irreversible` with `and False` — the gate stops
+   firing at all. Run the demo: scenario 4 now processes the return by itself. Run
+   `python -m stages.s01_agent_loop.check` — **three** checks go red, and each one says what
+   exactly broke (`виконано попри блокування`, `незворотну функцію виконано без
+   підтвердження`, `у трейсі демо немає step_blocked`). Put it back.
+
+   > Careful with the more intuitive edit: drop only `not confirmed` from the condition and the
+   > gate starts blocking **always** rather than never. The demo does not pass confirmation, so
+   > the output does not change, and you will conclude you are looking in the wrong place. That
+   > is exactly the mistake the first version of this lesson made.
+2. In [`validate.py`](validate.py) remove the line about `bool`. Add a tool with an integer
+   parameter and send it `True`. Watch what gets through.
+3. In your `.env` (see [`.env.example`](../../.env.example)) set `AGENT_MAX_STEPS=1`. What happens to scenario 1?
+4. In [`tools.py`](tools.py) replace the description of `get_order_status` with `"Does a
+   thing."` — and run against a **real** model. Does it still pick the right tool?
+
+The full list is in [`exercises.md`](exercises.md).
+
+---
+
+## Manual checklist: a real model
+
+The checks deliberately stay off the network, so half of criterion AC-05 is yours to close. Five minutes:
+
+1. Sign up at [Groq](https://console.groq.com) — free tier, no card needed.
+2. In `.env`:
    ```ini
    LLM_BASE_URL=https://api.groq.com/openai/v1
-   LLM_API_KEY=gsk_твій_ключ
+   LLM_API_KEY=gsk_your_key
    LLM_MODEL=llama-3.3-70b-versatile
    ```
 3. `python -m stages.s01_agent_loop.run`
 
-Що має статися:
+What should happen:
 
-- [ ] Перший рядок змінився з `[FakeLLM]` на `[LLM] https://api.groq.com/...`
-- [ ] Сценарій 1: модель сама обрала `get_order_status`, хоча ми їй цього не казали
-- [ ] Сценарій 4 показав гейт, а `--confirm` виконав дію
-- [ ] Сценарій 3 **може** завершитись інакше: зациклення підробки задане сценарієм, а
-      справжня модель швидше просто відповість текстом. Це не помилка — ліміт кроків
-      перевіряється перевіркою, а не демо
-- [ ] Текст відповідей інший — і це нормально. Цикл, інструменти й формат виводу ті самі
+- [ ] The first line changed from `[FakeLLM]` to `[LLM] https://api.groq.com/...`
+- [ ] Scenario 1: the model picked `get_order_status` on its own, without being told to
+- [ ] Scenario 4 showed the gate, and `--confirm` carried the action out
+- [ ] Scenario 3 **may** end differently: the fake's looping is scripted, and a real model will
+      more likely just answer with text. That is not a bug — the step limit is proved by the
+      check, not by the demo
+- [ ] The wording of the answers is different, and that is fine. The loop, the tools and the
+      output format are the same
 
-Останній пункт і є суттю: **змінилась модель, не код.**
-
----
-
-## Межі цього етапу — щоб ти не переніс їх у продакшн
-
-- **Валідація** покриває лише пласкі об'єкти з простими типами. Вкладені об'єкти й масиви не
-  перевіряються. У проді тут має стояти `jsonschema` або `pydantic`.
-- **Агент не має пам'яті.** Кожен прогін починається з нуля. Це видима вада — її розв'язує етап 5.
-- **Зелена перевірка не означає «агент добрий».** Перевірки міряють логіку **навколо** моделі:
-  спрацював ліміт, відсіклись аргументи, гейт не пропустив. Якість самих відповідей — етап 8.
-- **Гейт підтвердження — навчальний.** У проді підтвердження має переживати перезапуск процесу
-  й бути прив'язаним до конкретного користувача.
+That last point is the whole idea: **the model changed, the code did not.**
 
 ---
 
-## Далі
+## The limits of this stage — so you do not carry them into production
 
-[Етап 2 — RAG](../s02_rag/): агент нічого не знає про твої документи. Навчимо його читати.
+- **Validation** covers flat objects with scalar types only. Nested objects and arrays are not
+  checked. In production this is where `jsonschema` or `pydantic` belongs.
+- **The agent has no memory.** Every run starts from nothing. It is a visible gap — stage 5
+  closes it.
+- **Green checks do not mean "the agent is good".** The checks measure the logic **around** the
+  model: the limit fired, the arguments were cut off, the gate held. The quality of the answers
+  themselves is stage 8.
+- **The confirmation gate is a teaching one.** In production a confirmation has to survive a
+  process restart and be bound to a specific user.
 
-Перед переходом — [`CHECKLIST.md`](CHECKLIST.md): я зрозумів / я запустив / я пояснив.
+---
+
+## Next
+
+[Stage 2 — RAG](../s02_rag/): the agent knows nothing about your documents. Let us teach it to read.
+
+Before you move on — [`CHECKLIST.md`](CHECKLIST.md): I understood / I ran / I explained.

@@ -1,6 +1,6 @@
 # Stage 8 — Evaluation: three verdicts instead of one impression
 
-The lesson itself is in Ukrainian ([`README.md`](README.md)). This page is the map.
+The lesson itself is in [`README.md`](README.md). This page is the map.
 
 ## What it is
 
@@ -136,10 +136,10 @@ external sink adds none.
   than not counting at all.
 - **The fake judge does not prove real judges are biased.** The literature does that; this one
   gives the detector something to detect.
-- **Sampling is verified locally**, in the same process. A real deployment stays not-verified.
+- **Sampling is verified locally**, in the same process. A real deployment stays `NOT EVALUATED`.
 - **±3 percentage points is an exercise bound** on a stream from two hundred. The real one
   depends on traffic volume and the price of a judgement.
-- **With a real judge, determinism is not required** — the flicker check becomes not-verified
+- **With a real judge, determinism is not required** — the flicker check becomes `NOT EVALUATED`
   with a key, rather than green.
 - **No drift over time.** Drift needs stored history, which this stage deliberately does not
   keep. It prints the numbers drift is computed from and stops there; comparing windows is
@@ -152,4 +152,4 @@ the report**: an empty level becomes passed, the denominator moves to the evalua
 instrument failure gets billed to the agent, a blind measurement turns into a finding. All of
 them leave the harness working and the report looking better.
 
-Walkthrough in [`exercises.md`](exercises.md), written in Ukrainian.
+Walkthrough in [`exercises.md`](exercises.md).

@@ -1,84 +1,86 @@
-# Вправи — етап 2
+# Exercises — stage 2
 
-Роби після того, як прочитав [урок](README.md) і запустив демо.
+Do these after you have read the [lesson](README.md) and run the demo.
 
-**Правило одне: спершу зламай, потім подивись, потім поверни назад.** Читання коду дає
-впізнавання, а поламаний код дає розуміння — це різні речі.
+**One rule: break it first, then look, then put it back.** Reading code gives you recognition;
+broken code gives you understanding. They are not the same thing.
 
-Після кожної вправи повертай усе як було:
+After each exercise, restore everything:
 
 ```bash
 git checkout stages/s02_rag/
 ```
 
-> **Одна пастка середовища.** Якщо ти правиш число на число тієї ж довжини (`0.2` -> `0.0`)
-> і повертаєш назад **за ту саму секунду**, Python може взяти старий `.pyc`: він звіряє час
-> зміни з точністю до секунди й розмір файлу. Побачив «впала перевірка, хоча я вже все
-> повернув» — почисти кеш:
+> **One environment trap.** If you replace a number with a number of the same length
+> (`0.2` -> `0.0`) and put it back **within the same second**, Python may pick up the stale
+> `.pyc`: it compares the modification time to the second, plus the file size. Seeing "a check
+> failed even though I already reverted everything"? Clear the cache:
 > ```bash
 > find . -name __pycache__ -type d -not -path "./.venv/*" -exec rm -rf {} +
 > ```
 
-Еталонні розв'язки — у [`solutions/`](solutions/). Зазирай **після** власної спроби.
+Reference solutions are in [`solutions/`](solutions/). Look **after** your own attempt.
 
 ---
 
-## Вправа 1 — Перенеси фільтр доступу після відбору top-k
+## Exercise 1 — Move the access filter after the top-k selection
 
-**Складність:** середньо · **Час:** 20 хв · **Найважливіша вправа етапу**
+**Difficulty:** medium · **Time:** 20 min · **The most important exercise of the stage**
 
-У [`store.py`](store.py), у методі `search`, зроби так, щоб сортування йшло по **всіх**
-фрагментах, а фільтр застосовувався вже до відібраної трійки:
+In [`store.py`](store.py), inside the `search` method, make the sort run over **all** fragments
+and apply the filter to the selected three:
 
 ```python
 ranked = sorted(range(len(self.fragments)), key=lambda i: float(scores[i]), reverse=True)
 closest = [Hit(self.fragments[i], float(scores[i])) for i in ranked[:top_k] if i in allowed]
 ```
 
-Запусти перевірки й **спершу спробуй передбачити**, що станеться, а потім дивись.
+Run the checks, and **try to predict first** what will happen, then look.
 
 <details>
-<summary>Що відбувається насправді</summary>
+<summary>What actually happens</summary>
 
-Червоною стає **рівно одна** перевірка:
+**Exactly one** check goes red:
 
 ```
 FAILURE · store: дозволений документ не зник — фільтр стоїть ДО відбору
 ```
 
-А перевірка на витік — `внутрішній документ не потрапляє у видачу покупцю` — **лишається
-зеленою**. І це головне, що треба звідси винести.
+And the leak check — `внутрішній документ не потрапляє у видачу покупцю` — **stays green**. That
+is the main thing to take away from here.
 
-Внутрішній документ справді не витік: його прибрали, просто пізніше. Зате `returns-policy`,
-який був третім за близькістю й мав дійти до покупця, тепер не дійшов — два внутрішні
-фрагменти зайняли слоти перед ним і забрали з собою всю видачу.
+The internal document really did not leak: it was removed, just later. But `returns-policy`,
+which was third by closeness and should have reached the shopper, no longer does — two internal
+fragments took the slots ahead of it and took the whole result set with them.
 
-Покупець отримує «нічого не знайдено» на питання, на яке відповідь є. Жоден лог не покаже
-помилки. Жодна перевірка на витік не спрацює.
+The shopper gets "nothing found" for a question that has an answer. No log shows an error. No
+leak check fires.
 
-**Мораль:** тест на «погане не сталося» не замінює тесту на «хороше сталося». Це дзеркальні
-властивості, і покриття однієї з них створює хибне відчуття, що покрито обидві.
+**The moral:** a test for "the bad thing did not happen" is not a substitute for a test that
+"the good thing did". These are mirror properties, and covering one of them creates a false
+sense that both are covered.
 
-**І друге, гостріше.** Запусти розбір і подивись на два блоки — `top_k=3` і `top_k=2`. При
-`top_k=3` правильна відповідь ще влазить у трійку разом із двома внутрішніми, і **обидва
-порядки дають однаковий результат**. Вада є, але її не видно. При `top_k=2` внутрішні
-займають обидва слоти, і видача стає порожньою.
+**And a second, sharper point.** Run the walkthrough and look at the two blocks — `top_k=3` and
+`top_k=2`. At `top_k=3` the right answer still fits into the three alongside the two internal
+ones, and **both orderings give the same result**. The flaw is there, and it is invisible. At
+`top_k=2` the internal documents take both slots and the result set goes empty.
 
-Код зламаний однаково в обох випадках. Змінюється лише те, чи це помітно — і залежить це
-від параметра, який до контролю доступу стосунку не має. Саме тому перевірка зашила
-`top_k=2` жорстко: перевірка, написана «як у продакшні», була б зеленою на зламаному коді.
+The code is broken identically in both cases. All that changes is whether it shows — and that
+depends on a parameter which has nothing to do with access control. This is exactly why the
+check pins `top_k=2` hard: a check written "the way production has it" would have been green on
+broken code.
 
-Розбір із числами: [`solutions/exercise_1_filter_after_topk.py`](solutions/exercise_1_filter_after_topk.py)
+Walkthrough with numbers: [`solutions/exercise_1_filter_after_topk.py`](solutions/exercise_1_filter_after_topk.py)
 
 </details>
 
 ---
 
-## Вправа 2 — Дозволь моделі цитувати саму себе
+## Exercise 2 — Let the model cite itself
 
-**Складність:** легко · **Час:** 10 хв
+**Difficulty:** easy · **Time:** 10 min
 
-У [`answer.py`](answer.py) заміни джерела на ті, що модель написала у власному тексті:
+In [`answer.py`](answer.py) replace the sources with the ones the model wrote in its own text:
 
 ```python
 import re
@@ -86,93 +88,96 @@ sources=re.findall(r"[a-z-]+#\d", model_text) or [h.fragment.label for h in resu
 ```
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-Червоніє одна перевірка:
+One check goes red:
 
 ```
 FAILURE · answer: посилання, вигадане моделлю, не стає джерелом відповіді
 ```
 
-Перевірка передає моделі текст «Згідно з документом `secret-internal-policy#9` повернення
-неможливе». Такого документа не існує — і тепер він стоїть у полі `sources` як джерело.
+The check hands the model the text "According to document `secret-internal-policy#9` a return is
+impossible". No such document exists — and now it stands in the `sources` field as the source of
+the answer.
 
-Зверни увагу на форму цієї помилки: **вигадане посилання виглядає точно так само, як
-справжнє**. Немає жодної ознаки, за якою читач відрізнить одне від одного. Механізм, який
-завели саме для того, щоб відділити обґрунтовану відповідь від вигаданої, сам став
-джерелом вигадки.
+Note the shape of this failure: **an invented reference looks exactly like a real one**. There is
+no signal by which a reader could tell them apart. The mechanism introduced precisely to
+separate a grounded answer from an invented one has itself become a source of invention.
 
-Саме тому джерело додає система (ADR етапу 0003), а не модель за інструкцією.
+That is why the source is attached by the system (stage ADR-0003), not by the model following an
+instruction.
 </details>
 
 ---
 
-## Вправа 3 — Прибери прив'язку рівня доступу
+## Exercise 3 — Remove the access-level binding
 
-**Складність:** середньо · **Час:** 15 хв
+**Difficulty:** medium · **Time:** 15 min
 
-У [`tools.py`](tools.py), у `tool_for`, заміни `partial(search_knowledge_base, access=access)`
-на голу `search_knowledge_base`.
+In [`tools.py`](tools.py), inside `tool_for`, replace `partial(search_knowledge_base,
+access=access)` with the bare `search_knowledge_base`.
 
-Спершу передбач: це витік чи ні?
+Predict first: is this a leak or not?
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-**Витоку немає.** У `search_knowledge_base` рівень доступу має значення за замовчуванням
-`PUBLIC`, тому без прив'язки всі бачать публічне — тобто менше, а не більше. Це правильний
-дефолт: помилятися треба в бік «показав менше».
+**There is no leak.** In `search_knowledge_base` the access level defaults to `PUBLIC`, so
+without the binding everyone sees public material — that is, less rather than more. This is the
+right default: err in the direction of showing less.
 
-Але червоніє ось це:
+But this goes red:
 
 ```
 tools: оператор ОТРИМУЄ внутрішній документ — прив'язка доступу справді працює
 ```
 
-Оператор підтримки перестав бачити внутрішні пороги повернення. Інструмент мовчки віддає
-йому публічну відповідь, і він так само мовчки скаже покупцю неправильну суму.
+The support operator has stopped seeing the internal refund thresholds. The tool silently hands
+them the public answer, and they will just as silently quote the wrong amount to a shopper.
 
-Ця вправа — пара до першої. Перша показує, що фільтр можна поставити не туди; ця — що
-прив'язку можна взагалі забути, і **перевірка на витік знову цього не побачить**. «Нічого
-не знайдено» — теж не витік.
+This exercise is the pair to the first. The first shows that the filter can be put in the wrong
+place; this one shows that the binding can be forgotten altogether, and that **the leak check
+will again fail to see it**. "Nothing found" is not a leak either.
 </details>
 
 ---
 
-## Вправа 4 — Опусти поріг до нуля
+## Exercise 4 — Drop the threshold to zero
 
-**Складність:** легко · **Час:** 10 хв
+**Difficulty:** easy · **Time:** 10 min
 
-У [`tools.py`](tools.py) постав `THRESHOLD = 0.0` і запитай інструмент про щось, чого в базі
-немає взагалі.
+In [`tools.py`](tools.py) set `THRESHOLD = 0.0` and ask the tool about something the knowledge
+base has nothing on at all.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
 ```
 FAILURE · tools: питання не по темі дає чесне «не знайдено», а не найближчий шум
 ```
 
-Запит «яка погода в Києві завтра» дає найближчі фрагменти з оцінками 0.141, 0.129 і 0.126 —
-глек, доставка, вишиванка. Жоден із них не має стосунку до погоди, але **щось найближче є
-завжди**: косинус завжди поверне число, і найбільше з чисел завжди існує.
+The query "what is the weather in Kyiv tomorrow" returns the closest fragments with scores
+0.141, 0.129 and 0.126 — the jug, shipping, the embroidered shirt. None of them has anything to
+do with weather, but **something closest always exists**: cosine always returns a number, and
+the largest of a set of numbers always exists.
 
-Поріг — це єдине місце, де система може сказати «не знаю». Прибери його, і агент отримає
-три випадкові абзаци, покладе їх у промпт і попросить модель відповісти за ними. Модель
-чесно спробує.
+The threshold is the only place where the system can say "I do not know". Remove it and the
+agent gets three random paragraphs, puts them in the prompt, and asks the model to answer from
+them. The model will honestly try.
 
-Спробуй знайти поріг, за якого «яка погода» дає порожньо, а «скільки днів на повернення» —
-знаходить. Підказка: перше дає 0.141, друге — 0.503. Місця для маневру більше, ніж здається,
-і саме тому це число варто підбирати на своїх даних, а не брати з підручника.
+See if you can find a threshold at which "what is the weather" returns nothing while "how many
+days do I have to return this" still finds the policy. Hint: the first gives 0.141, the second
+0.503. There is more room to manoeuvre than it looks — which is precisely why this number is
+worth tuning on your own data rather than taking from a textbook.
 </details>
 
 ---
 
-## Вправа 5 — Віддай моделі рівень доступу
+## Exercise 5 — Hand the access level to the model
 
-**Складність:** середньо · **Час:** 15 хв
+**Difficulty:** medium · **Time:** 15 min
 
-У [`tools.py`](tools.py) додай `access` у схему інструмента:
+In [`tools.py`](tools.py) add `access` to the tool's schema:
 
 ```python
 "properties": {
@@ -182,35 +187,37 @@ FAILURE · tools: питання не по темі дає чесне «не з�
 ```
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
 ```
 tools: інструмент має ту саму форму, що й на етапі 1
 ```
 
-Перевірка стверджує `list(params["properties"]) == ["query"]` — рівно один важіль. Не «серед
-іншого є query», а **тільки** query.
+The check asserts `list(params["properties"]) == ["query"]` — exactly one lever. Not "query is
+among the others" but **only** query.
 
-Різниця не педантична. Перша версія цієї перевірки писала `"query" in params["properties"]`,
-і мутація з `access` проходила її наскрізь. Перевірка була зеленою, властивість — зламаною.
+The difference is not pedantry. The first version of this check said `"query" in
+params["properties"]`, and the mutation adding `access` sailed straight through it. The check
+was green, the property was broken.
 
-Тепер спробуй наступний крок: змусь модель передати `access="internal"` (у `run.py` можна
-підмінити сценарій). Валідатор етапу 1 має відхилити зайвий аргумент через
-`additionalProperties: false` — переконайся, що відхиляє **до** виклику функції, а не після.
+Now try the next step: make the model pass `access="internal"` (you can swap the script in
+`run.py`). Stage 1's validator should reject the extra argument via
+`additionalProperties: false` — make sure it rejects it **before** the function is called, not
+after.
 </details>
 
 ---
 
-## Вправа 6 — Вимкни перекриття фрагментів
+## Exercise 6 — Turn off fragment overlap
 
-**Складність:** легко · **Час:** 10 хв
+**Difficulty:** easy · **Time:** 10 min
 
-У [`chunk.py`](chunk.py) заміни `step = size - overlap` на `step = size`.
+In [`chunk.py`](chunk.py) replace `step = size - overlap` with `step = size`.
 
 <details>
-<summary>Що відбувається</summary>
+<summary>What happens</summary>
 
-Червоніють **три** перевірки, і третя цікавіша за перші дві:
+**Three** checks go red, and the third is more interesting than the first two:
 
 ```
 FAILURE · chunk: перекриття не плодить фрагмент, цілком вкладений у попередній
@@ -218,25 +225,25 @@ chunk: перекриття зберігає думку, що припала н�
 kb: пастка AC-05 справді пастка — без фільтра внутрішній виграє
 ```
 
-Перша й друга очевидні.
+The first two are obvious.
 
-Третя — ні: без перекриття зміст фрагментів перерозподілився так, що
-внутрішній документ **перестав вигравати** за близькістю на питання про суму повернення.
+The third is not: without overlap the content of the fragments was redistributed such that the
+internal document **stopped winning** on closeness for the question about the refund amount.
 
-Це означає, що вправа зламала не лише нарізку, а й **фікстуру**, на якій тримається перевірка
-фільтра доступу. Якби тієї перевірки-фікстури не було, AC-05 і далі був би зеленим — але
-перевіряв би вже збіг обставин, а не механізм: внутрішній документ не потрапляє у видачу не
-тому, що його відфільтрували, а тому, що він і не був найближчим.
+Which means the exercise broke not only the chunking but also the **fixture** the access-filter
+check rests on. Had that fixture check not existed, AC-05 would still be green — but it would be
+checking a coincidence rather than a mechanism: the internal document does not appear in the
+results not because it was filtered out but because it was never the closest in the first place.
 
-**Мораль:** перевірка, яка стверджує, що дані все ще влаштовані як задумано, виглядає зайвою
-рівно доти, доки не врятує.
+**The moral:** a check asserting that the data is still arranged the way it was meant to be looks
+redundant right up until it saves you.
 </details>
 
 ---
 
-## Вправа 7 — Постав справжні ембеддинги
+## Exercise 7 — Switch to real embeddings
 
-**Складність:** середньо · **Час:** 30 хв · **Без ключа до API**
+**Difficulty:** medium · **Time:** 30 min · **No API key needed**
 
 ```bash
 pip install -e ".[embed]"
@@ -244,43 +251,46 @@ pip install -e ".[embed]"
 python -m stages.s02_rag.run
 ```
 
-Порівняй сцену 1 з тим, що бачив раніше. Питання «як оформити відмову від покупки» досі не
-знаходить політику повернень — чи вже знаходить?
+Compare scene 1 with what you saw before. Does "як оформити відмову від покупки" still fail to
+find the returns policy — or does it find it now?
 
 <details>
-<summary>Про що тут думати</summary>
+<summary>What to think about</summary>
 
-Головне не «стало краще», а **що саме змінилось і на скільки**. Запиши обидва набори чисел.
+The point is not "it got better" but **what exactly changed and by how much**. Write down both
+sets of numbers.
 
-Друге питання, важливіше: скільки перевірок стало червоними? Числа в них зашиті під хеш за
-словами. Це не недогляд — це чесна ціна детермінованої фікстури, і її варто побачити перед
-тим, як писати перевірки, зав'язані на конкретні оцінки близькості.
+The second, more important question: how many checks went red? Their numbers are pinned to the
+word hash. That is not an oversight — it is the honest price of a deterministic fixture, and it
+is worth seeing before you write checks tied to specific similarity scores.
 
-Третє: `fastembed` тягне модель на диск і перший запуск помітно довший. Порівняй час
-`python -m stages.s02_rag.check` до і після. Це та сама ціна, яку заплатить продакшн на
-кожному холодному старті.
+Third: `fastembed` pulls a model onto disk and the first run is noticeably longer. Compare the
+time of `python -m stages.s02_rag.check` before and after. That is the same price production
+pays on every cold start.
 </details>
 
 ---
 
-## Вправа 8 — Наріж за заголовками, а не за словами
+## Exercise 8 — Split on headings instead of on words
 
-**Складність:** складно · **Час:** 60 хв
+**Difficulty:** hard · **Time:** 60 min
 
-Зараз [`chunk.py`](chunk.py) ріже за кількістю слів, і межа фрагмента може впасти посеред
-речення. Напиши альтернативу, яка ріже за заголовками markdown, і порівняй видачу.
+Right now [`chunk.py`](chunk.py) cuts by word count, and a fragment boundary can land in the
+middle of a sentence. Write an alternative that splits on markdown headings and compare the
+results.
 
 <details>
-<summary>Про що тут думати</summary>
+<summary>What to think about</summary>
 
-Ця вправа свідомо не має еталонного розв'язку: вона перетворює модуль на парсер markdown, і
-саме тому в основній реалізації її немає (записано в SAD §11 як прийнятий ризик).
+This exercise deliberately has no reference solution: it turns the module into a markdown
+parser, which is exactly why the main implementation does not have it (recorded in SAD §11 as an
+accepted risk).
 
-Що варто зміряти, а не вгадати:
-- чи зросла оцінка топ-1 на дослівному питанні;
-- що сталося з `tiny.md` — документом із одного речення;
-- чи не з'явилися фрагменти, надто великі для вікна контексту.
+What is worth measuring rather than guessing:
+- did the top-1 score on the literal question go up;
+- what happened to `tiny.md`, the one-sentence document;
+- did any fragments appear that are too large for the context window.
 
-Нарізка за структурою майже завжди краща — але «майже завжди» це не «завжди», і різниця
-видно тільки на числах.
+Splitting on structure is almost always better — but "almost always" is not "always", and the
+difference is only visible in the numbers.
 </details>
