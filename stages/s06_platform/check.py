@@ -397,6 +397,9 @@ RECORDED_EDITS: dict[str, str] = {
     # тут не виняток, а наслідок — DECISION.md звіряється з рядками правил дослівно, тож
     # проза не може стати англійською, поки правила лишаються українськими.
     "stages/s05_memory/README.md": ENGLISH_MOVE,
+    # Урок етапу 5 став англійським, тож англійська карта того самого стала другою
+    # головною сторінкою того ж — ADR-0008 наказує видалити її, а не тримати паралельно.
+    "stages/s05_memory/README.en.md": ENGLISH_MOVE,
     "stages/s05_memory/CHECKLIST.md": ENGLISH_MOVE,
     "stages/s05_memory/DECISION.md": ENGLISH_MOVE,
     "stages/s05_memory/exercises.md": ENGLISH_MOVE,
@@ -1554,7 +1557,7 @@ def check_the_lesson_numbers_match_the_suite() -> None:
     failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
     here = Path(__file__).parent
     sentence = f"{total} checks, {failures} of them on failure modes"
-    for name in ("README.md", "CHECKLIST.md", "README.en.md"):
+    for name in ("README.md", "CHECKLIST.md"):
         page = (here / name).read_text(encoding="utf-8")
         assert sentence in page, (
             f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
@@ -1566,7 +1569,6 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
     """FAILURE · урок: розміри модулів у прозі — обчислені, а не переписані"""
     here = Path(__file__).parent
     lesson = (here / "README.md").read_text(encoding="utf-8")
-    english = (here / "README.en.md").read_text(encoding="utf-8")
 
     for module, budget in (("app", 120), ("guards", 100)):
         require_intact_source(f"{module}.py")
@@ -1574,7 +1576,6 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
         assert f"`{module}.py` — {lines} of {budget}" in lesson, (
             f"{module}.py має {lines} виконуваних рядків — урок називає інше число"
         )
-        assert f"| {lines} / {budget} |" in english, f"README.en.md відстав: {module}"
 
 
 def check_the_exercises_are_generated_from_the_pinned_mutations() -> None:
@@ -1611,7 +1612,6 @@ def check_every_reader_file_exists() -> None:
     here = Path(__file__).parent
     for name in (
         "README.md",
-        "README.en.md",
         "exercises.md",
         "CHECKLIST.md",
         "DECISION.md",

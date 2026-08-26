@@ -234,7 +234,8 @@ The walkthrough is in the same place.
 ## Numbers
 
 **42 checks, 27 of them on failure modes.** Modules: `long_term.py` — 79 of 90 lines allowed,
-`short_term.py` — 37 of 50. The suite runs in under a second: not a single check here spawns a
+`short_term.py` — 37 of 50, and the three without a budget: `facts.py` — 56, `retrieval.py` — 35,
+`decision.py` — 22. The suite runs in under a second: not a single check here spawns a
 process or goes to the network.
 
 ## Next

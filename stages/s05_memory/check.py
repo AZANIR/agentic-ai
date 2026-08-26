@@ -819,7 +819,7 @@ def check_the_lesson_numbers_match_the_suite() -> None:
     failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
     here = Path(__file__).parent
     sentence = f"{total} checks, {failures} of them on failure modes"
-    for name in ("README.md", "CHECKLIST.md", "README.en.md"):
+    for name in ("README.md", "CHECKLIST.md"):
         page = (here / name).read_text(encoding="utf-8")
         assert sentence in page, (
             f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
@@ -831,27 +831,24 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
     """FAILURE · урок: розміри модулів у прозі — обчислені, а не переписані"""
     here = Path(__file__).parent
     lesson = (here / "README.md").read_text(encoding="utf-8")
-    english = (here / "README.en.md").read_text(encoding="utf-8")
 
-    # Бюджет мають двоє, число в таблиці — усі пʼять. Попередня редакція звіряла лише
-    # ті два, і три числа дрейфували мовчки: рівно той клас вади, який перевірка й
-    # мала закрити. Модуль без бюджету теж має правдиве число.
+    # Budget belongs to two modules; a true number belongs to all five. An earlier edition
+    # checked only the budgeted pair and three numbers drifted silently — exactly the class of
+    # defect this check exists against. The other three named their sizes only in the English
+    # map, and deleting that map (ADR-0008) nearly lost them again: the lesson now carries all
+    # five, so all five are checked here.
     for module, budget in (
-        ("facts", None),
         ("short_term", 50),
-        ("retrieval", None),
         ("long_term", 90),
+        ("facts", None),
+        ("retrieval", None),
         ("decision", None),
     ):
         require_intact_source(f"{module}.py")
         lines = _executable_lines(f"{module}.py")
-        if budget is not None:
-            assert f"`{module}.py` — {lines} of {budget}" in lesson, (
-                f"{module}.py має {lines} виконуваних рядків — урок називає інше число"
-            )
-        shown = f"{lines} / {budget}" if budget else f"| {lines} |"
-        assert shown in english, (
-            f"README.en.md відстав: {module}.py = {lines}, у таблиці немає {shown!r}"
+        shown = f"`{module}.py` — {lines} of {budget}" if budget else f"`{module}.py` — {lines}"
+        assert shown in lesson, (
+            f"{module}.py has {lines} executable lines — the lesson names a different number"
         )
 
 

@@ -1010,7 +1010,7 @@ def check_the_lesson_numbers_match_the_suite() -> None:
     total = len(CHECKS)
     failures = sum(1 for c in CHECKS if (c.__doc__ or "").startswith("FAILURE"))
     sentence = f"{total} checks, {failures} of them on failure modes"
-    for name in ("README.md", "CHECKLIST.md", "README.en.md"):
+    for name in ("README.md", "CHECKLIST.md"):
         page = (HERE / name).read_text(encoding="utf-8")
         assert sentence in page, (
             f"{name} не містить рядка {sentence!r} — проза розійшлася з тим, що друкує "
@@ -1028,16 +1028,14 @@ def check_the_lesson_numbers_match_the_measurements() -> None:
         require_intact_source(module)
 
     lesson = (HERE / "README.md").read_text(encoding="utf-8")
-    english = (HERE / "README.en.md").read_text(encoding="utf-8")
 
     batched = _run_batch().timing
     stream, _ = _run_stream()
     ratio = batched.first_audio / stream.timing.first_audio
 
-    for page, name in ((lesson, "README.md"), (english, "README.en.md")):
-        assert f"{batched.first_audio:.0f}" in page, f"{name}: числа батчу немає"
-        assert f"{stream.timing.first_audio:.0f}" in page, f"{name}: числа стрімінгу немає"
-        assert f"{ratio:.1f}" in page, f"{name}: відношення {ratio:.1f} немає"
+    assert f"{batched.first_audio:.0f}" in lesson, "README.md: числа батчу немає"
+    assert f"{stream.timing.first_audio:.0f}" in lesson, "README.md: числа стрімінгу немає"
+    assert f"{ratio:.1f}" in lesson, f"README.md: відношення {ratio:.1f} немає"
 
     for step in batched.steps:
         assert f"{step.millis:.0f}" in lesson, f"кроку {step.name} немає в уроці"
@@ -1081,7 +1079,6 @@ def check_every_reader_file_exists() -> None:
     """матеріали: урок, карта, вправи, чеклісти й розвʼязок на місці"""
     for name in (
         "README.md",
-        "README.en.md",
         "exercises.md",
         "CHECKLIST.md",
         "DECISION.md",

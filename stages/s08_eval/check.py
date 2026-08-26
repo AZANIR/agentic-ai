@@ -852,7 +852,6 @@ def check_the_lesson_numbers_match_the_suite() -> None:
         require_intact_source(name)
 
     lesson = (HERE / "README.md").read_text(encoding="utf-8")
-    english = (HERE / "README.en.md").read_text(encoding="utf-8")
     checklist = (HERE / "CHECKLIST.md").read_text(encoding="utf-8")
     pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
 
@@ -861,9 +860,8 @@ def check_the_lesson_numbers_match_the_suite() -> None:
     )
     edge = sum(1 for case in CASES if case.edge)
 
-    for page in (lesson, english):
-        assert f"{len(CHECKS)} " in page, f"кількість перевірок ({len(CHECKS)}) не названа"
-        assert f"{failures} " in page, f"кількість режимів відмови ({failures}) не названа"
+    assert f"{len(CHECKS)} " in lesson, f"кількість перевірок ({len(CHECKS)}) не названа"
+    assert f"{failures} " in lesson, f"кількість режимів відмови ({failures}) не названа"
     flat = re.sub(r"\s+", " ", checklist)
     assert f"{len(CHECKS)} checks, {failures} of them on failure modes" in flat, (
         "чекліст називає інші числа, ніж дає набір"
@@ -902,7 +900,6 @@ def check_the_lesson_numbers_match_the_suite() -> None:
 def check_the_lesson_line_counts_match_the_modules() -> None:
     """FAILURE · урок: розміри модулів у прозі — обчислені (NFR-1)"""
     lesson = (HERE / "README.md").read_text(encoding="utf-8")
-    english = (HERE / "README.en.md").read_text(encoding="utf-8")
 
     for name in IMPLEMENTATION:
         require_intact_source(name)
@@ -910,7 +907,6 @@ def check_the_lesson_line_counts_match_the_modules() -> None:
         assert f"`{lines} of {LINE_BUDGET}`" in lesson, (
             f"{name} має {lines} виконуваних рядків — урок називає інше число"
         )
-        assert f"| {lines} |" in english, f"{name}: карта називає інший розмір, ніж {lines}"
 
 
 def check_the_exercises_match_the_pinned_mutations() -> None:
@@ -940,7 +936,6 @@ def check_every_reader_file_exists() -> None:
     """матеріали: урок, карта, вправи, чеклісти й розвʼязок на місці"""
     for name in (
         "README.md",
-        "README.en.md",
         "exercises.md",
         "CHECKLIST.md",
         "DECISION.md",

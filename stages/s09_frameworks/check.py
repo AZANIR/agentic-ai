@@ -714,7 +714,6 @@ def check_the_lesson_numbers_match_the_bench() -> None:
         require_intact_source(name)
 
     lesson = (HERE / "README.md").read_text(encoding="utf-8")
-    english = (HERE / "README.en.md").read_text(encoding="utf-8")
     checklist = (HERE / "CHECKLIST.md").read_text(encoding="utf-8")
     pinned = json.loads((HERE / "mutations.json").read_text(encoding="utf-8"))["mutations"]
 
@@ -725,8 +724,7 @@ def check_the_lesson_numbers_match_the_bench() -> None:
     assert f"checks: {len(CHECKS)}, of them on failure modes: {failures}" in flat, (
         "чекліст називає інші числа, ніж дає набір"
     )
-    for page in (lesson, english):
-        assert f"{len(CHECKS)} " in page and f"{failures} " in page, (len(CHECKS), failures)
+    assert f"{len(CHECKS)} " in lesson and f"{failures} " in lesson, (len(CHECKS), failures)
 
     # Розміри модулів — обчислені.
     for name in IMPLEMENTATION:
@@ -734,7 +732,6 @@ def check_the_lesson_numbers_match_the_bench() -> None:
         assert f"`{lines} of {LINE_BUDGET}`" in lesson, (
             f"{name} має {lines} виконуваних рядків — урок називає інше число"
         )
-        assert f"| {lines} |" in english, f"{name}: карта називає інший розмір, ніж {lines}"
 
     # Головні числа таблиці — теж вимір, а не проза.
     # Диз'юнкцій тут немає навмисно: `X in lesson or str(X) in lesson` тримається правою
@@ -805,7 +802,6 @@ def check_every_reader_file_exists() -> None:
     """матеріали: урок, карта, вправи, чеклісти й розвʼязок на місці"""
     for name in (
         "README.md",
-        "README.en.md",
         "exercises.md",
         "CHECKLIST.md",
         "DECISION.md",

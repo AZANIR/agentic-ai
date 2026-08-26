@@ -647,9 +647,8 @@ def check_the_lesson_numbers_come_from_the_run() -> None:
 
 def check_the_lesson_fits_the_word_budget() -> None:
     """бюджет: урок вкладається у стелю слів (NFR-3)"""
-    for name in ("README.md", "README.en.md"):
-        words = len((HERE / name).read_text(encoding="utf-8").split())
-        assert words <= WORD_BUDGET, f"{name}: {words} > {WORD_BUDGET} слів"
+    words = len((HERE / "README.md").read_text(encoding="utf-8").split())
+    assert words <= WORD_BUDGET, f"README.md: {words} > {WORD_BUDGET} слів"
 
 
 def check_a_missing_load_tool_yields_not_evaluated_never_a_failure() -> None:
