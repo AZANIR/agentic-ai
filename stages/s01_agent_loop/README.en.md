@@ -1,7 +1,7 @@
 # Stage 1 — The agent loop
 
 > The full lesson is in Ukrainian: [README.md](README.md). This page is the map.
-> Stage article: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/01-three_guards_every_agent_loop_needs)
+> Stage article: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/three_guards_every_agent_loop_needs)
 
 ## What it is
 

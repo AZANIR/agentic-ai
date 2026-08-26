@@ -44,16 +44,16 @@ tool-call, state graph, MCP, barge-in чи LLM-as-judge — і саме тому
 
 | # | Етап | Що будуєш | Стаття |
 |---|------|-----------|--------|
-| 1 ✅ | [Agent loop](stages/s01_agent_loop/README.md) | ReAct-цикл з нуля, без фреймворку | [#1](https://artstroy.net/articles/01-three_guards_every_agent_loop_needs) |
-| 2 | RAG | embed → cosine → top-k → відповідь із цитатою | [#2](https://artstroy.net/articles/02-your_rag_leak_test_is_green) |
-| 3 | Router | Свій міні-граф, потім LangGraph | [#3](https://artstroy.net/articles/03-the_bug_that_breaks_nothing) |
-| 4 | MCP | FastMCP-сервер і клієнт | [#4](https://artstroy.net/articles/04-the_tool_description_you_did_not_write) |
-| 5 | Memory | extract → store → retrieve, семантичний пошук | [#5](https://artstroy.net/articles/05-nothing_leaked_the_answer_disappeared) |
-| 6 | Platform | **Перший деплой:** FastAPI + HTTPS + метрики | [#6](https://artstroy.net/articles/06-the_bugs_only_deploying_finds) |
-| 7 | Voice | Батч проти стріму, barge-in, вимірювання | [#7](https://artstroy.net/articles/07-your_streaming_benchmark_measures_two_things) |
-| 8 | Evaluation | Оцінка на 3 рівнях поверх трейсів | [#8](https://artstroy.net/articles/08-the_detector_that_always_finds_it) |
-| 9 | Frameworks | Один таск трьома фреймворками | [#9](https://artstroy.net/articles/09-less_code_is_half_an_argument) |
-| 10 | Capstone | **Другий деплой:** усе разом, під навантаженням | [#10](https://artstroy.net/articles/10-your_import_list_is_not_proof) |
+| 1 ✅ | [Agent loop](stages/s01_agent_loop/README.md) | ReAct-цикл з нуля, без фреймворку | [#1](https://artstroy.net/articles/three_guards_every_agent_loop_needs) |
+| 2 | RAG | embed → cosine → top-k → відповідь із цитатою | [#2](https://artstroy.net/articles/your_rag_leak_test_is_green) |
+| 3 | Router | Свій міні-граф, потім LangGraph | [#3](https://artstroy.net/articles/the_bug_that_breaks_nothing) |
+| 4 | MCP | FastMCP-сервер і клієнт | [#4](https://artstroy.net/articles/the_tool_description_you_did_not_write) |
+| 5 | Memory | extract → store → retrieve, семантичний пошук | [#5](https://artstroy.net/articles/nothing_leaked_the_answer_disappeared) |
+| 6 | Platform | **Перший деплой:** FastAPI + HTTPS + метрики | [#6](https://artstroy.net/articles/the_bugs_only_deploying_finds) |
+| 7 | Voice | Батч проти стріму, barge-in, вимірювання | [#7](https://artstroy.net/articles/your_streaming_benchmark_measures_two_things) |
+| 8 | Evaluation | Оцінка на 3 рівнях поверх трейсів | [#8](https://artstroy.net/articles/the_detector_that_always_finds_it) |
+| 9 | Frameworks | Один таск трьома фреймворками | [#9](https://artstroy.net/articles/less_code_is_half_an_argument) |
+| 10 | Capstone | **Другий деплой:** усе разом, під навантаженням | [#10](https://artstroy.net/articles/your_import_list_is_not_proof) |
 
 Детальніше — у [CURRICULUM.md](CURRICULUM.md).
 

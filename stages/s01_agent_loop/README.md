@@ -1,6 +1,6 @@
 # Етап 1 — Цикл агента
 
-> Стаття етапу: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/01-three_guards_every_agent_loop_needs)
+> Стаття етапу: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/three_guards_every_agent_loop_needs)
 > · [English summary](README.en.md) · [Вправи](exercises.md) · [Чекліст](CHECKLIST.md)
 
 ## Що ти зможеш після цього етапу

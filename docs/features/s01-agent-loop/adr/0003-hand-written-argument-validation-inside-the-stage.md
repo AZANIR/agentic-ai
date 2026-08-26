@@ -74,5 +74,5 @@ ticket: "n/a"
 
 - Спека: [[../spec.md]] AC-03, §6 (розмір модуля валідації)
 - SAD: [[../sad.md]] §4, §5, §8, §11
-- Стаття етапу: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/01-three_guards_every_agent_loop_needs) — режим відмови 2
+- Стаття етапу: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/three_guards_every_agent_loop_needs) — режим відмови 2
 - Пов'язані ADR: [[0001-split-stage-into-four-responsibility-modules]]

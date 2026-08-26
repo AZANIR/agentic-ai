@@ -69,5 +69,5 @@ ticket: "n/a"
 
 - Спека: [[../spec.md]] AC-04, §6.1 (abuse cases)
 - SAD: [[../sad.md]] §4, §6 (flow 2), §8
-- Стаття етапу: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/01-three_guards_every_agent_loop_needs) — режим відмови 3
+- Стаття етапу: [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/three_guards_every_agent_loop_needs) — режим відмови 3
 - Пов'язані ADR: [[0001-split-stage-into-four-responsibility-modules]]

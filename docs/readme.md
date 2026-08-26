@@ -10,16 +10,16 @@ today.
 
 | # | Stage | Article |
 |---|-------|---------|
-| 1 | [Agent loop](../stages/s01_agent_loop/) | [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/01-three_guards_every_agent_loop_needs) |
-| 2 | [RAG](../stages/s02_rag/) | [Your RAG Leak Test Is Green](https://artstroy.net/articles/02-your_rag_leak_test_is_green) |
-| 3 | [Router](../stages/s03_router/) | [The Bug That Breaks Nothing](https://artstroy.net/articles/03-the_bug_that_breaks_nothing) |
-| 4 | [MCP](../stages/s04_mcp/) | [The Tool Description You Did Not Write](https://artstroy.net/articles/04-the_tool_description_you_did_not_write) |
-| 5 | [Memory](../stages/s05_memory/) | [Nothing Leaked, the Answer Disappeared](https://artstroy.net/articles/05-nothing_leaked_the_answer_disappeared) |
-| 6 | [Platform](../stages/s06_platform/) | [The Bugs Only Deploying Finds](https://artstroy.net/articles/06-the_bugs_only_deploying_finds) |
-| 7 | [Voice](../stages/s07_voice/) | [Your Streaming Benchmark Measures Two Things](https://artstroy.net/articles/07-your_streaming_benchmark_measures_two_things) |
-| 8 | [Evaluation](../stages/s08_eval/) | [The Detector That Always Finds It](https://artstroy.net/articles/08-the_detector_that_always_finds_it) |
-| 9 | [Frameworks](../stages/s09_frameworks/) | [Less Code Is Half an Argument](https://artstroy.net/articles/09-less_code_is_half_an_argument) |
-| 10 | [Capstone](../stages/s10_capstone/) | [Your Import List Is Not Proof](https://artstroy.net/articles/10-your_import_list_is_not_proof) |
+| 1 | [Agent loop](../stages/s01_agent_loop/) | [Three Guards Every Agent Loop Needs](https://artstroy.net/articles/three_guards_every_agent_loop_needs) |
+| 2 | [RAG](../stages/s02_rag/) | [Your RAG Leak Test Is Green](https://artstroy.net/articles/your_rag_leak_test_is_green) |
+| 3 | [Router](../stages/s03_router/) | [The Bug That Breaks Nothing](https://artstroy.net/articles/the_bug_that_breaks_nothing) |
+| 4 | [MCP](../stages/s04_mcp/) | [The Tool Description You Did Not Write](https://artstroy.net/articles/the_tool_description_you_did_not_write) |
+| 5 | [Memory](../stages/s05_memory/) | [Nothing Leaked, the Answer Disappeared](https://artstroy.net/articles/nothing_leaked_the_answer_disappeared) |
+| 6 | [Platform](../stages/s06_platform/) | [The Bugs Only Deploying Finds](https://artstroy.net/articles/the_bugs_only_deploying_finds) |
+| 7 | [Voice](../stages/s07_voice/) | [Your Streaming Benchmark Measures Two Things](https://artstroy.net/articles/your_streaming_benchmark_measures_two_things) |
+| 8 | [Evaluation](../stages/s08_eval/) | [The Detector That Always Finds It](https://artstroy.net/articles/the_detector_that_always_finds_it) |
+| 9 | [Frameworks](../stages/s09_frameworks/) | [Less Code Is Half an Argument](https://artstroy.net/articles/less_code_is_half_an_argument) |
+| 10 | [Capstone](../stages/s10_capstone/) | [Your Import List Is Not Proof](https://artstroy.net/articles/your_import_list_is_not_proof) |
 
 ## How the numbers in an article are kept honest
 
